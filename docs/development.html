@@ -202,7 +202,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
   <li><b>实现</b>：块式组织，<code>///|</code> 分隔，每块带一句话文档注释说明「为什么」。</li>
   <li><b>验证链</b>：<code>moon fmt && moon check && moon test && moon info</code>，然后检查 <code>.mbti</code> diff——<b>接口变化必须是预期内的</b>，意外的 diff 说明改坏了边界。</li>
   <li><b>提交</b>：一次提交一个里程碑，消息格式 <span class="mono">S&lt;n&gt;: &lt;一句话&gt;</span>，正文列改动点 + 验收证据（测试数、对拍结果）。</li>
-  <li><b>更新本手册</b>：§02 快照行数/状态、§04 状态 chip、§07 探活日志。</li>
+  <li><b>更新跟进文档</b>：<code>docs/PROGRESS.md</code>（跨会话状态源：§1 快照、§2 里程碑、§3 会话日志）与本手册 §02/§04/§07。</li>
 </ol>
 
 <div class="note"><b>规模红线</b>：单步新增代码超过计划规模 1.5 倍（如 S1 超过 ~220 行）即视为范围蔓延——停下来检查是不是把下一步的活提前做了，砍回去。</div>
@@ -301,7 +301,7 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
   证据来源：docs/research/mooncakes-competitors-survey.html（五竞品逐包核实）· docs/spike-notes.md（M0 实测）·
   docs/upstream-seams.md（接缝登记）· .mooncakes/moonbitlang/async 源码（types.mbt / server.mbt 行号）·
   moon search caldav/webdav/xml（2026-09-08）。
-  本手册提交于 S0 之后（0ab8978），随每个里程碑提交同步更新。
+  本手册提交于 S0 之后（0ab8978），随每个里程碑提交同步更新。跨会话进度与交接看 <code>docs/PROGRESS.md</code>（AGENTS.md 已约定开工先读、收工必更）。
 </footer>
 
 </div>
