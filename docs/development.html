@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>moon-ical 开发手册</title>
+<style>
+:root{
+  --bg:#fbfbfa; --surface:#ffffff; --ink:#1a1a18; --ink-2:#5f5e5a; --ink-3:#8b8983;
+  --line:#e3e1dc; --line-2:#cfccc5;
+  --accent:#2f5d50; --accent-soft:#e8f0ed;
+  --ok:#2f6b3a; --ok-soft:#e9f2ea; --part:#8a6d1a; --part-soft:#f6efdc;
+  --no:#a33a2f; --no-soft:#f7e9e7; --plan:#3a5da3; --plan-soft:#e8edf7;
+  --radius:10px; --mono:ui-monospace,"SFMono-Regular","JetBrains Mono",Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#16161a; --surface:#1e1e24; --ink:#e8e6e1; --ink-2:#a8a5a0; --ink-3:#7c7a75;
+    --line:#2c2c33; --line-2:#3d3d45; --accent:#7fc0ac; --accent-soft:#22302c;
+    --ok:#7fc08a; --ok-soft:#1f2c22; --part:#d9bb57; --part-soft:#2d2718;
+    --no:#e08a7f; --no-soft:#33201e; --plan:#8fb0e8; --plan-soft:#1f2635; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.68;-webkit-font-smoothing:antialiased}
+.wrap{max-width:min(96ch,100%);margin:0 auto;padding:0 22px 90px}
+header.top{padding:44px 0 24px;border-bottom:1px solid var(--line)}
+.kicker{font:600 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(24px,4vw,34px);line-height:1.22;margin:12px 0 10px;letter-spacing:-.01em;font-weight:650}
+.sub{color:var(--ink-2);font-size:16px;margin:0;max-width:76ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:18px;font:12.5px/1.5 var(--mono);color:var(--ink-3)}
+.meta b{color:var(--ink-2);font-weight:600}
+h2{font-size:21px;margin:50px 0 6px;letter-spacing:-.01em;font-weight:650;padding-top:22px;border-top:1px solid var(--line)}
+h2 .num{font:600 11px/1 var(--mono);color:var(--accent);letter-spacing:.12em;margin-right:10px}
+h3{font-size:17px;margin:28px 0 8px;font-weight:650}
+p{margin:8px 0}
+ul{margin:8px 0;padding-left:22px}
+li{margin:4px 0}
+a{color:var(--accent);text-underline-offset:2px;overflow-wrap: anywhere}
+code{font:13px/1.5 var(--mono);background:var(--accent-soft);padding:1px 5px;border-radius:5px}
+pre{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;overflow-x:auto;font:12.5px/1.6 var(--mono);margin:10px 0}
+pre code{background:none;padding:0}
+.tw{overflow-x:auto;margin:14px 0}
+table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--surface)}
+th,td{border:1px solid var(--line);padding:7px 10px;vertical-align:top;text-align:left}
+thead th{background:var(--accent-soft);font-weight:650;font-size:12.5px}
+td.c,th.c{text-align:center;font-family:var(--mono);white-space:nowrap}
+.chip{display:inline-block;font:600 11px/1.6 var(--mono);padding:1px 8px;border-radius:999px;white-space:nowrap}
+.chip.done{background:var(--ok-soft);color:var(--ok)}
+.chip.next{background:var(--accent-soft);color:var(--accent)}
+.chip.plan{background:var(--plan-soft);color:var(--plan)}
+.chip.risk{background:var(--part-soft);color:var(--part)}
+.chip.off{background:var(--no-soft);color:var(--no)}
+.note{margin:16px 0;padding:12px 16px;border:1px solid var(--line-2);border-left:3px solid var(--part);border-radius:0 var(--radius) var(--radius) 0;background:var(--surface);font-size:14px}
+.note b{color:var(--ink)}
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin:14px 0}
+.flow .node{flex:1 1 130px;min-width:125px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:10px 12px}
+.flow .node b{display:block;font:600 12.5px/1.4 var(--mono)}
+.flow .node span{display:block;font-size:12px;color:var(--ink-2);margin-top:3px;line-height:1.5}
+.flow .node .st{margin-top:6px}
+.flow .arrow{align-self:center;color:var(--ink-3);font:600 14px/1 var(--mono)}
+.toc{font-size:13.5px;columns:2;gap:24px;margin:18px 0 0;padding:0;list-style:none}
+.toc a{color:var(--ink-2);text-decoration:none}
+.toc a:hover{color:var(--accent)}
+footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12px/1.6 var(--mono);color:var(--ink-3)}
+.mono{font-family:var(--mono);font-size:.92em}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="kicker">moon-ical · 内部开发手册</div>
+  <h1>开发手册：iCal 解析库 + CalDAV 服务器</h1>
+  <p class="sub">本手册是项目的单一事实来源（single source of truth）：定位、进度、架构、里程碑、工程约定都在这里。每完成一个里程碑提交时同步更新 §02 快照与 §04 状态。</p>
+  <div class="meta">
+    <span>更新日期 <b>2026-09-08</b></span>
+    <span>基线 commit <b>0ab8978</b>（S0 清场完成）</span>
+    <span>工具链 <b>moon 0.1.20260827 / moonc v0.10.11</b>（<span class="mono">rr_moon_mod + rr_moon_pkg</span>）</span>
+    <span>依赖 <b>moonbitlang/async@0.21.2 · moonbitlang/x@0.5.1</b></span>
+    <span>状态 <b>moon check ✓ · moon test 60/60 ✓</b></span>
+  </div>
+</header>
+
+<ul class="toc">
+  <li><a href="#s01">01 定位与证据链</a></li>
+  <li><a href="#s02">02 进度快照</a></li>
+  <li><a href="#s03">03 架构与数据流</a></li>
+  <li><a href="#s04">04 里程碑阶梯 S0–S9</a></li>
+  <li><a href="#s05">05 每步工作流（Definition of Done）</a></li>
+  <li><a href="#s06">06 MoonBit 工程约定与踩坑清单</a></li>
+  <li><a href="#s07">07 上游接缝登记（活文档）</a></li>
+  <li><a href="#s08">08 明确不做（边界）</a></li>
+  <li><a href="#s09">09 风险与对策</a></li>
+  <li><a href="#s10">10 提交与验收映射</a></li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="s01"><span class="num">01</span>定位与证据链</h2>
+
+<p><b>一句话定位</b>：纯 MoonBit 的 iCalendar（RFC 5545）解析 / 重复事件展开库，长成 mooncakes.io 生态<b>第一个 CalDAV（RFC 4791）日历服务器</b>——把竞品停在「中段计算层」的流水线，接到「真实日历客户端可直连」的服务端。</p>
+
+<p>立项依据（申报书可直接引用，全部 2026-09-08 核实）：</p>
+<ul>
+  <li><b>生态空位</b>：mooncakes.io 检索 <code>caldav</code> / <code>webdav</code> / <code>webcal</code> / <code>calendar-import</code> 均返回 <span class="mono">No modules found</span>。</li>
+  <li><b>五家竞品全是离线库</b>：mooncal、mooncalguard、rrule_lab、moon-schedule、moonrrule 输入均为调用方喂好的字符串；mooncal 明言「不做 CalDAV 网络同步」「文件输入不属于 0.1.2 范围」。逐包核实见 <code>docs/research/mooncakes-competitors-survey.html</code>（§02 五道工序矩阵）。</li>
+  <li><b>评委口径</b>：2026-09-08 评委确认「CalDAV 这个选题没问题」。</li>
+  <li><b>业界参照</b>：Python 的 Radicale 证明「只实现到各家客户端能理解为止」的最小 CalDAV 服务端路线可行；vdir「一文件一项」是跨工具互认的存储约定。</li>
+</ul>
+
+<div class="note"><b>差异化旗帜（相对五竞品）</b>：① 端到端——从网络取件到客户端可连，而非纯计算库；② 真实数据——RFC 5545 附录 A 对拍 + 真实客户端联调矩阵，五家全部只用自造 fixture；③ RECURRENCE-ID 单实例改期合并——五家共同空白（调研矩阵 ④b 行）。</div>
+
+<!-- ============================================================ -->
+<h2 id="s02"><span class="num">02</span>进度快照</h2>
+
+<div class="tw"><table>
+  <thead><tr><th>包</th><th>内容</th><th class="c">实现行数</th><th class="c">测试</th><th>状态</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">ical/text</td><td>折行展开（§3.1）、内容行解析（引号参数）、文本反转义、带行号 <code>ParseError</code></td><td class="c">309</td><td class="c">20 用例</td><td><span class="chip done">已落地</span></td></tr>
+    <tr><td class="mono">ical/model</td><td>组件树（BEGIN/END 嵌套、未知组件保留）、<code>IcalDateTime</code>（UTC/floating/TZID/全天四态）、<code>ZoneTable</code>（固定偏移 + feed 内嵌 VTIMEZONE）</td><td class="c">653</td><td class="c">40 用例</td><td><span class="chip done">已落地</span></td></tr>
+    <tr><td class="mono">ical/rrule</td><td>RRULE 解析 + 展开（S2/S3/S8）</td><td class="c">—</td><td class="c">—</td><td><span class="chip plan">S2 起</span></td></tr>
+    <tr><td class="mono">ical/serialize</td><td>组件树 → .ics 文本（fold/escape）（S4）</td><td class="c">—</td><td class="c">—</td><td><span class="chip plan">S4</span></td></tr>
+    <tr><td class="mono">ical/store</td><td>vdir 文件存储（native <code>@fs</code>）（S5）</td><td class="c">—</td><td class="c">—</td><td><span class="chip plan">S5</span></td></tr>
+    <tr><td class="mono">ical/httpd</td><td>HTTP/1.1 请求层（手解析请求行，绕开 RequestMethod 枚举）+ WebDAV/CalDAV（S5/S6）</td><td class="c">—</td><td class="c">—</td><td><span class="chip plan">S5–S6</span></td></tr>
+  </tbody>
+</table></div>
+
+<p><b>合计</b>：实现 962 行 + 测试 508 行，60 个测试块全绿。git 历史五个提交：<span class="mono">2693713</span> M0 脚手架 → <span class="mono">ba31393</span> M1 解析核心 → <span class="mono">c41a4cf</span> M2 日期时间模型 → <span class="mono">0ab8978</span> S0 清场（模板/探针已删，README/moon.mod 已就位）。</p>
+
+<!-- ============================================================ -->
+<h2 id="s03"><span class="num">03</span>架构与数据流</h2>
+
+<p>请求自上而下流经六层，每层一个包、单向依赖；层与层之间只经公开接口（<code>.mbti</code>）通信：</p>
+
+<div class="flow">
+  <div class="node"><b>cal client</b><span>Thunderbird / DAVx5 / Apple 日历 / curl</span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>ical/httpd</b><span>HTTP/1.1 请求层：accept + 手解析请求行/头/体；响应复用 <code>@async</code> 的 <code>send_response</code><div class="st"><span class="chip plan">S5–S6</span></div></span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>WebDAV/CalDAV</b><span>PROPFIND / REPORT / MKCALENDAR / ETag；XML 用 <code>Milky2018/xml</code><div class="st"><span class="chip plan">S6</span></div></span></div>
+  <div class="arrow">→</div>
+  <div class="node"><b>ical/store</b><span>vdir：每事件一个 .ics 文件，目录即日历集合<div class="st"><span class="chip plan">S5</span></div></span></div>
+</div>
+<div class="flow">
+  <div class="node"><b>ical/serialize</b> · <span class="mono">serialize</span><span>组件树 → 折行 .ics 文本<div class="st"><span class="chip plan">S4</span></div></span></div>
+  <div class="arrow">←</div>
+  <div class="node"><b>ical/model</b> · <span class="mono">Component / IcalDateTime / ZoneTable</span><span>组件树 + 四态时间 + 偏移表<div class="st"><span class="chip done">已落地</span></div></span></div>
+  <div class="arrow">←</div>
+  <div class="node"><b>ical/text</b> · <span class="mono">unfold / parse_content_line</span><span>物理行 → 逻辑行 → 内容行<div class="st"><span class="chip done">已落地</span></div></span></div>
+</div>
+
+<h3>已落地包的公开接口（摘自 pkg.generated.mbti）</h3>
+<pre><code>ical/text:  unfold(String) -&gt; Array[String]
+            parse_content_line(String, Int) -&gt; ContentLine raise
+            unescape_value(String) -&gt; String
+            suberror ParseError::BadLine(line_no~, line~, message~)
+
+ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
+            parse_date_time(ContentLine, ZoneTable, line_no?) -&gt; IcalDateTime raise
+            parse_single_date_time(String, ZoneTable, line_no?) -&gt; IcalDateTime raise
+            parse_utc_offset(String, line_no~, raw~) -&gt; Int raise
+            build_zone_table(Array[Component]) -&gt; ZoneTable
+            Component::{property, properties_named}
+            IcalDateTime::{instant_seconds, is_utc, is_floating, compare}
+            ZoneTable::{empty, builtin_common, with_builtin, insert, lookup}</code></pre>
+
+<div class="note"><b>设计立场</b>：保真优先——未知组件/属性一律保留（竞品 mooncal 是固定字段清单）；时间四态显式建模；解析不了的输入带行号报错而不是静默吞掉。这三条是后续所有包必须继承的基线。</div>
+
+<!-- ============================================================ -->
+<h2 id="s04"><span class="num">04</span>里程碑阶梯 S0–S9</h2>
+
+<p>哲学：<b>每步一个最小目标 → 代码 + 测试 → 验收 → 一次提交</b>。单步超过半天就拆。任何一步卡住，先砍范围再加班。</p>
+
+<div class="tw"><table>
+  <thead><tr><th class="c">#</th><th>目标</th><th class="c">规模</th><th>验收（过不了的验收不算完成）</th><th class="c">状态</th></tr></thead>
+  <tbody>
+    <tr><td class="c">S0</td><td>清场：删模板/探针，README/moon.mod 就位，登记接缝</td><td class="c">0 行</td><td><code>moon check && moon test</code> 全绿，工作区干净</td><td><span class="chip done">完成 0ab8978</span></td></tr>
+    <tr><td class="c">S1</td><td>类型化事件层：<code>Event</code> 结构 + <code>Component::events()</code>（映射层，无新算法）</td><td class="c">~150</td><td>demo 读本地 fixture .ics 打印事件清单</td><td><span class="chip next">下一步</span></td></tr>
+    <tr><td class="c">S2</td><td>RRULE 解析（不展开）：第一档子句 → <code>Rule</code>；不支持子句显式报错</td><td class="c">~200</td><td>graham 32 个用例的 rule 串全部按档位解析或报错</td><td><span class="chip plan">计划</span></td></tr>
+    <tr><td class="c">S3</td><td>第一档展开：DAILY/WEEKLY/MONTHLY + INTERVAL/COUNT/UNTIL/BYDAY(无offset)/BYMONTHDAY(正) + DTSTART 回退特例</td><td class="c">~400</td><td>RFC 附录 A 第一档 ~20 用例对拍全绿（语料：<code>.survey/src/graham_rrule/basic_test.go</code>）</td><td><span class="chip plan">计划</span></td></tr>
+    <tr><td class="c">S4</td><td>iCalendar 序列化写回：fold(75字符)/escape/组件树→ics（CalDAV 响应体就是它，故提前）</td><td class="c">~200</td><td>parse → serialize → parse 往返不变</td><td><span class="chip plan">计划</span></td></tr>
+    <tr><td class="c">S5</td><td>HTTP/1.1 请求层 + vdir 存储：accept + 手解析请求行/头/Content-Length 体；OPTIONS/GET/PUT/DELETE</td><td class="c">~350</td><td>curl 完成事件 PUT/GET/DELETE 往返，ETag 正确变化；chunked 请求回 411</td><td><span class="chip plan">计划</span></td></tr>
+    <tr><td class="c">S6</td><td>WebDAV/CalDAV 核心：PROPFIND(Depth 0/1)、REPORT(calendar-query/multiget)、MKCALENDAR、well-known 重定向、发现链、If-Match/If-None-Match</td><td class="c">~450</td><td>curl 模拟 Thunderbird 发现链 + REPORT 序列全绿（录成集成测试）</td><td><span class="chip plan">计划</span></td></tr>
+    <tr><td class="c">S7</td><td>真实客户端联调：Thunderbird → DAVx5 → Apple 日历，逐个接入增删改查</td><td class="c">0.5–1 天</td><td>≥1 个真实客户端完整走通；产出互操作矩阵（客户端 × 操作 × 结果）</td><td><span class="chip plan">demo 高潮</span></td></tr>
+    <tr><td class="c">S8</td><td>库层深度：RECURRENCE-ID 覆盖合并（改期/取消/THISANDFUTURE）+ 第二档 BY*（BYSETPOS/WKST/序数 BYDAY/负 BYMONTHDAY）+ ZoneTable 接入展开链</td><td class="c">~500–700</td><td>附录 A 全 32 用例按档位通过；RECURRENCE-ID 合并用例通过</td><td><span class="chip plan">计划</span></td></tr>
+    <tr><td class="c">S9</td><td>发布打磨：CI（check/test --target all + fmt + info）、mooncakes 发布、申报书、根包 re-export 门面、互操作矩阵进 README</td><td class="c">0.5 天</td><td>CI 绿、<code>moon publish</code> 成功、申报书一页</td><td><span class="chip plan">计划</span></td></tr>
+  </tbody>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="s05"><span class="num">05</span>每步工作流（Definition of Done）</h2>
+
+<p>每个里程碑严格走同一循环，禁止「先写一大坨再补测试」：</p>
+<ol>
+  <li><b>写测试先行或同步</b>：每块新行为至少一个 <code>assert_eq</code> / <code>assert_true(pattern is …)</code> 级别的断言测试；边界（空输入、畸形输入、行号）必须覆盖。</li>
+  <li><b>实现</b>：块式组织，<code>///|</code> 分隔，每块带一句话文档注释说明「为什么」。</li>
+  <li><b>验证链</b>：<code>moon fmt && moon check && moon test && moon info</code>，然后检查 <code>.mbti</code> diff——<b>接口变化必须是预期内的</b>，意外的 diff 说明改坏了边界。</li>
+  <li><b>提交</b>：一次提交一个里程碑，消息格式 <span class="mono">S&lt;n&gt;: &lt;一句话&gt;</span>，正文列改动点 + 验收证据（测试数、对拍结果）。</li>
+  <li><b>更新本手册</b>：§02 快照行数/状态、§04 状态 chip、§07 探活日志。</li>
+</ol>
+
+<div class="note"><b>规模红线</b>：单步新增代码超过计划规模 1.5 倍（如 S1 超过 ~220 行）即视为范围蔓延——停下来检查是不是把下一步的活提前做了，砍回去。</div>
+
+<!-- ============================================================ -->
+<h2 id="s06"><span class="num">06</span>MoonBit 工程约定与踩坑清单</h2>
+
+<p>新格式（<span class="mono">rr_moon_mod + rr_moon_pkg</span>）下的硬规则，违反即编译失败或静默 bug：</p>
+<ul>
+  <li><b>导入只写 moon.pkg</b>：<code>import { "moonbitlang/async/http" @http }</code> 写在所在目录的 <code>moon.pkg</code>；<code>.mbt</code> 文件里写 <code>import "..."</code> 是硬错误（3001/3002）。测试专用导入用 <code>import { … } for "test"</code>。</li>
+  <li><b>可抛错误类型</b>：<code>pub(all) suberror Name { Ctor(field~ : Type) }</code>；<code>Error</code> 是内建 opaque 类型不是 trait，<code>impl Error for X</code> 必失败。展示用 <code>pub impl Show for Name with fn output(...)</code>。</li>
+  <li><b>带标签字段两头都要带</b>：构造 <code>Ctor(a=1, b=2)</code>，匹配 <code>Ctor(a=x, b=y)</code>；位置式会报 requires 0 positional arguments。</li>
+  <li><b>区间</b>：<code>a..&lt;b</code>（右开）/ <code>a..=b</code>（闭）；<code>for</code> 头写坏会在下游报假错误（unbound identifier / 类型不匹配）——先修 for 头。</li>
+  <li><b>不要 <code>String::trim()</code> 接 <code>StringView::data()</code></b>：<code>data()</code> 返回整个原串不是切片，trim 会静默消失。用 <code>String::from_array(s.to_array()[i:j])</code> 或手写字符数组裁剪（<code>ical/text/content_line.mbt</code> 里的 <code>trim_ascii</code> 就是这么写的）。</li>
+  <li><b>API 拿不准先查</b>：<code>moon ide doc "Type::method"</code>（搜 core + 已注册依赖），不要凭记忆写 stdlib 名字。</li>
+  <li><b>async 入口</b>：<code>async fn main</code> 需要根包 <code>moonbitlang/async</code> 一并导入；可执行包声明 <code>pkgtype(kind: "executable")</code>。</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="s07"><span class="num">07</span>上游接缝登记（活文档）</h2>
+
+<p>原则：业务代码永不 import 兜底实现，只 import trait；每个临时实现标注 <code>UPSTREAM-GAP</code>；探针转绿 = 上游已补齐 = 立即执行切换配方。完整表格在 <code>docs/upstream-seams.md</code>，此处摘要：</p>
+
+<div class="tw"><table>
+  <thead><tr><th class="c">#</th><th>能力</th><th>现状（2026-09-08）</th><th>本项目策略</th></tr></thead>
+  <tbody>
+    <tr><td class="c">S1</td><td>js 目标本地文件</td><td><code>@async/fs</code> native 可用，js 空壳</td><td>CalDAV 服务主目标 native，js 支持延后</td></tr>
+    <tr><td class="c">S2</td><td>IANA tzdb / DST 历史</td><td>mooncakes 无 tzdb 包（<code>x/time</code> 仅 fixed_zone）</td><td><code>ZoneTable</code>：固定偏移 + feed 内嵌 VTIMEZONE；边界写进 README</td></tr>
+    <tr><td class="c">S3</td><td>HTTP 抓取</td><td><code>@async/http</code> client 双目标可用（M0 实测）</td><td>保留 Fetcher 抽象，S9 可选支线</td></tr>
+    <tr><td class="c">S4</td><td>async 运行时稳定性</td><td>README 自述 experimental</td><td>API 触点收敛在 httpd/store 两处</td></tr>
+    <tr><td class="c">S5</td><td>系统本地时区</td><td>需自行 FFI</td><td>暂不需要（服务用 UTC + 显式偏移）</td></tr>
+    <tr><td class="c">S6</td><td>WebDAV 方法承载</td><td><code>RequestMethod</code> 封闭枚举（<span class="mono">types.mbt:16</span>），无 PROPFIND/REPORT/MKCALENDAR</td><td><b>S5 手解析请求行</b>（方法只是 token）；上游扩展后一行切回 <code>read_request</code></td></tr>
+  </tbody>
+</table></div>
+
+<h3>S5/S6 用到的上游 API（已核实）</h3>
+<pre><code>// 响应侧（直接用，无障碍）：
+conn.send_response(200, "OK", extra_headers={ "Content-Type": "text/calendar" })
+conn &lt;+ body            // 字符串插值写入
+conn.end_response()
+
+// 请求侧（绕开 read_request 的方法枚举）：
+ServerConnection 实现了 @io.Reader（server.mbt:65）
+//   → 自己读字节流，解析请求行 "PROPFIND /cal/ HTTP/1.1"、头、Content-Length 体
+
+// XML：Milky2018/xml 0.4.1（拉式解析）或 moonbit-community/XMLParser 0.2.5
+// JSON：moonbitlang/core/json（REPORT/调试输出用）</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="s08"><span class="num">08</span>明确不做（边界）</h2>
+
+<ul>
+  <li><b>CalDAV 客户端</b>——只做服务端；客户端行为由 Thunderbird/DAVx5 承担。</li>
+  <li><b>iTIP/iMIP 会议邀请</b>、参会人状态、协作流程。</li>
+  <li><b>ACL 权限体系</b>——首版无认证（localhost 演示），TLS 留赛后。</li>
+  <li><b>完整 IANA tzdb</b>——固定偏移 + VTIMEZONE，边界进 README（接缝 S2）。</li>
+  <li><b>chunked 请求体</b>——回 <code>411 Length Required</code>（客户端 PUT 几乎不用 chunked）。</li>
+  <li><b>超 大 .ics 流式解析</b>、sync-token 全量同步（getctag 基础版即可）。</li>
+  <li>RRULE 第三档（BYWEEKNO/BYYEARDAY/BYHOUR 系/SECONDLY/MINUTELY）——<b>显式报错拒绝</b>，不静默吞。</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="s09"><span class="num">09</span>风险与对策</h2>
+
+<div class="tw"><table>
+  <thead><tr><th>风险</th><th class="c">等级</th><th>对策</th></tr></thead>
+  <tbody>
+    <tr><td>手解析 HTTP 边界情况（keep-alive、多值头、Expect: 100-continue）</td><td class="c"><span class="chip risk">中</span></td><td>明确 411/501 拒绝并写进边界；S7 联调日志驱动补齐；Radicale 哲学「够用即止」</td></tr>
+    <tr><td>真实客户端差异不可控（发现链/PROPFIND 形状各家不同）</td><td class="c"><span class="chip risk">中</span></td><td>S7 独立成步预留整天；优先 Thunderbird（最宽容、文档全），DAVx5 次之；问题→修复→复测记进互操作矩阵</td></tr>
+    <tr><td>XML 命名空间（客户端前缀任意：D:/d:/默认 ns）</td><td class="c"><span class="chip risk">中</span></td><td>按 (namespace-uri, local-name) 匹配而非前缀；测试带前缀变体</td></tr>
+    <tr><td>RRULE 序号算术（BYSETPOS/负值/序数 BYDAY）正确性</td><td class="c"><span class="chip risk">中</span></td><td>隔离在 S8 独立成步；附录 A 全量对拍；graham 源码在 <code>.survey/src/</code> 随时对照</td></tr>
+    <tr><td>九月场规则未确认（本地技能只有八月场章程）</td><td class="c"><span class="chip risk">低</span></td><td>以八月场为底线准备（一页 MD 申报书/CI/mooncakes/≥5 提交）；提交前官方渠道确认一次</td></tr>
+    <tr><td>规模不足（当前 962 行 vs 4–10k 参考）</td><td class="c"><span class="chip risk">低</span></td><td>S1–S8 累计估 ~2.6k 实现 + ~2.5k 测试 ≈ 5k+，落在区间；宁加用例不堆无关功能</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="s10"><span class="num">10</span>提交与验收映射</h2>
+
+<p>八月场验收硬标准 → 里程碑映射（九月场以官方章程为准）：</p>
+<div class="tw"><table>
+  <thead><tr><th>验收项</th><th>满足于</th></tr></thead>
+  <tbody>
+    <tr><td>MoonBit 为主语言</td><td>全程</td></tr>
+    <tr><td>可运行示例</td><td>S1 起有 fixture demo，S5 起服务器可 <code>moon run</code>，S7 起真实客户端 demo</td></tr>
+    <tr><td>核心路径测试</td><td>S1–S6 各自带测试；S3/S8 附录 A 对拍；S6 curl 序列集成测试</td></tr>
+    <tr><td>CI</td><td>S9（<code>moon check/test --target all</code> + <code>fmt</code> + <code>info</code>，参考 moonbit-community/.github 的 check.yml）</td></tr>
+    <tr><td>发布 mooncakes.io</td><td>S9（模块名 <code>justinwongcn/moon-ical</code> 已合规；根包 re-export 门面就位后发布）</td></tr>
+    <tr><td>默认分支 ≥5 真实提交</td><td>S0–S9 每步一提交，自然 ≥10</td></tr>
+    <tr><td>申报书（一页 Markdown）</td><td>S9 定稿：定位 + 竞品矩阵切分（引调研文档 §02）+ 互操作矩阵 + 边界</td></tr>
+    <tr><td>AI 辅助合规</td><td>AI 生成内容可解释、可测试、来源明确；申报书如实声明 AI 参与</td></tr>
+  </tbody>
+</table></div>
+
+<footer>
+  证据来源：docs/research/mooncakes-competitors-survey.html（五竞品逐包核实）· docs/spike-notes.md（M0 实测）·
+  docs/upstream-seams.md（接缝登记）· .mooncakes/moonbitlang/async 源码（types.mbt / server.mbt 行号）·
+  moon search caldav/webdav/xml（2026-09-08）。
+  本手册提交于 S0 之后（0ab8978），随每个里程碑提交同步更新。
+</footer>
+
+</div>
+</body>
+</html>

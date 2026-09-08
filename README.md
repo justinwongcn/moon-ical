@@ -34,7 +34,10 @@ Roadmap (one verifiable step per commit):
    mooncakes.io publish
 
 Seam register and spike evidence live in `docs/upstream-seams.md` and
-`docs/spike-notes.md`.
+`docs/spike-notes.md`. The living development handbook — positioning,
+architecture, milestone ladder (S0–S9), engineering conventions, risk
+register — is [`docs/development.html`](docs/development.html), updated at
+every milestone commit.
 
 ## Boundaries (explicit non-goals)
 
