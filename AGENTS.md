@@ -5,6 +5,35 @@ This is a [MoonBit](https://docs.moonbitlang.com) project.
 You can browse and install extra skills here:
 <https://github.com/moonbitlang/skills>
 
+## Read the MoonBit skills before writing code
+
+MoonBit's language surface is small and moves fast. Model priors are routinely
+wrong here: an API that looks plausible may not exist, the metadata format
+depends on feature flags, and imports do not live where most languages put
+them. Load the matching skill from `.agents/skills/` **before** the first edit,
+not after a build failure.
+
+| Task | Skill to read first |
+| --- | --- |
+| Any MoonBit question ("does it have X?", a diagnostic, a target rule) | `moonbit-orientation` |
+| Writing / organizing / testing MoonBit, `moon` tooling, `.mbtx` | `moonbit-agent-guide` |
+| Refactoring a package, shrinking a public API | `moonbit-refactoring` |
+| Spec-first API and test suite (`spec.mbt`, `declare`) | `moonbit-spec-test-development` |
+| Extracting spec/tests from an existing implementation | `moonbit-extract-spec-test` |
+| Proof-carrying code, Why3, abstraction functions, invariants | `moonbit-proof` |
+| `extern "c"` bindings, vendoring C sources | `moonbit-c-binding`, then `make-moonbit-c-bindings` |
+| Porting OCaml code to MoonBit | `ocaml2moonbit-migration` |
+| OSC 2026 contest, packaging, submission checks | `osc2026-guide` |
+
+Two non-negotiables:
+
+- Never name a stdlib or package API you have not verified. Check with
+  `moon ide doc "Type::method"` (or `moon ide peek-def`) before using it, and
+  say so in the answer when you did.
+- Check the toolchain first: `moon version --all`. Feature flags such as
+  `rr_moon_mod` / `rr_moon_pkg` decide whether metadata is `moon.mod` /
+  `moon.pkg` or the legacy `.json` form, and where imports are declared.
+
 ## Project Structure
 
 - MoonBit packages are organized per directory; each directory contains a

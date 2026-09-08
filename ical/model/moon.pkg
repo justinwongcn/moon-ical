@@ -1,3 +1,8 @@
 import {
   "justinwongcn/moon-ical/ical/text",
+  "moonbitlang/x/time",
 }
+
+import {
+  "justinwongcn/moon-ical/ical/text",
+} for "test"

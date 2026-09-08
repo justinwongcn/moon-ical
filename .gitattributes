@@ -1,0 +1,5 @@
+# Keep LF in the repository: the toolchain is developed on Windows here but
+# CI (and most contributors) run Linux.
+* text=auto eol=lf
+*.png binary
+*.ico binary

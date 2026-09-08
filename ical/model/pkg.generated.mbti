@@ -4,10 +4,19 @@ package "justinwongcn/moon-ical/ical/model"
 import {
   "justinwongcn/moon-ical/ical/text",
   "moonbitlang/core/debug",
+  "moonbitlang/x/time",
 }
 
 // Values
+pub fn build_zone_table(Array[Component]) -> ZoneTable
+
 pub fn parse_components(Array[String]) -> Array[Component] raise
+
+pub fn parse_date_time(@text.ContentLine, ZoneTable, line_no? : Int) -> IcalDateTime raise
+
+pub fn parse_single_date_time(String, ZoneTable, line_no? : Int) -> IcalDateTime raise
+
+pub fn parse_utc_offset(String, line_no~ : Int, raw~ : String) -> Int raise
 
 // Errors
 
@@ -17,6 +26,29 @@ pub struct Component {
   properties : Array[@text.ContentLine]
   children : Array[Component]
 } derive(Eq, @debug.Debug)
+pub fn Component::properties_named(Self, String) -> Array[@text.ContentLine]
+pub fn Component::property(Self, String) -> @text.ContentLine?
+
+pub struct IcalDateTime {
+  wall : @time.PlainDateTime
+  utc_offset : Int?
+  zone_id : String
+  all_day : Bool
+} derive(@debug.Debug)
+pub fn IcalDateTime::compare(Self, Self) -> Int
+pub fn IcalDateTime::instant_seconds(Self) -> Int64
+pub fn IcalDateTime::is_floating(Self) -> Bool
+pub fn IcalDateTime::is_utc(Self) -> Bool
+pub impl Show for IcalDateTime
+
+pub struct ZoneTable {
+  entries : Array[(String, Int)]
+} derive(@debug.Debug)
+pub fn ZoneTable::builtin_common() -> Self
+pub fn ZoneTable::empty() -> Self
+pub fn ZoneTable::insert(Self, String, Int) -> Unit
+pub fn ZoneTable::lookup(Self, String) -> Int?
+pub fn ZoneTable::with_builtin(Self) -> Self
 
 // Type aliases
 

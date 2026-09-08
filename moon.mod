@@ -27,4 +27,5 @@ description = ""
 
 import {
   "moonbitlang/async@0.21.2",
+  "moonbitlang/x@0.5.1",
 }
