@@ -1,3 +1,23 @@
 #!/bin/sh
+# moon-ical pre-commit gate（项目钩子）
+# 激活方式：git -c core.hooksPath=.githooks commit ...（EvoX 环境会注入全局
+# hooksPath，覆盖不了配置文件，所以提交命令必须显式带上这个 -c，见 AGENTS.md）
 
-moon check
+# 1) 代码必须先过类型检查
+moon check >/dev/null 2>&1 || {
+  echo "✗ pre-commit: moon check 未通过" >&2
+  exit 1
+}
+
+# 2) 文档同步闸门：动了源码就必须同步更新跨会话状态源 docs/PROGRESS.md
+staged=$(git diff --cached --name-only)
+code=$(printf '%s\n' "$staged" | grep -E '^(ical/|demo/|moon\.mod)' | head -n 1)
+tracker=$(printf '%s\n' "$staged" | grep -E '^docs/PROGRESS\.md$' | head -n 1)
+if [ -n "$code" ] && [ -z "$tracker" ]; then
+  echo "✗ 提交被拒：本次改了源码（$code）但没有更新 docs/PROGRESS.md。" >&2
+  echo "  PROGRESS.md 是跨会话状态源，必须随代码同步（状态一览/里程碑/会话日志）。" >&2
+  echo "  补完后再提交。" >&2
+  exit 1
+fi
+
+exit 0

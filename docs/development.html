@@ -203,7 +203,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
   <li><b>写测试先行或同步</b>：每块新行为至少一个 <code>assert_eq</code> / <code>assert_true(pattern is …)</code> 级别的断言测试；边界（空输入、畸形输入、行号）必须覆盖。</li>
   <li><b>实现</b>：块式组织，<code>///|</code> 分隔，每块带一句话文档注释说明「为什么」。</li>
   <li><b>验证链</b>：<code>moon fmt && moon check && moon test && moon info</code>，然后检查 <code>.mbti</code> diff——<b>接口变化必须是预期内的</b>，意外的 diff 说明改坏了边界。</li>
-  <li><b>提交</b>：一次提交一个里程碑，消息格式 <span class="mono">S&lt;n&gt;: &lt;一句话&gt;</span>，正文列改动点 + 验收证据（测试数、对拍结果）。</li>
+  <li><b>提交</b>：一次提交一个里程碑，消息格式 <span class="mono">S&lt;n&gt;: &lt;一句话&gt;</span>，正文列改动点 + 验收证据（测试数、对拍结果）。命令必须是 <code>git -c core.hooksPath=.githooks commit …</code>——项目钩子会跑 <code>moon check</code> 并拒绝「改源码但不更新 PROGRESS.md」的提交。</li>
   <li><b>更新跟进文档</b>：<code>docs/PROGRESS.md</code>（跨会话状态源：§1 快照、§2 里程碑、§3 会话日志）与本手册 §02/§04/§07。</li>
 </ol>
 

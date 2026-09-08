@@ -84,6 +84,11 @@ Two non-negotiables:
 - Milestone work follows the handbook in `docs/development.html`: one minimal
   goal per commit, `S<n>:` commit prefix, per-step acceptance criteria, and a
   hard cap — split the step if it outgrows half a day.
+- **Commit command is fixed**: `git -c core.hooksPath=.githooks commit ...`.
+  EvoX's environment injects a global `core.hooksPath`, so the project gate in
+  `.githooks/pre-commit` (moon check + "source changes must include a
+  docs/PROGRESS.md update") only fires with this explicit `-c`. Never pass
+  `--no-verify` and never use a bare `git commit` for milestone work.
 
 - Prefer `assert_eq` or `assert_true(pattern is Pattern(...))` for results that
   are stable or very unlikely to change. For snapshot tests that record
