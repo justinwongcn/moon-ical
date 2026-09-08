@@ -1,5 +1,0 @@
-// import {
-//   "justinwongcn/moon-ical" @lib,
-// }
-
-pkgtype(kind: "executable")
