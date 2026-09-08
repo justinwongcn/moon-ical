@@ -59,6 +59,7 @@
 | S5 手解析 HTTP/1.1 请求行 | `RequestMethod` 是封闭枚举（`types.mbt:16`），装不下 PROPFIND/REPORT；`ServerConnection` 实现 `@io.Reader` 可自解析 | 接缝 S6（upstream-seams.md） |
 | vdir 一文件一项存储 | Radicale 同款路线，跨工具互认 | 计划 v2 §1 |
 | 保留 `.survey/`、`.repos/`（虽 gitignore） | 前者是 S3 对拍语料，后者是依赖缓存；均不进仓库 | S0 报告 |
+| 提交强制文档同步 | EvoX 环境注入全局 hooksPath（配置文件压不过），用 `git -c core.hooksPath=.githooks commit` 显式激活项目钩子：moon check + 「源码改动必须同 commit 更新 PROGRESS.md」，实测能拒绝违规提交 | `.githooks/pre-commit` |
 
 ## 5. 跨会话环境事实
 
@@ -70,6 +71,7 @@
 
 ## 6. 收工清单（每次会话结束前过一遍）
 
+0. 提交命令带 `git -c core.hooksPath=.githooks` 了吗？不带它闸门不生效（AGENTS.md 规范）。
 1. `moon fmt && moon check && moon test && moon info` 全绿？`.mbti` diff 在预期内？
 2. 本文件 §1/§2/§3 更新了吗？
 3. 若完成了里程碑：`docs/development.html` §02 快照与 §04 状态同步了吗？
