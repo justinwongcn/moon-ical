@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Python 与 Go 日历生态功能调研 · moon-ical</title>
+<meta name="description" content="Python 与 Go 生态中 iCalendar / CalDAV 相关项目的功能调研，用于 moon-ical 的功能范围界定。">
+<style>
+  :root{
+    --bg:#fbfbfa; --surface:#ffffff; --ink:#1a1a18; --ink-2:#5f5e5a; --ink-3:#8b8983;
+    --line:#e3e1dc; --line-2:#cfccc5;
+    --accent:#2f5d50; --accent-soft:#e8f0ed;
+    --py:#3572a5; --go:#0d94b0; --both:#7a5cc4;
+    --ok:#2f6b3a; --part:#8a6d1a; --no:#a33a2f; --unk:#6b6b66;
+    --radius:10px; --mono:ui-monospace,"SFMono-Regular","JetBrains Mono",Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#16161a; --surface:#1e1e24; --ink:#e8e6e1; --ink-2:#a8a5a0; --ink-3:#7c7a75;
+      --line:#2c2c33; --line-2:#3d3d45; --accent:#7fc0ac; --accent-soft:#22302c; --ok:#7fc08a;
+      --part:#d9bb57; --no:#e08a7f; --unk:#9a9893; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    font-size:15.5px;line-height:1.68;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:min(96ch,100%);margin:0 auto;padding:0 22px 90px}
+  header.top{padding:52px 0 26px;border-bottom:1px solid var(--line)}
+  .kicker{font:600 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:clamp(25px,4.2vw,37px);line-height:1.22;margin:12px 0 10px;letter-spacing:-.01em;font-weight:650}
+  .sub{color:var(--ink-2);font-size:16px;margin:0;max-width:70ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:20px;font:12.5px/1.5 var(--mono);color:var(--ink-3)}
+  .meta b{color:var(--ink-2);font-weight:600}
+  h2{font-size:21px;margin:54px 0 6px;letter-spacing:-.01em;font-weight:650;
+    padding-top:22px;border-top:1px solid var(--line)}
+  h2 .num{font:600 12px var(--mono);color:var(--accent);margin-right:9px;vertical-align:2px}
+  h3{font-size:16.5px;margin:30px 0 6px;font-weight:650}
+  h4{font-size:14.5px;margin:20px 0 4px;font-weight:650;color:var(--ink-2)}
+  p{margin:9px 0}
+  ul,ol{margin:9px 0;padding-left:22px}
+  li{margin:4px 0}
+  code{font-family:var(--mono);font-size:.88em;background:var(--accent-soft);color:var(--accent);
+    padding:1px 5px;border-radius:4px}
+  a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+  .note{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);
+    border-radius:var(--radius);padding:13px 16px;margin:18px 0;font-size:14.5px;color:var(--ink-2)}
+  .warn{border-left-color:var(--part)}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:11px;margin:22px 0}
+  .tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 15px;min-width:0}
+  .tile .v{font:650 24px/1.15 var(--mono);color:var(--accent);letter-spacing:-.02em}
+  .tile .k{font-size:12.5px;color:var(--ink-2);margin-top:5px;line-height:1.45}
+  .legend{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 6px;font:12px var(--mono)}
+  .legend span{border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--surface)}
+  .M{font-weight:700}.M.ok{color:var(--ok)}.M.part{color:var(--part)}.M.no{color:var(--no)}.M.unk{color:var(--unk)}
+  .tw{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
+  table{border-collapse:collapse;width:100%;font-size:13.6px;min-width:640px}
+  caption{caption-side:top;text-align:left;font:600 13px var(--mono);color:var(--ink-2);padding:11px 13px 0}
+  th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  thead th{background:var(--surface);font-weight:650;font-size:12.5px;
+    color:var(--ink-2);border-bottom:1px solid var(--line-2);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  td.c{text-align:center;font-family:var(--mono);white-space:nowrap}
+  th.rw{min-width:150px}
+  tbody tr:hover{background:var(--accent-soft)}
+  .lay{font-size:11.5px;color:var(--ink-3);display:block;font-weight:400}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:13px;margin:18px 0}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:15px 16px;display:flex;flex-direction:column;min-width:0}
+  .card h4{margin:0 0 2px;font-size:15px;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .tag{font:600 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;
+    padding:3px 7px;border-radius:5px;color:#fff;white-space:nowrap}
+  .tag.py{background:var(--py)}.tag.go{background:var(--go)}.tag.std{background:var(--both)}
+  .card .role{font-size:12px;color:var(--ink-3);font-family:var(--mono);margin-bottom:8px}
+  .card ul{margin:6px 0 0;padding-left:19px;font-size:13.8px;color:var(--ink-2)}
+  .card li{margin:3px 0}
+  .card .gap{margin-top:auto;padding-top:10px;font-size:13px;color:var(--no)}
+  .card .gap b{color:var(--ink-2);font-weight:600;font-family:var(--mono);font-size:11px;
+    text-transform:uppercase;letter-spacing:.05em}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:20px 0 4px}
+  .bar button{font:13px var(--sans);padding:6px 13px;border:1px solid var(--line-2);border-radius:999px;
+    background:var(--surface);color:var(--ink-2);cursor:pointer}
+  .bar button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .bar input{font:13px var(--sans);padding:6px 12px;border:1px solid var(--line-2);border-radius:999px;
+    background:var(--surface);color:var(--ink);min-width:200px}
+  .bar .hint{font:11.5px var(--mono);color:var(--ink-3);margin-left:auto}
+  .layers{display:grid;gap:8px;margin:16px 0}
+  .layer{display:grid;grid-template-columns:minmax(0,140px) minmax(0,1fr);gap:12px;align-items:center;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:11px 14px}
+  .layer .ln{font:650 12.5px var(--mono);color:var(--accent);text-transform:uppercase;letter-spacing:.05em}
+  .layer .ld{font-size:13.8px;color:var(--ink-2)}
+  @media (max-width:620px){.layer{grid-template-columns:minmax(0,1fr)}}
+  .pri{border-left:3px solid var(--accent);padding-left:14px;margin:16px 0}
+  .pri.p0{border-color:var(--no)}.pri.p1{border-color:var(--part)}.pri.p2{border-color:var(--ink-3)}
+  .pri h4{margin:0 0 4px;font-size:13.5px;text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono)}
+  ol.src{font-size:13px;color:var(--ink-2);padding-left:20px}
+  ol.src li{margin:3px 0;word-break:break-word}
+  ol.src code{font-size:12px;word-break:break-all}
+  footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);
+    font:12px var(--mono);color:var(--ink-3)}
+  [hidden]{display:none!important}
+  @media print{
+    body{background:#fff;color:#000;font-size:10.5pt}
+    .bar,.legend{display:none}
+    .tw{overflow:visible;border-color:#bbb}
+    table{min-width:0;font-size:8.5pt}
+    .card,.tile,.layer{break-inside:avoid;border-color:#bbb}
+    h2{break-after:avoid}
+    a{color:#000;text-decoration:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="kicker">Feature Survey / 竞品功能调研</div>
+  <h1>Python 与 Go 日历项目都实现了哪些功能</h1>
+  <p class="sub">面向 <code>moon-ical</code> 的功能范围界定：两个语言生态中 iCalendar 解析、递归展开、
+    CalDAV 同步与应用层功能的实际分布、标准覆盖度，以及两边都做得薄弱的空白地带。</p>
+  <div class="meta">
+    <span><b>日期</b> 2026-09-08</span>
+    <span><b>对象</b> Python 10 项 · Go 16 项 · 规范 15 份</span>
+    <span><b>方法</b> 官方 README / 文档站 / API 索引原文抓取</span>
+    <span><b>用途</b> 功能基线与范围决策输入</span>
+  </div>
+</header>
+
+<h2 id="s0"><span class="num">00</span>先看结论</h2>
+
+<div class="tiles">
+  <div class="tile"><div class="v">2 个库</div><div class="k">Python 里"解析"与"递归展开"分属两包（icalendar + recurring-ical-events）；只有 <code>ical</code> 做进同一个包</div></div>
+  <div class="tile"><div class="v">0 次</div><div class="k">Go 事实标准解析库 <code>arran4/golang-ical</code> 做递归展开的次数——它明确不做</div></div>
+  <div class="tile"><div class="v">1 家</div><div class="k">两语言里把 iTIP/iMIP 邀约回复生成做进库层的，只见到 Go 的 <code>floatpane/go-icalendar</code></div></div>
+  <div class="tile"><div class="v">6 个</div><div class="k">Go 终端日历 App，功能口径高度趋同（月/周/日/agenda + 递归 + 提醒 + 同步）</div></div>
+  <div class="tile"><div class="v">1.1.0</div><div class="k">vdir 磁盘规范版本（2025-03-31）——跨工具互操作真正的粘合层</div></div>
+  <div class="tile"><div class="v">2026-07</div><div class="k">IETF calext 仍活跃：RFC9555bis 里程碑 Done，JSCalendar 扩展在 Last Call</div></div>
+</div>
+
+<p><b>两个生态的差别，一句话：</b>Python 有从解析到服务端到终端 App 的完整栈，但它被切成了需要互相拼接的小库；
+Go 的解析层同样扎实、甚至更强调性能与容错分级，但<b>协议栈（CalDAV）与调度语义（iTIP/iMIP）明显单薄</b>，
+也没有一个被广泛认可的服务端。对 <code>moon-ical</code> 而言，"把解析＋展开＋时区＋调度装进一个包、
+并编译成单文件"恰好落在两边都没填好的位置上。</p>
+
+<div class="note"><b>怎么读：</b>§01 证据边界 → §02 标准功能轴 → §03–§04 生态分层地图 → §05 三张对照矩阵 →
+§06 逐项卡片 → §07 双方共同基线 → §08 生态空白 → §09 对 moon-ical 的范围建议 → §10 来源。</div>
+
+<h2 id="s1"><span class="num">01</span>调研方法与证据边界</h2>
+
+<p>本文件每一条功能陈述都来自本轮实际抓取的一手页面（项目 README、官方文档站、或 <code>pkg.go.dev</code> 的
+API 索引），不是模型记忆。为避免把"作者声称"读成"行为验证"，按下面几类标注：</p>
+
+<div class="tw"><table>
+  <thead><tr><th class="rw">标注</th><th>含义</th><th>该怎么读</th></tr></thead>
+  <tbody>
+    <tr><td><b>官方声明</b></td><td>项目自己的 README / 文档原文</td><td>意图可信；实现是否真做到未经验证</td></tr>
+    <tr><td><b>API 实证</b></td><td>从包的类型/函数索引中直接读到符号名</td><td>该能力确实存在于公开 API（Go 侧多数结论属此类）</td></tr>
+    <tr><td><b>第三方称</b></td><td>竞品 README 中对别家的评价</td><td>有立场，仅作线索；正文均注明来源归属</td></tr>
+    <tr><td><span class="M unk">?</span> <b>未核实</b></td><td>本轮未取到一手页面</td><td>不作为决策依据</td></tr>
+  </tbody>
+</table></div>
+
+<div class="note warn"><b>本轮的取样偏差，如实说明。</b>任务最初以 9 路并行子代理展开，其中 7 路超出本次运行的
+300 秒墙钟预算被中断（报错 <code>subtask exceeded its wall-clock budget of 300s</code>），
+另外 2 路在耗尽自身工具调用额度时未产出可用结论。最终结果改由逐页直接抓取完成，覆盖度足以支撑范围决策，
+但两类深度被牺牲了：<b>(a)</b> 没有对任何库跑真实 .ics 做行为验证——折行、RFC 6868 转义、DST 边界这类坑只能测出来；
+<b>(b)</b> <code>python-dateutil</code> 的 rrule 文档页与 <code>vdirsyncer</code> 文档站是 JS 渲染壳，取不到正文，
+相关结论只能从其下游项目描述与配置页片段间接得到，已在矩阵中标 <span class="M unk">?</span>。
+如需，可单独补一轮 dateutil / vdirsyncer 深度核实。</div>
+
+<p>取样口径：先收"别人会当默认答案"的项目，再刻意补上反向证据——即明确声称自己比默认答案做得更好、
+或明确写出自己做不到什么的项目（<code>ical</code>、<code>floatpane/go-icalendar</code>、<code>graham/rrule</code>、
+<code>khal</code>、Radicale 的 "What Radicale Will Never Be" 一节）。这类自陈短板通常比自陈优点更有信息量。</p>
+
+<h2 id="s2"><span class="num">02</span>标准功能轴：用什么尺子量深浅</h2>
+
+<p>iCalendar 不是一份规范，而是十几份叠在一起的规范。做功能对照必须先固定尺子，否则各家 README 各说各话。</p>
+
+<h3>2.1 规范清单</h3>
+<div class="tw"><table>
+  <thead><tr><th class="rw">规范</th><th>管什么</th><th>本轮核实到的状态</th></tr></thead>
+  <tbody>
+    <tr><td>RFC 2445</td><td>旧版 iCalendar</td><td>已被 5545 取代；库不再声称支持，但历史数据仍会遇到</td></tr>
+    <tr><td><b>RFC 5545</b></td><td>核心对象：组件、属性、值类型、RRULE、VTIMEZONE</td><td>现行 standards track；所有被调研库的第一主张</td></tr>
+    <tr><td>RFC 5546</td><td>iTIP 调度语义（PUBLISH / REQUEST / REPLY / ADD / CANCEL / REFRESH / COUNTER）</td><td>组织者—出席者模型与 PARTSTAT 所在；<b>两语言实现都稀薄</b></td></tr>
+    <tr><td>RFC 6047</td><td>iMIP：用邮件承载 iTIP</td><td>Go 的 <code>floatpane/go-icalendar</code> 明确以它为目标</td></tr>
+    <tr><td>RFC 6321</td><td>xCal（XML 表示）</td><td><code>icalendar</code> 明确不声称兼容（其 issue #1135）</td></tr>
+    <tr><td>RFC 6350 / 6352</td><td>vCard 4.0 / CardDAV</td><td>联系人侧；<code>icalendar</code> 不声称支持 vCard</td></tr>
+    <tr><td>RFC 6578</td><td>WebDAV 集合同步（sync-token 增量）</td><td>同步器命脉；Radicale 与多个 Go 客户端/服务端实现</td></tr>
+    <tr><td>RFC 6868</td><td>参数值编码（引号与 <code>^</code> 转义）</td><td><b>最容易做错的一处</b>；<code>icalendar</code> 与 <code>ical</code> 均列为支持</td></tr>
+    <tr><td>RFC 7529</td><td>RSCALE 非格里高利历递归</td><td><code>icalendar</code> 列为支持；<code>recurring-ical-events</code> 列为 TODO</td></tr>
+    <tr><td>RFC 7953</td><td>VAVAILABILITY 可用性</td><td><code>icalendar</code> 列为支持；<code>recurring-ical-events</code> 列为 TODO</td></tr>
+    <tr><td>RFC 7986</td><td>新增属性（TITLE / DESCRIPTION / COLOR / IMAGE / CONCEPT / REFID…）</td><td><code>icalendar</code>、<code>ical</code> 支持；前者有专门的 COLOR 实现</td></tr>
+    <tr><td>RFC 8536</td><td>TZif 时区数据格式</td><td>Python <code>ical</code> 列为支持，其时区指南围绕它展开</td></tr>
+    <tr><td>RFC 9073 / 9253</td><td>事件关系（RELATED-TO / DERIVED-FROM-UID）</td><td><code>icalendar</code> 称 9073"可能部分可用"（issue #656），并列 9253 为支持</td></tr>
+    <tr><td>RFC 9074</td><td>VALARM 扩展</td><td><code>icalendar</code> 列为支持</td></tr>
+    <tr><td>RFC 4791 / 4918</td><td>CalDAV / WebDAV</td><td>协议层；Go 侧由 <code>emersion/go-webdav</code>、<code>codanael/caldav-go</code> 覆盖</td></tr>
+    <tr><td>RFC 8984</td><td>JSCalendar（JSON 表示）</td><td>不在本轮范围，但与 §2.2 动向直接相关</td></tr>
+  </tbody>
+</table></div>
+
+<h3>2.2 标准组织的当前动向（影响"现在补哪层更保值"）</h3>
+<p>IETF <b>calext</b> 工作组同时维护 iCalendar / iTIP / iMIP / CalDAV / CardDAV / JSCalendar 整套规范。
+本轮取到的工作组页面显示：<b>2026-07-20 里程碑"Adopt an RFC9555bis document"已标记为 Done</b>；
+<code>draft-ietf-calext-icalendar-jscalendar-extensions</code>（v05，2026-01-19）截至本轮
+<b>处于 In WG Last Call</b>，对应里程碑到期日 2026-08；另有
+<code>draft-kashyap-calext-ical-property-deps-00</code>（2026-03-30）在给 iCalendar 属性依赖做机器可读化。
+含义：核心仍是 RFC 5545，短期不会推倒重来；但<b>iCalendar 与 JSON 表示之间的映射正在标准化</b>——
+把数据模型与文本编解码干净分离的实现，将来接入成本最低。</p>
+
+<h3>2.3 RRULE 词汇表：衡量展开器的刻度</h3>
+<p>递归展开最能拉开实现差距，刻度就是这份 PART 清单。下表取自 Go 侧
+<code>floatpane/go-icalendar</code> README 自带的 "Supported RRULE parts" 表（官方声明）——
+它是本轮见到的<b>唯一一份逐 PART 自报家门</b>的表，故用它当基准刻度。</p>
+
+<div class="tw"><table>
+  <thead><tr><th class="rw">PART</th><th>作用</th><th>该实现自报状态</th></tr></thead>
+  <tbody>
+    <tr><td><code>FREQ</code></td><td>SECONDLY … YEARLY 粒度</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>INTERVAL</code></td><td>步长</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>COUNT</code> / <code>UNTIL</code></td><td>终止条件（二者互斥）</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>BYMONTH</code></td><td>限月</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>BYMONTHDAY</code></td><td>限月内日（含负数，-1 = 月末）</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>BYDAY</code></td><td>限星期，含序数前缀（<code>2MO</code> / <code>-1FR</code>）</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>BYSETPOS</code></td><td>候选集合取第 N 个（"每月最后一个周五"）</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>WKST</code></td><td>每周起始日</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>BYWEEKNO</code></td><td>限 ISO 周序</td><td class="c"><span class="M part">± 解析但展开时忽略</span></td></tr>
+    <tr><td><code>BYYEARDAY</code></td><td>限年内日</td><td class="c"><span class="M part">± 解析但展开时忽略</span></td></tr>
+    <tr><td><code>RDATE</code> / <code>EXDATE</code></td><td>额外加入 / 剔除具体实例</td><td class="c"><span class="M ok">✓ 合并处理</span></td></tr>
+    <tr><td><code>RECURRENCE-ID</code></td><td>单实例改期 / 取消（同 UID 多 VEVENT）</td><td class="c"><span class="M part">± 需调用方自建覆盖表</span></td></tr>
+    <tr><td><code>EXRULE</code></td><td>排除整条规则</td><td class="c"><span class="M no">✗ 规范中已废弃，普遍不做</span></td></tr>
+    <tr><td><code>RSCALE</code> / <code>SKIP</code></td><td>非格里高利历递归（RFC 7529）</td><td class="c"><span class="M no">✗ 仅 icalendar 声称支持</span></td></tr>
+  </tbody>
+</table></div>
+
+<div class="note"><b>「解析但忽略」是这一层最危险的档位。</b>
+<code>BYWEEKNO</code> / <code>BYYEARDAY</code> 静默失效，产出的是一张"看起来合理、但少了几十个实例"的日程表，
+用户无从察觉。若 <code>moon-ical</code> 暂不支持某个 PART，宁可<b>显式报错或降级警告</b>，也不要照抄静默忽略。</div>
+
+<h2 id="s3"><span class="num">03</span>Python 生态：分层清楚，但被切成碎片</h2>
+
+<div class="layers">
+  <div class="layer"><div class="ln">解析 / 编解码</div><div class="ld"><code>icalendar</code>（事实标准，文档版 7.3.0）· <code>py-ical</code> · <code>ics.py</code> · <code>vobject</code> · <code>ical</code>（新一代）</div></div>
+  <div class="layer"><div class="ln">递归展开</div><div class="ld"><code>dateutil.rrule</code>（底层算法）· <code>recurring-ical-events</code>（3.8.2，查询式）· <code>icalevents</code> · 内置于 <code>ical</code></div></div>
+  <div class="layer"><div class="ln">同步 / 协议</div><div class="ld"><code>vdirsyncer</code>（双向同步 CLI）· <code>caldav</code>（RFC 4791 客户端，基于 icalendar）· <code>pimsync</code></div></div>
+  <div class="layer"><div class="ln">服务端</div><div class="ld"><code>Radicale</code>（CalDAV + CardDAV，GPLv3，四类插件可扩）</div></div>
+  <div class="layer"><div class="ln">终端应用</div><div class="ld"><code>khal</code> / <code>ikhal</code>（浏览＋编辑 TUI）· <code>calcurse</code> · <code>todoman</code></div></div>
+  <div class="layer"><div class="ln">磁盘约定</div><div class="ld"><b>vdir</b> 规范 1.1.0 —— 一文件一项，跨工具互操作真正的 glue</div></div>
+</div>
+
+<p>Python 社区自己把这件事称为 <b>"Python Calendaring Ecosystem"</b>（pycal.org，取自 <code>icalendar</code>
+README 的"相关项目"一节）。那份列表里有若干<b>胶水型小库</b>值得注意：<code>x-wr-timezone</code>
+（专治 Google 私有 <code>X-WR-TIMEZONE</code> 的库＋CLI）、<code>icalendar-compatibility</code>
+（"以兼容 RFC 5545 与不同实现的方式读取事件数据"）、<code>ics-query</code>（命令行查询 .ics 中的实例）、
+<code>ical2jcal</code>、<code>icalendar-anonymizer</code>（剥离隐私字段以复现 bug）。</p>
+
+<div class="note"><b>这些胶水库的存在本身就是结论。</b>当一个生态需要单独一个包处理"Google 导出文件的时区语义"、
+单独一个包做"跨实现读取兼容"、单独一个 CLI 做"查某天有哪些实例"时，说明<b>这些能力没有被任何主流库吸收</b>。
+它们正是真实用户会撞上、而库里没有的活。</div>
+
+<h2 id="s4"><span class="num">04</span>Go 生态：解析层强，协议层与调度层薄</h2>
+
+<div class="layers">
+  <div class="layer"><div class="ln">解析 / 编解码</div><div class="ld"><code>arran4/golang-ical</code>（属性袋模型）· <code>saltfishpr/ical</code>（带校验）· <code>mscloudx/ical</code>（流式高性能）· <code>luxifer/ical</code>（词法/语法）· <code>vareversat/gics</code></div></div>
+  <div class="layer"><div class="ln">递归展开</div><div class="ld"><code>teambition/rrule-go</code>（dateutil 的部分移植）· <code>stephens2424/rrule</code> · <code>graham/rrule</code> · <code>julienbreux/rrule-go</code> · 内置于 <code>floatpane/go-icalendar</code></div></div>
+  <div class="layer"><div class="ln">调度 / 邀约</div><div class="ld"><code>floatpane/go-icalendar</code>（iMIP REQUEST / REPLY / CANCEL + FreeBusy）—— <b>几乎独此一家</b></div></div>
+  <div class="layer"><div class="ln">同步 / 协议</div><div class="ld"><code>emersion/go-webdav</code>（客户端＋服务端）· <code>lshvetsov/go-webdav</code> · <code>yinjun1991/caldav-client-go</code> · <code>samedi/caldav-go</code> · <code>LeonidKrn/caldav-go</code> · <code>cyp0633/libcaldora</code>(WIP)</div></div>
+  <div class="layer"><div class="ln">服务端</div><div class="ld"><code>codanael/caldav-go</code>（自测对 Apple Calendar / Reminders / Google Calendar 兼容）· <code>samedi/caldav-go</code>；<b>无 Radicale 量级的公认选项</b></div></div>
+  <div class="layer"><div class="ln">终端应用</div><div class="ld"><code>chronc

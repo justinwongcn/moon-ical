@@ -1,0 +1,230 @@
+
+<h2 id="s6"><span class="num">06</span>逐项卡片</h2>
+<p>下列卡片可用上方按钮按语言筛选、按输入框搜索。每张卡只写本轮取到一手证据的内容；
+"缺口"一栏优先抄项目自己承认的短板。</p>
+
+<div class="bar">
+  <button id="f-all" aria-pressed="true" type="button">全部</button>
+  <button id="f-py" aria-pressed="false" type="button">只看 Python</button>
+  <button id="f-go" aria-pressed="false" type="button">只看 Go</button>
+  <label class="visually-hidden" for="q" style="position:absolute;left:-9999px">搜索项目</label>
+  <input id="q" type="search" placeholder="搜索项目 / 功能…" autocomplete="off">
+  <span class="hint" id="cnt" aria-live="polite"></span>
+</div>
+
+<div class="cards" id="cards">
+
+  <div class="card" data-lang="py"><h4>icalendar <span class="tag py">Python</span></h4>
+    <div class="role">解析 / 编解码 · 事实标准 · 文档版 7.3.0 · BSD-2</div>
+    <ul>
+      <li>自称"RFC 5545 兼容的解析器与生成器"，依赖 <code>python-dateutil</code> 与 <code>tzdata</code></li>
+      <li>时区后端<b>可插拔</b>：zoneinfo / dateutil.tz / pytz 三者皆支持</li>
+      <li><b>官方 RFC 支持表</b>：5545 · 6868 · 7529 · 7953 · 7986 · 9074 · 9253（2445 视为被取代）；反向清单：6321 xCal、6350 vCard、9073 部分</li>
+      <li>未知 / X- / IANA 组件由 <code>ComponentFactory</code> 动态建模并<b>全量保留</b></li>
+      <li>RFC 7986 的 COLOR、5545 §3.2.10 的 LANGUAGE 参数有专门实现</li>
+    </ul>
+    <div class="gap"><b>缺口</b> 递归展开不在其内；属性是字典式取用（<code>event.get('DTSTART').dt</code>），官方示例明示不校验合规性</div>
+  </div>
+
+  <div class="card" data-lang="py"><h4>ical（allenporter） <span class="tag py">Python</span></h4>
+    <div class="role">解析＋展开一体 · 需 Python 3.11+ · 被 Home Assistant 采用</div>
+    <ul>
+      <li>核心卖点：<b>递归展开内置</b>，<code>cal.timeline</code> 直接给出已展开、按时间排序的实例序列</li>
+      <li>支持 RFC 5545 · 6868 · 7986 · <b>8536（TZif）</b>，有专门的时区与自定义 TzInfo 技术指南</li>
+      <li><code>ical.store.EventStore</code>：应用层状态管理（保证时区正确、编辑递归单实例）——本轮唯一见得的库内 store 层</li>
+      <li>异步拉取远程 .ics：<code>calendar_from_url</code>（可选 <code>[async]</code> extra，复用 aiohttp session 连接池）</li>
+      <li>strict mypy + 输入校验与明确错误类型（<code>CalendarParseError</code>）</li>
+    </ul>
+    <div class="gap"><b>缺口</b> 不支持旧 Python（3.8+ 的 icalendar 才行）；jCal / 底层原始组件控制不如 icalendar</div>
+  </div>
+
+  <div class="card" data-lang="py"><h4>recurring-ical-events <span class="tag py">Python</span></h4>
+    <div class="role">递归展开 / 查询层 · 3.8.2 · LGPL-3.0 · NLNet 资助</div>
+    <ul>
+      <li>逐条自报 DONE 清单：DST、无限递归、结束递归、多 RRULE、RDATE、EXDATE、DURATION、<b>RECURRENCE-ID + THISANDFUTURE</b>、X-WR-TIMEZONE、开始为 date 与为 datetime 两种形态</li>
+      <li>查询式 API：<code>of(cal).between()</code> / <code>.after()</code> / <code>.at()</code>，可指定 <code>components=["VTODO","VJOURNAL","VALARM"]</code></li>
+      <li><b>分页续查</b>：<code>next_page_id</code> 可交给下一个请求继续 —— 面向 Web 服务的设计</li>
+      <li>坏数据策略：<code>skip_bad_series=False</code> 默认抛错（如 <code>BadRuleStringFormat: UNTIL parameter is missing</code>），<code>True</code> 则整条序列跳过</li>
+      <li>架构对扩展开放：可自定义 <code>ComponentAdapter</code> / <code>Series</code> / <code>Occurrence</code> / <code>CalendarQuery</code></li>
+    </ul>
+    <div class="gap"><b>缺口（自陈）</b> 非格里高利历递归 = TODO（RFC 7529、RFC 7953 均挂 issue）；EXRULE 明确不做（规范已废弃）</div>
+  </div>
+
+  <div class="card" data-lang="py"><h4>ics.py <span class="tag py">Python</span></h4>
+    <div class="role">解析 / 生成 · 面向"不想读 RFC 的人"</div>
+    <ul>
+      <li>目标明确写在名字里：不要求使用者懂 iCalendar，也能读写 .ics</li>
+      <li>有 Event / Calendar / <b>Alarms</b> / <b>Timeline</b> 四类 API，另有 Low-level Container 与自定义属性出口</li>
+      <li>文档专设 "Known Limitations" 与 "Missing support for…" 两节，并讨论带/不带时区的 datetime 比较这一坑</li>
+    </ul>
+    <div class="gap"><b>缺口</b> 递归未支持（issue #14 中作者直言难点在于"既要表达、又要解析、还要给出 Pythonic 写入口"）；<b>第三方称</b>其自 0.7.2（2021-08）后无稳定版发布</div>
+  </div>
+
+  <div class="card" data-lang="py"><h4>python-dateutil <span class="tag py">Python</span></h4>
+    <div class="role">递归算法底座 · 被 icalendar 依赖 · 被 Go 移植</div>
+    <ul>
+      <li>本轮定位为"递归层的事实底座"：<code>icalendar</code> 把它列为依赖，Go 的 <code>rrule-go</code> 自称"对 dateutil.rrule 的部分移植"并称其 excellent</li>
+      <li><code>rrule</code> / <code>rruleset</code> 是两语言共同的 API 形状来源</li>
+    </ul>
+    <div class="gap"><b>缺口</b> 其文档页本轮取不到正文（JS 壳），逐参数细节标记为 <span class="M unk">?</span>，未据此下结论</div>
+  </div>
+
+  <div class="card" data-lang="py"><h4>vdirsyncer <span class="tag py">Python</span></h4>
+    <div class="role">双向同步 CLI · pimutils</div>
+    <ul>
+      <li>在多种服务端与本地目录之间同步日历与地址簿；本地端 <code>type = "filesystem"</code> ＋ <code>fileext = ".ics"</code>，远端 <code>type = "caldav"</code></li>
+      <li><b>冲突定义清晰</b>：自上次同步后两边都改过的 item 即冲突</li>
+      <li>冲突策略可配：<code>null</code>（报错不动）/ <code>"a wins"</code> / <code>"b wins"</code> / <code>["command","vimdiff"]</code>（拉外部三路差异编辑器，临时文件传两边内容）</li>
+      <li>自动发现流程：<code>vdirsyncer discover</code> 后 <code>sync</code></li>
+    </ul>
+    <div class="gap"><b>缺口</b> 冲突是<b>整条 item 粒度</b>取胜方，不做属性级合并</div>
+  </div>
+
+  <div class="card" data-lang="py"><h4>Radicale <span class="tag py">Python</span></h4>
+    <div class="role">CalDAV + CardDAV 服务端 · GPLv3 · 3.x</div>
+    <ul>
+      <li>分享日历与通讯录；支持事件、待办、日记与名片；开箱可用，数据存为简单目录结构</li>
+      <li><b>增量同步</b>：sync-token，<code>max_sync_token_age</code> 默认 2592000 秒（30 天）后作废旧 token；另有可选用子目录缓存 sync-token（≥3.3.2）</li>
+      <li><b>两个"防 DoS 上限"配置</b>：expanded report 的实例上限与 <code>max_freebusy_occurrence</code>（≥3.2.3）默认均 10000，超限返回 HTTP 错误而不是慢慢算完</li>
+      <li><code>skip_broken_item</code> 容忍坏条目；TLS、反向代理接管身份、四类插件（认证 / 权限 / web / 存储）</li>
+      <li>≥3.7.0 有 <code>[sharing]</code> 集合共享</li>
+    </ul>
+    <div class="gap"><b>缺口（自陈）</b> "CalDAV 与 CardDAV 不是完美的协议，其主要问题是复杂度——所以我们决定<b>不实现整个标准，只实现到能让各家客户端理解为止</b>"；且"永远不会是客户端、永不做界面"</div>
+  </div>
+
+  <div class="card" data-lang="py"><h4>khal / ikhal <span class="tag py">Python</span></h4>
+    <div class="role">终端日历应用 · vdir 存储 · Python 3.10+</div>
+    <ul>
+      <li>读写 vdir，靠 vdirsyncer 与 CalDAV 服务器同步（应用与同步职责分离）</li>
+      <li>快速新增事件的 CLI；<code>ikhal</code> 提供浏览＋编辑的交互 TUI</li>
+      <li>被打包进 Debian / Arch / Nix / Homebrew / FreeBSD 等主流发行版</li>
+    </ul>
+    <div class="gap"><b>缺口（自陈）</b> README 的标题就叫 "Features (or rather: limitations)"；明确写着<b>"尚不支持编辑事件的时区"</b>，且<b>不支持 Windows</b></div>
+  </div>
+
+  <div class="card" data-lang="py"><h4>caldav（Python 客户端） <span class="tag py">Python</span></h4>
+    <div class="role">RFC 4791 客户端库</div>
+    <ul>
+      <li>取自 <code>icalendar</code> README 的自述："CalDAV is a RFC 4791 client library for Python <b>based on icalendar</b>"</li>
+      <li>即协议层与表示层分离：客户端库骑在解析库上</li>
+    </ul>
+    <div class="gap"><b>缺口</b> 细粒度操作支持本轮未逐项核实 <span class="M unk">?</span></div>
+  </div>
+
+  <div class="card" data-lang="std"><h4>vdir 规范 <span class="tag std">磁盘约定</span></h4>
+    <div class="role">1.1.0 · 2025-03-31 · 独立发布的规范</div>
+    <ul>
+      <li>根目录 = 集合们；一个集合 = 一个子目录；<b>一个 item = 一个文件</b>，扩展名必须是 <code>.ics</code>（RFC 5545）或 <code>.vcf</code></li>
+      <li>文件须含<b>恰好一个</b>事件/任务/联系人；但递归例外事件允许多个 VEVENT</li>
+      <li>一个文件内若有多个 UID，其值 MUST NOT 不同；文件名 SHOULD URL-safe（以便同步到 CalDAV 后保留）</li>
+      <li>集合元数据 = 无扩展名的小文件：<code>color</code>（#RRGGBB，禁缩写与 CSS 名）、<code>displayname</code>、<code>description</code>、<code>order</code>；命名刻意对齐 WebDAV/CalDAV 属性</li>
+      <li><b>写入 MUST 原子</b>（临时文件 + rename；<code>.tmp</code> 与无扩展名文件读取时 MUST 忽略）；改动时 MUST 沿用原文件名</li>
+      <li>自陈<b>"目前 suffers from a rather major performance problem"</b>，各家靠自建索引缓解</li>
+    </ul>
+    <div class="gap"><b>对 moon-ical 最可直接采用的一层</b>：格式极简，实现它即接入整个终端 PIM 生态</div>
+  </div>
+
+  <div class="card" data-lang="go"><h4>arran4/golang-ical <span class="tag go">Go</span></h4>
+    <div class="role">解析 / 序列化 · 事实默认 · 零依赖</div>
+    <ul>
+      <li>9 类组件常量齐全（含 STANDARD / DAYLIGHT），并有 <code>Required()</code> 按 RFC 给出必填规则</li>
+      <li><b>三档容错解析</b>：严格 / <code>SkipPropertyParser</code> / <code>FallbackParser(LooseParser)</code>（保留 token+value、丢弃坏参数），并可写自定义 parser（如跳过 <code>X-TKF-</code>）；同一 parser 也作用于嵌套组件</li>
+      <li><code>ParseCalendarFromUrl</code>；构造侧有 <code>NewCalendar</code> / <code>NewCalendarFor(service)</code> / <code>NewCalendarWithOptions(WithVersion, WithProductId)</code></li>
+      <li>递归：提供 <code>GetRRules</code> / <code>GetExDates</code> / <code>GetRDates</code> / <code>GetRecurrenceID</code> 与 <code>ParseRecurrenceRule(...).String()</code> 往返，<b>但刻意不展开</b></li>
+      <li>VALARM：<code>NewAlarm</code> + <code>AddVAlarm</code>，含 DISPLAY 告警必填项的规范提醒与 TRIGGER 相对时长语义</li>
+      <li>出席者/组织者：含 <code>CalendarUserTypeIndividual</code>、<code>ParticipationStatusNeedsAction</code>、<code>ParticipationRoleReqParticipant</code>、<code>WithCN</code>、<code>WithRSVP</code> 等参数化选项</li>
+    </ul>
+    <div class="gap"><b>缺口</b> 展开需外接 rrule-go 且 RECURRENCE-ID 合并自己写；序列化默认 LF；README 末尾"Looking for a co-maintainer"</div>
+  </div>
+
+  <div class="card" data-lang="go"><h4>teambition/rrule-go <span class="tag go">Go</span></h4>
+    <div class="role">递归展开 · 该层事实标准 · MIT</div>
+    <ul>
+      <li>自述"对 iCalendar RFC 所记录递归规则的完整实现"，且是 <b>python-dateutil rrule 模块的部分移植</b></li>
+      <li>源码注释里自我描述为 "small, complete, and very fast"，含<b>结果缓存</b>；字段覆盖 bysetpos / bymonth / byweekday 等</li>
+      <li>API：<code>NewRRule(ROption)</code>、<code>StrToRRule</code>、<code>StrToRRuleSet</code>、<code>All()</code>、<code>Between(a,b,inc)</code>；<code>Set</code> 支持 <code>RRule</code> + <code>RDate</code> + <code>ExDate</code> 合并</li>
+      <li>兼容"DTSTART 写在 RRULE 串里"的历史形态（<code>OrigOptions</code> 与 <code>Options</code> 分离）</li>
+      <li>输出格式为 <code>DTSTART:…\nRRULE:…</code> 的字符串往返</li>
+    </ul>
+    <div class="gap"><b>缺口</b> 版权标注 2017–2023；不做 .ics 解析、不做时区日历系统（靠传入 <code>time.Time</code>）</div>
+  </div>
+
+  <div class="card" data-lang="go"><h4>floatpane/go-icalendar <span class="tag go">Go</span></h4>
+    <div class="role">扁平模型 + 递归 + iMIP + 忙闲 · 需 Go 1.26+</div>
+    <ul>
+      <li>定位一句话："把 .ics 的低层属性袋变成可直接渲染的扁平 <code>Event</code> 结构，并补上邮件客户端本来要手写的那层调度胶水"</li>
+      <li><b>iMIP 全套</b>：<code>NewRequest</code> / <code>NewCancel</code>（自动 bump SEQUENCE 并置 <code>STATUS:CANCELLED</code>）/ <code>GenerateRSVP</code>（METHOD:REPLY、只保留应答者、更新 PARTSTAT、RSVP=TRUE、新 DTSTAMP、保留 UID）</li>
+      <li>自带递归引擎：<code>ev.Occurrences(from,to,limit)</code>、<code>ParseRRule("FREQ=MONTHLY;BYDAY=-1FR").Between(...)</code></li>
+      <li><code>FreeBusy(events,from,to)</code> 返回 busy 区间与 free 空隙两段</li>
+      <li>时区态度成熟：UTC / floating / TZID / <code>VALUE=DATE</code> 全处理，并专门处理"date-only 值错误带了 TZID"这一现实 quirk —— <b>忽略而非悄悄挪一天</b></li>
+      <li>只依赖 <code>arran4/golang-ical</code>；从 matcha 邮件客户端的会议邀约卡片中抽出来</li>
+    </ul>
+    <div class="gap"><b>缺口（自报）</b> <code>BYWEEKNO</code> / <code>BYYEARDAY</code> 解析但展开时忽略；不做 CalDAV</div>
+  </div>
+
+  <div class="card" data-lang="go"><h4>emersion/go-webdav <span class="tag go">Go</span></h4>
+    <div class="role">WebDAV / CalDAV / CardDAV 客户端＋服务端 · MIT</div>
+    <ul>
+      <li>包文档一句话："Package caldav provides a client and server CalDAV implementation. CalDAV is defined in RFC 4791."</li>
+      <li>完整的 filter 树：<code>CompFilter</code> / <code>PropFilter</code> / <code>ParamFilter</code> / <code>TextMatch</code>，含 <code>IsNotDefined</code>、<code>NegateCondition</code>、Start/End 时间范围，并有服务端侧 <code>Match()</code> 与 <code>Filter()</code></li>
+      <li><code>CalendarCompRequest</code> 支持按属性与按子组件裁剪（AllProps / Props / AllComps / Comps 嵌套）；v0.7.0 起有 <code>CalendarExpandRequest{Start,End}</code></li>
+      <li><b>11 个 RFC 4791 §5.3.2.1 前置条件</b>全部建了常量：no-uid-conflict、supported-calendar-data/component、valid-calendar-data/resource、calendar-collection-location-ok、max-resource-size、min/max-date-time、<b>max-instances</b>、max-attendees-per-instance</li>
+      <li><code>ValidateCalendarObject</code> 按 §4.1 校验并回传唯一事件类型与 UID；<code>CalendarObject.Data</code> 直接是 <code>*ical.Calendar</code>（解析过的，不是字节）</li>
+      <li>服务端侧 <code>Backend</code> 接口 + <code>Handler</code>；客户端 <code>QueryCalendar</code> / <code>MultiGetCalendar</code> / <code>PutCalendarObject</code>（含 IfMatch/IfNoneMatch 条件写）；<code>DiscoverContextURL</code> 做 DNS 服务发现（RFC 6352 §11）</li>
+    </ul>
+    <div class="gap"><b>缺口</b> caldav 包的 API 索引中未见 sync-collection / sync-token（RFC 6578）；README 极简，功能要靠读 API 面才知道</div>
+  </div>
+
+  <div class="card" data-lang="go"><h4>其余 Go 解析器（三家） <span class="tag go">Go</span></h4>
+    <div class="role">同层的差异化尝试</div>
+    <ul>
+      <li><code>saltfishpr/ical</code>：把 "parsing, building, <b>validation</b>, and serialization" 四件事并列写进自我定义，各组件各有 <code>New*</code> 构造器</li>
+      <li><code>mscloudx/ical</code>：主打"高性能、最少分配"的 <code>io.Reader</code> 流式解析 ＋ <code>io.Writer</code> 编码 ＋ functional-options 构造</li>
+      <li><code>luxifer/ical</code>：按 Rob Pike 词法扫描演讲组织的 lexer/parser，<code>Parse(io.Reader, *time.Location)</code>；自报 VEVENT / VTODO / VJOURNAL / VFREEBUSY / VTIMEZONE 清单</li>
+      <li><code>vareversat/gics</code>：以"创建 VEVENT / VALARM / VJOURNAL / VFREEBUSY"的勾选清单自述</li>
+    </ul>
+    <div class="gap"><b>含义</b> Go 至少有 5 个平行实现的解析层——<b>该层已饱和</b>，差异化只剩校验、性能、时区态度三个轴</div>
+  </div>
+
+  <div class="card" data-lang="go"><h4>Go 递归层的其它尝试 <span class="tag go">Go</span></h4>
+    <div class="role">对 dateutil 移植版性能不满</div>
+    <ul>
+      <li><code>stephens2424/rrule</code>：自述写作动机是"克服此前实现的性能问题——那些实现大体上是 python-dateutil 的直接移植，算法复杂且没用上 Go 的语言特性"；v1.2.0，BSD-3，仍依赖 rrule-go v1.2.3</li>
+      <li><code>graham/rrule</code>：自述"我找到一个库只做解析、另一个只做编辑、另一个只做展开，<b>但没有一个三件都做</b>"，并提供 Limit / After / Between 迭代器助手</li>
+      <li><code>julienbreux/rrule-go</code>：改为对标 rrule.js 而非 dateutil；最低 Go 1.8</li>
+    </ul>
+    <div class="gap"><b>含义</b> 同一层出现 4 个并行实现、且理由各是"性能"与"三合一"，说明<b>这一层从未让人满意</b></div>
+  </div>
+
+  <div class="card" data-lang="go"><h4>Go 的 CalDAV 服务端 <span class="tag go">Go</span></h4>
+    <div class="role">数量可观但都不大</div>
+    <ul>
+      <li><code>codanael/caldav-go</code>：自述实现 RFC 4791 / 4918 / 5545 / 6578，VEVENT + VTODO，sync-token 与 CTag，PROPFIND / PROPPATCH / MKCOL / PUT / GET / DELETE / OPTIONS / REPORT、calendar-query；<b>并写明已对 Apple Calendar、Apple Reminders（经 VTODO）、Google Calendar 测过兼容</b></li>
+      <li><code>samedi/caldav-go</code>：提供各 CalDAV HTTP 请求的 handler 以快速搭服务端</li>
+      <li><code>lshvetsov/go-webdav</code>：自报 If-Match / If-None-Match（RFC 7232）乐观锁、RFC 6578 增量同步、时间范围过滤、<b>自动冲突解决</b></li>
+      <li><code>yinjun1991/caldav-client-go</code>：有 <code>SyncCalendarList</code> / <code>SyncCalendarListWithLimit</code> / <code>SyncCalendar(SyncQuery)</code></li>
+    </ul>
+    <div class="gap"><b>缺口</b> 无 Radicale 量级的公认选项；"自动冲突解决"这类声明本轮未见其策略细节</div>
+  </div>
+
+  <div class="card" data-lang="go"><h4>Go 终端日历 App 群 <span class="tag go">Go</span></h4>
+    <div class="role">6 个，功能口径趋同</div>
+    <ul>
+      <li><code>chroncal</code>：终端优先的日历＋待办＋日记，SQLite 本地存储，iCal 导入导出，CalDAV 同步，TUI 月/周/日/agenda 四视图 ＋ 可脚本化 CLI（事件、todo、journal、<b>告警</b>、<b>free/busy 查询</b>）</li>
+      <li><code>TipiCal</code>：CalDAV 同步（Nextcloud / Google / iCloud）、day / 3-day / week / month / agenda 五视图、<b>含递归与提醒的事件富编辑器</b>、Vim 键位、可主题化</li>
+      <li><code>vimalender</code> v1.0.1：Bubble Tea + Lip Gloss 的 vim 风格，导航/新建/移动/搜索/自定义，<b>另附非交互子命令（含导入 .ics）供脚本调用</b></li>
+      <li><code>kkga/tdx</code>：面向 vdirsyncer vdir 格式的 todo 管理器，自动日期与优先级解析，可当 iOS Reminders / Tasks.org 的 CLI 伴生</li>
+      <li><code>samuelstranges/chronos</code>：vim 键位＋visual mode，week 视图可调缩放（30/15/5/1 分钟），事件的增删改与复制粘贴、递归事件、多日历、基于 iCal 的实验性同步</li>
+      <li><code>NStefan002/tui-calendar</code>：Google Calendar 同步（OAuth）</li>
+    </ul>
+    <div class="gap"><b>含义</b> 这批项目共同勾勒出"日历 CLI/TUI 的功能及格线"，是 moon-ical 最直接的对照面</div>
+  </div>
+
+</div>
+
+<div class="note"><b>卡片里最值得记住的三条：</b>
+一，<code>khal</code> 把 Features 一节副标题写成 "(or rather: limitations)"，并承认不能编辑事件时区——
+一个成熟的终端日历在时区编辑上仍是缺的；
+二，Radicale 明说"只实现到能让客户端理解为止"，这是<b>以现实互操作而非规范完整性</b>为验收标准的范例；
+三，Go 终端 App 群里有三个（chroncal / TipiCal / yinjun1991 客户端）都把 <b>free/busy 与 sync-token</b>
+列进卖点，说明这两项在用户侧已被当作"应该有"。</div>

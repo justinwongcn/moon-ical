@@ -1,1 +1,1 @@
-# JustinWong/moon-ical
+# justinwongcn/moon-ical

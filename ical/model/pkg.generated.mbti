@@ -1,0 +1,23 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "justinwongcn/moon-ical/ical/model"
+
+import {
+  "justinwongcn/moon-ical/ical/text",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn parse_components(Array[String]) -> Array[Component] raise
+
+// Errors
+
+// Types and methods
+pub struct Component {
+  kind : String
+  properties : Array[@text.ContentLine]
+  children : Array[Component]
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits

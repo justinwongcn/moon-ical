@@ -1,0 +1,65 @@
+
+<h2 id="s2"><span class="num">02</span>标准功能轴：用什么尺子量深浅</h2>
+
+<p>iCalendar 不是一份规范，而是十几份叠在一起的规范。做功能对照必须先固定尺子，否则各家 README 各说各话。</p>
+
+<h3>2.1 规范清单</h3>
+<div class="tw"><table>
+  <thead><tr><th class="rw">规范</th><th>管什么</th><th>本轮核实到的状态</th></tr></thead>
+  <tbody>
+    <tr><td>RFC 2445</td><td>旧版 iCalendar</td><td>已被 5545 取代；库不再声称支持，但历史数据仍会遇到</td></tr>
+    <tr><td><b>RFC 5545</b></td><td>核心对象：组件、属性、值类型、RRULE、VTIMEZONE</td><td>现行 standards track；所有被调研库的第一主张</td></tr>
+    <tr><td>RFC 5546</td><td>iTIP 调度语义（PUBLISH / REQUEST / REPLY / ADD / CANCEL / REFRESH / COUNTER）</td><td>组织者—出席者模型与 PARTSTAT 所在；<b>两语言实现都稀薄</b></td></tr>
+    <tr><td>RFC 6047</td><td>iMIP：用邮件承载 iTIP</td><td>Go 的 <code>floatpane/go-icalendar</code> 明确以它为目标</td></tr>
+    <tr><td>RFC 6321</td><td>xCal（XML 表示）</td><td><code>icalendar</code> 明确不声称兼容（其 issue #1135）</td></tr>
+    <tr><td>RFC 6350 / 6352</td><td>vCard 4.0 / CardDAV</td><td>联系人侧；<code>icalendar</code> 不声称支持 vCard</td></tr>
+    <tr><td>RFC 6578</td><td>WebDAV 集合同步（sync-token 增量）</td><td>同步器命脉；Radicale 与多个 Go 客户端/服务端实现</td></tr>
+    <tr><td>RFC 6868</td><td>参数值编码（引号与 <code>^</code> 转义）</td><td><b>最容易做错的一处</b>；<code>icalendar</code> 与 <code>ical</code> 均列为支持</td></tr>
+    <tr><td>RFC 7529</td><td>RSCALE 非格里高利历递归</td><td><code>icalendar</code> 列为支持；<code>recurring-ical-events</code> 列为 TODO</td></tr>
+    <tr><td>RFC 7953</td><td>VAVAILABILITY 可用性</td><td><code>icalendar</code> 列为支持；<code>recurring-ical-events</code> 列为 TODO</td></tr>
+    <tr><td>RFC 7986</td><td>新增属性（TITLE / DESCRIPTION / COLOR / IMAGE / CONCEPT / REFID…）</td><td><code>icalendar</code>、<code>ical</code> 支持；前者有专门的 COLOR 实现</td></tr>
+    <tr><td>RFC 8536</td><td>TZif 时区数据格式</td><td>Python <code>ical</code> 列为支持，其时区指南围绕它展开</td></tr>
+    <tr><td>RFC 9073 / 9253</td><td>事件关系（RELATED-TO / DERIVED-FROM-UID）</td><td><code>icalendar</code> 称 9073"可能部分可用"（issue #656），并列 9253 为支持</td></tr>
+    <tr><td>RFC 9074</td><td>VALARM 扩展</td><td><code>icalendar</code> 列为支持</td></tr>
+    <tr><td>RFC 4791 / 4918</td><td>CalDAV / WebDAV</td><td>协议层；Go 侧由 <code>emersion/go-webdav</code>、<code>codanael/caldav-go</code> 覆盖</td></tr>
+    <tr><td>RFC 8984</td><td>JSCalendar（JSON 表示）</td><td>不在本轮范围，但与 §2.2 动向直接相关</td></tr>
+  </tbody>
+</table></div>
+
+<h3>2.2 标准组织的当前动向（影响"现在补哪层更保值"）</h3>
+<p>IETF <b>calext</b> 工作组同时维护 iCalendar / iTIP / iMIP / CalDAV / CardDAV / JSCalendar 整套规范。
+本轮取到的工作组页面显示：<b>2026-07-20 里程碑"Adopt an RFC9555bis document"已标记为 Done</b>；
+<code>draft-ietf-calext-icalendar-jscalendar-extensions</code>（v05，2026-01-19）截至本轮
+<b>处于 In WG Last Call</b>，对应里程碑到期日 2026-08；另有
+<code>draft-kashyap-calext-ical-property-deps-00</code>（2026-03-30）在给 iCalendar 属性依赖做机器可读化。
+含义：核心仍是 RFC 5545，短期不会推倒重来；但<b>iCalendar 与 JSON 表示之间的映射正在标准化</b>——
+把数据模型与文本编解码干净分离的实现，将来接入成本最低。</p>
+
+<h3>2.3 RRULE 词汇表：衡量展开器的刻度</h3>
+<p>递归展开最能拉开实现差距，刻度就是这份 PART 清单。下表取自 Go 侧
+<code>floatpane/go-icalendar</code> README 自带的 "Supported RRULE parts" 表（官方声明）——
+它是本轮见到的<b>唯一一份逐 PART 自报家门</b>的表，故用它当基准刻度。</p>
+
+<div class="tw"><table>
+  <thead><tr><th class="rw">PART</th><th>作用</th><th>该实现自报状态</th></tr></thead>
+  <tbody>
+    <tr><td><code>FREQ</code></td><td>SECONDLY … YEARLY 粒度</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>INTERVAL</code></td><td>步长</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>COUNT</code> / <code>UNTIL</code></td><td>终止条件（二者互斥）</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>BYMONTH</code></td><td>限月</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>BYMONTHDAY</code></td><td>限月内日（含负数，-1 = 月末）</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>BYDAY</code></td><td>限星期，含序数前缀（<code>2MO</code> / <code>-1FR</code>）</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>BYSETPOS</code></td><td>候选集合取第 N 个（"每月最后一个周五"）</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>WKST</code></td><td>每周起始日</td><td class="c"><span class="M ok">✓ 支持</span></td></tr>
+    <tr><td><code>BYWEEKNO</code></td><td>限 ISO 周序</td><td class="c"><span class="M part">± 解析但展开时忽略</span></td></tr>
+    <tr><td><code>BYYEARDAY</code></td><td>限年内日</td><td class="c"><span class="M part">± 解析但展开时忽略</span></td></tr>
+    <tr><td><code>RDATE</code> / <code>EXDATE</code></td><td>额外加入 / 剔除具体实例</td><td class="c"><span class="M ok">✓ 合并处理</span></td></tr>
+    <tr><td><code>RECURRENCE-ID</code></td><td>单实例改期 / 取消（同 UID 多 VEVENT）</td><td class="c"><span class="M part">± 需调用方自建覆盖表</span></td></tr>
+    <tr><td><code>EXRULE</code></td><td>排除整条规则</td><td class="c"><span class="M no">✗ 规范中已废弃，普遍不做</span></td></tr>
+    <tr><td><code>RSCALE</code> / <code>SKIP</code></td><td>非格里高利历递归（RFC 7529）</td><td class="c"><span class="M no">✗ 仅 icalendar 声称支持</span></td></tr>
+  </tbody>
+</table></div>
+
+<div class="note"><b>「解析但忽略」是这一层最危险的档位。</b>
+<code>BYWEEKNO</code> / <code>BYYEARDAY</code> 静默失效，产出的是一张"看起来合理、但少了几十个实例"的日程表，
+用户无从察觉。若 <code>moon-ical</code> 暂不支持某个 PART，宁可<b>显式报错或降级警告</b>，也不要照抄静默忽略。</div>

@@ -7,7 +7,6 @@
 ///
 /// URL 1 is the connectivity control; URL 2/3 are real .ics feeds.
 /// Per-URL failures are isolated so one unreachable host does not kill the run.
-
 async fn probe_url(url : String) -> String {
   try {
     let (response, body) = @http.get(url)
@@ -18,10 +17,10 @@ async fn probe_url(url : String) -> String {
   }
 }
 
+///|
 async fn main {
   let urls : Array[String] = [
-    "https://www.moonbitlang.com",
-    "https://calendar.google.com/calendar/ical/zh.china%23holiday%40group.v.calendar.google.com/public/basic.ics",
+    "https://www.moonbitlang.com", "https://calendar.google.com/calendar/ical/zh.china%23holiday%40group.v.calendar.google.com/public/basic.ics",
     "https://www.calendarlabs.com/ical-calendar/ics/76/US_Holidays.ics",
   ]
   for url in urls {

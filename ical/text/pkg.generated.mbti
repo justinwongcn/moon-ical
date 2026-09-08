@@ -1,0 +1,35 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "justinwongcn/moon-ical/ical/text"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn parse_content_line(String, Int) -> ContentLine raise
+
+pub fn unescape_value(String) -> String
+
+pub fn unfold(String) -> Array[String]
+
+// Errors
+pub(all) suberror ParseError {
+  BadLine(line_no~ : Int, line~ : String, message~ : String)
+} derive(Eq, @debug.Debug)
+pub impl Show for ParseError
+
+// Types and methods
+pub struct ContentLine {
+  name : String
+  params : Array[PropertyParam]
+  value : String
+} derive(Eq, @debug.Debug)
+
+pub struct PropertyParam {
+  name : String
+  value : String
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits

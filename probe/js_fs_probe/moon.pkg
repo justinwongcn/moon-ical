@@ -2,5 +2,5 @@ pkgtype(kind: "executable")
 
 import {
   "moonbitlang/async",
-  "moonbitlang/async/fs" @fs,
+  "moonbitlang/async/fs",
 }
