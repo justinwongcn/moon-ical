@@ -10,6 +10,40 @@ pub struct Component {
 } derive(Debug, Eq)
 
 ///|
+/// The first property with this name, if the component carries one.
+pub fn Component::property(
+  self : Component,
+  name : String,
+) -> @text.ContentLine? {
+  let want = String::to_upper(name)
+  let mut found : @text.ContentLine? = None
+  for p in self.properties {
+    if p.name == want {
+      found = Some(p)
+      break
+    }
+  }
+  found
+}
+
+///|
+/// Every property with this name — `EXDATE` and `RDATE` may be repeated, and
+/// a single one may hold a comma-separated list.
+pub fn Component::properties_named(
+  self : Component,
+  name : String,
+) -> Array[@text.ContentLine] {
+  let want = String::to_upper(name)
+  let out : Array[@text.ContentLine] = []
+  for p in self.properties {
+    if p.name == want {
+      out.push(p)
+    }
+  }
+  out
+}
+
+///|
 /// Build a component tree from already-unfolded logical lines.
 ///
 /// Unknown components are preserved rather than dropped, so an unusual feed

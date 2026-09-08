@@ -107,6 +107,22 @@ fn trim_ascii(s : String) -> String {
 }
 
 ///|
+/// The value of the first parameter with this name (`TZID`, `VALUE`, ...).
+/// Parameter names were normalised to upper case while parsing, and the lookup
+/// key is normalised the same way, so callers can pass either spelling.
+pub fn ContentLine::param(self : ContentLine, name : String) -> String? {
+  let want = String::to_upper(name)
+  let mut found : String? = None
+  for p in self.params {
+    if p.name == want {
+      found = Some(p.value)
+      break
+    }
+  }
+  found
+}
+
+///|
 /// Turn the RFC 5545 escaped text of a property value into display text.
 ///
 /// `\\n` and `\\N` both mean a newline (the latter is common in Apple feeds),
