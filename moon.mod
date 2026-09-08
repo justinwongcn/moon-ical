@@ -19,11 +19,11 @@ repository = ""
 
 license = "Apache-2.0"
 
-keywords = [ ]
+keywords = [ "icalendar", "calendar", "caldav", "rrule", "rfc5545" ]
 
 preferred_target = "wasm"
 
-description = ""
+description = "iCalendar (RFC 5545) parsing, recurrence expansion, and a minimal CalDAV server in pure MoonBit"
 
 import {
   "moonbitlang/async@0.21.2",

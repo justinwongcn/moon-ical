@@ -1,6 +1,0 @@
-pkgtype(kind: "executable")
-
-import {
-  "moonbitlang/async",
-  "moonbitlang/async/http",
-}
