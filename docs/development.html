@@ -181,7 +181,8 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
   <thead><tr><th class="c">#</th><th>目标</th><th class="c">规模</th><th>验收（过不了的验收不算完成）</th><th class="c">状态</th></tr></thead>
   <tbody>
     <tr><td class="c">S0</td><td>清场：删模板/探针，README/moon.mod 就位，登记接缝</td><td class="c">0 行</td><td><code>moon check && moon test</code> 全绿，工作区干净</td><td><span class="chip done">完成 0ab8978</span></td></tr>
-    <tr><td class="c">S1</td><td>类型化事件层：<code>Event</code> 结构 + <code>Component::events()</code>（映射层，无新算法）</td><td class="c">~150</td><td>demo 读本地 fixture .ics 打印事件清单</td><td><span class="chip next">下一步</span></td></tr>
+    <tr><td class="c">S1</td><td>类型化事件层：<code>Event</code> 结构 + <code>Component::events()</code>（映射层，无新算法）</td><td class="c">~150</td><td>demo 读本地 fixture .ics 打印事件清单</td><td><span class="chip done">完成（S1）</span></td></tr>
+    <tr><td class="c">S1.5</td><td>取件切片：<code>ical/fetch</code>（<code>@http.get</code> 薄层，非 200 抛 <code>FetchError</code>）+ demo 支持 URL 输入：<code>URL → 事件清单</code> 端到端。网络测试不进 CI（Google 源本网络不可达，演示用 calendarlabs）</td><td class="c">~130</td><td>给真实可达 .ics URL，打印解析后事件清单；CI 仍走本地 fixture</td><td><span class="chip next">下一步（用户要求的早期端到端）</span></td></tr>
     <tr><td class="c">S2</td><td>RRULE 解析（不展开）：第一档子句 → <code>Rule</code>；不支持子句显式报错</td><td class="c">~200</td><td>graham 32 个用例的 rule 串全部按档位解析或报错</td><td><span class="chip plan">计划</span></td></tr>
     <tr><td class="c">S3</td><td>第一档展开：DAILY/WEEKLY/MONTHLY + INTERVAL/COUNT/UNTIL/BYDAY(无offset)/BYMONTHDAY(正) + DTSTART 回退特例</td><td class="c">~400</td><td>RFC 附录 A 第一档 ~20 用例对拍全绿（语料：<code>.survey/src/graham_rrule/basic_test.go</code>）</td><td><span class="chip plan">计划</span></td></tr>
     <tr><td class="c">S4</td><td>iCalendar 序列化写回：fold(75字符)/escape/组件树→ics（CalDAV 响应体就是它，故提前）</td><td class="c">~200</td><td>parse → serialize → parse 往返不变</td><td><span class="chip plan">计划</span></td></tr>
