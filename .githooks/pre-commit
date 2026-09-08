@@ -1,7 +1,12 @@
 #!/bin/sh
 # moon-ical pre-commit gate（项目钩子）
-# 激活方式：git -c core.hooksPath=.githooks commit ...（EvoX 环境会注入全局
-# hooksPath，覆盖不了配置文件，所以提交命令必须显式带上这个 -c，见 AGENTS.md）
+# 激活方式：git -c core.hooksPath=.githooks commit ...（EvoX 环境注入了全局
+# hooksPath，配置文件压不过，所以提交命令必须显式带上 -c，见 AGENTS.md）
+#
+# 闸门 v2（响应「每次提交泄露 PROGRESS.md 变化」的问题）：
+#   - docs/PROGRESS.md 已移出版本库（.gitignore），内部会话日志不再进任何提交；
+#   - 源码提交时要求它在本次工作期间被更新过（mtime 晚于上次提交），
+#     防的是「忘了同步」；内容是否敷衍属于纪律层（AGENTS.md/收工清单）。
 
 # 1) 代码必须先过类型检查
 moon check >/dev/null 2>&1 || {
@@ -9,14 +14,23 @@ moon check >/dev/null 2>&1 || {
   exit 1
 }
 
-# 2) 文档同步闸门：动了源码就必须同步更新跨会话状态源 docs/PROGRESS.md
+# 2) 文档同步闸门：源码改动要求 PROGRESS.md 在上次提交之后被更新过
 staged=$(git diff --cached --name-only)
-code=$(printf '%s\n' "$staged" | grep -E '^(ical/|demo/|moon\.mod)' | head -n 1)
-tracker=$(printf '%s\n' "$staged" | grep -E '^docs/PROGRESS\.md$' | head -n 1)
-if [ -n "$code" ] && [ -z "$tracker" ]; then
-  echo "✗ 提交被拒：本次改了源码（$code）但没有更新 docs/PROGRESS.md。" >&2
-  echo "  PROGRESS.md 是跨会话状态源，必须随代码同步（状态一览/里程碑/会话日志）。" >&2
-  echo "  补完后再提交。" >&2
+if printf '%s\n' "$staged" | grep -qE '^(ical/|demo/|moon\.mod)'; then
+  if [ ! -f docs/PROGRESS.md ]; then
+    echo "✗ 提交被拒：docs/PROGRESS.md 不存在——跨会话状态源丢了，先恢复再提交。" >&2
+    exit 1
+  fi
+  if [ docs/PROGRESS.md -ot .git/refs/heads/master ] 2>/dev/null; then
+    echo "✗ 提交被拒：本次改了源码，但 docs/PROGRESS.md 自上次提交后未更新。" >&2
+    echo "  它是跨会话状态源（本地文件，不入库）：先更新状态一览/里程碑/会话日志，再提交。" >&2
+    exit 1
+  fi
+fi
+
+# 3) 保险：PROGRESS.md 不应再以新增/修改的形式进入任何提交（删除=移出库，放行）
+if git diff --cached --name-only --diff-filter=AM -- docs/PROGRESS.md | grep -q .; then
+  echo "✗ 提交被拒：docs/PROGRESS.md 已改为本地文件（不入库），请 git restore --staged 它。" >&2
   exit 1
 fi
 

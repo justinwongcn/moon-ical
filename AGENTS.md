@@ -78,9 +78,14 @@ Two non-negotiables:
 - **Before doing any work in this repository, read `docs/PROGRESS.md`.** It is
   the single cross-session source of truth for where the project is, what the
   next milestone is, and why key decisions were made.
+- `docs/PROGRESS.md` is a **local-only file** (gitignored): it holds internal
+  session logs and decision records and must never be committed. The public
+  progress signal lives in `docs/development.html` and in commit messages.
 - **Before ending a session, update `docs/PROGRESS.md`** (status snapshot,
   milestone table, append to the session log, run through its closing
   checklist). If a milestone landed, also sync `docs/development.html` §02/§04.
+  The pre-commit gate enforces this mechanically: a source-code commit whose
+  tracker was not touched since the last commit is rejected.
 - Milestone work follows the handbook in `docs/development.html`: one minimal
   goal per commit, `S<n>:` commit prefix, per-step acceptance criteria, and a
   hard cap — split the step if it outgrows half a day.
