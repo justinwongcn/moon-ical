@@ -1,0 +1,21 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "justinwongcn/moon-ical/ical/fetch"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub async fn fetch_ics(String) -> String
+
+// Errors
+pub(all) suberror FetchError {
+  BadStatus(status~ : Int, url~ : String)
+} derive(Eq, @debug.Debug)
+pub impl Show for FetchError
+
+// Types and methods
+
+// Type aliases
+
+// Traits

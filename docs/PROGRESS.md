@@ -10,9 +10,9 @@
 
 | 项 | 值 |
 |---|---|
-| 当前里程碑 | **S1.5 待做**：取件切片（~130 行；验收 = 给真实可达 .ics URL，端到端打印事件清单）；随后 S2 RRULE 解析 |
-| HEAD | `79752d9` S1: typed VEvent layer（分支 master，无远程） |
-| 测试 | 73/73 绿（`moon check` ✓ · `moon test` ✓） |
+| 当前里程碑 | **S2 待做**：RRULE 解析，不展开（~200 行；验收 = graham 32 条 rule 串按档位解析或报错） |
+| HEAD | S1.5（fetch 切片，本提交；之前 `79752d9` S1、`0ab8978` S0）（分支 master，无远程） |
+| 测试 | 73/73 绿（`moon check` ✓ · `moon test` ✓）；端到端实测：用户提供的 chinacalendar.app URL → 13 个事件 |
 | 规模 | 实现 1155 行 + 测试 665 行 + demo 71 行 |
 | 阻塞 | 无 |
 | 待用户确认 | `moon.mod` 的 `repository = ""` 需真实 GitHub 仓库地址 |
@@ -23,7 +23,7 @@
 |---|---|---|---|
 | S0 清场 | ✅ | `0ab8978` | 删模板/探针，README/moon.mod 就位，登记 S6 接缝 |
 | S1 事件层 | ✅ | `79752d9` | `Event` 类型化视图 + `parse_events` + demo 可运行 |
-| S1.5 取件切片 | ⏳ 下一步 | — | `ical/fetch`（@http.get 薄层）+ demo 支持 URL 输入：URL → 事件清单（用户要求的早期端到端；完整订阅同步仍在 S9） |
+| S1.5 取件切片 | ✅ | 本提交 | `ical/fetch` + demo URL 模式；实测 chinacalendar.app 2026 中国节假日 → 13 事件 |
 | S2 RRULE 解析 | ⏳ | — | 第一档子句 → `Rule` 结构；不支持子句显式报错 |
 | S3 第一档展开 | ⏳ | — | DAILY/WEEKLY/MONTHLY…附录 A ~20 用例对拍（语料在 `.survey/src/graham_rrule/basic_test.go`） |
 | S4 序列化写回 | ⏳ | — | fold/escape，roundtrip 测试 |
@@ -42,6 +42,7 @@
 - S0：删 `cmd/`、`spike/`、`probe/` 与根包测试桩；README/moon.mod 就位；登记接缝 S6。
 - 开发手册 `docs/development.html` 上线，并确立本文件为跨会话状态源。
 - S1：`ical/model/event.mbt`（Event 视图 + `parse_events`）+ `parse_date_time_value`（EXDATE 多值）+ `demo/`；`IcalDateTime` 补 derive `Eq`。
+- S1.5：`ical/fetch`（`fetch_ics` 薄层 + `FetchError`）+ demo URL 模式（`@env.args()` 扫描 http(s):// 参数，async main）；用户提供的 `chinacalendar.app/ics/china-calendar-2026.ics` 端到端跑通 → 13 事件（命令：`moon run demo --target native -- <url>`）。
 - 计划调整（用户提议）：S1 与 S2 之间插入 **S1.5 取件切片**——解析既已落地，fetch→parse→打印 的端到端立刻可用，用户可直接提供 URL 参与测试；网络测试不进 CI（Google 源本网络不可达，演示用 calendarlabs）。完整订阅同步（缓存/刷新）仍留在 S9 支线，避免提前倒逼半成品存储层。
 
 ### 遗留事项

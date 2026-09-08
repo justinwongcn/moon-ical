@@ -2,4 +2,7 @@ pkgtype(kind: "executable")
 
 import {
   "justinwongcn/moon-ical/ical/model",
+  "justinwongcn/moon-ical/ical/fetch",
+  "moonbitlang/async",
+  "moonbitlang/core/env",
 }
