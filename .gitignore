@@ -4,3 +4,6 @@ target/
 .mooncakes/
 .repos/
 .moonagent/
+
+# research scratch (third-party clones) — never commit
+.survey/
