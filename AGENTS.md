@@ -73,6 +73,18 @@ Two non-negotiables:
 - Run `moon test` to check tests pass. MoonBit supports snapshot testing; when
   changes affect outputs, run `moon test --update` to refresh snapshots.
 
+## Cross-session progress tracking
+
+- **Before doing any work in this repository, read `docs/PROGRESS.md`.** It is
+  the single cross-session source of truth for where the project is, what the
+  next milestone is, and why key decisions were made.
+- **Before ending a session, update `docs/PROGRESS.md`** (status snapshot,
+  milestone table, append to the session log, run through its closing
+  checklist). If a milestone landed, also sync `docs/development.html` §02/§04.
+- Milestone work follows the handbook in `docs/development.html`: one minimal
+  goal per commit, `S<n>:` commit prefix, per-step acceptance criteria, and a
+  hard cap — split the step if it outgrows half a day.
+
 - Prefer `assert_eq` or `assert_true(pattern is Pattern(...))` for results that
   are stable or very unlikely to change. For snapshot tests that record
   structured debugging output, derive `Debug` and use `debug_inspect`, rather

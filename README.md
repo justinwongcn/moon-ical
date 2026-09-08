@@ -37,7 +37,8 @@ Seam register and spike evidence live in `docs/upstream-seams.md` and
 `docs/spike-notes.md`. The living development handbook — positioning,
 architecture, milestone ladder (S0–S9), engineering conventions, risk
 register — is [`docs/development.html`](docs/development.html), updated at
-every milestone commit.
+every milestone commit; cross-session progress and handoff notes live in
+[`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Boundaries (explicit non-goals)
 
