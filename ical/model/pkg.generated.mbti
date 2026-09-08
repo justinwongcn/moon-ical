@@ -14,6 +14,10 @@ pub fn parse_components(Array[String]) -> Array[Component] raise
 
 pub fn parse_date_time(@text.ContentLine, ZoneTable, line_no? : Int) -> IcalDateTime raise
 
+pub fn parse_date_time_value(String, ZoneTable, tzid? : String?, value_is_date? : Bool, line_no? : Int) -> IcalDateTime raise
+
+pub fn parse_events(String) -> Array[Event] raise
+
 pub fn parse_single_date_time(String, ZoneTable, line_no? : Int) -> IcalDateTime raise
 
 pub fn parse_utc_offset(String, line_no~ : Int, raw~ : String) -> Int raise
@@ -26,15 +30,30 @@ pub struct Component {
   properties : Array[@text.ContentLine]
   children : Array[Component]
 } derive(Eq, @debug.Debug)
+pub fn Component::events(Self, zones~ : ZoneTable) -> Array[Event] raise
 pub fn Component::properties_named(Self, String) -> Array[@text.ContentLine]
 pub fn Component::property(Self, String) -> @text.ContentLine?
+
+pub struct Event {
+  uid : String?
+  summary : String?
+  location : String?
+  description : String?
+  dtstart : IcalDateTime?
+  dtend : IcalDateTime?
+  rrule : String?
+  recurrence_id : IcalDateTime?
+  exdates : Array[IcalDateTime]
+} derive(@debug.Debug)
+pub fn Event::all_day(Self) -> Bool
+pub impl Show for Event
 
 pub struct IcalDateTime {
   wall : @time.PlainDateTime
   utc_offset : Int?
   zone_id : String
   all_day : Bool
-} derive(@debug.Debug)
+} derive(Eq, @debug.Debug)
 pub fn IcalDateTime::compare(Self, Self) -> Int
 pub fn IcalDateTime::instant_seconds(Self) -> Int64
 pub fn IcalDateTime::is_floating(Self) -> Bool

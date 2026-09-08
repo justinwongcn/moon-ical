@@ -1,0 +1,5 @@
+pkgtype(kind: "executable")
+
+import {
+  "justinwongcn/moon-ical/ical/model",
+}

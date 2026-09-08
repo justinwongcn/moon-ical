@@ -23,7 +23,7 @@ pub struct IcalDateTime {
   /// kept for error messages and for writing a feed back out.
   zone_id : String
   all_day : Bool
-} derive(Debug)
+} derive(Debug, Eq)
 
 ///|
 /// Seconds since the Unix epoch for this value.
@@ -132,6 +132,21 @@ pub fn parse_single_date_time(
   line_no? : Int = 0,
 ) -> IcalDateTime raise {
   parse_value(text, tzid=None, false, zones, line_no)
+}
+
+///|
+/// Parse one date-time value together with the context its property line
+/// carried. `EXDATE` and `RDATE` pack several comma-separated values into one
+/// line, and the line's `TZID=` / `VALUE=DATE` parameters apply to every one
+/// of them — split the values, pass each through here with the same context.
+pub fn parse_date_time_value(
+  raw : String,
+  zones : ZoneTable,
+  tzid? : String? = None,
+  value_is_date? : Bool = false,
+  line_no? : Int = 0,
+) -> IcalDateTime raise {
+  parse_value(raw, tzid~, value_is_date, zones, line_no)
 }
 
 ///|

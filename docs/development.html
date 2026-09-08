@@ -74,10 +74,10 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   <p class="sub">本手册是项目的单一事实来源（single source of truth）：定位、进度、架构、里程碑、工程约定都在这里。每完成一个里程碑提交时同步更新 §02 快照与 §04 状态。</p>
   <div class="meta">
     <span>更新日期 <b>2026-09-08</b></span>
-    <span>基线 commit <b>0ab8978</b>（S0 清场完成）</span>
+    <span>进度 <b>S0–S1 完成</b>（S0: <span class="mono">0ab8978</span>）</span>
     <span>工具链 <b>moon 0.1.20260827 / moonc v0.10.11</b>（<span class="mono">rr_moon_mod + rr_moon_pkg</span>）</span>
     <span>依赖 <b>moonbitlang/async@0.21.2 · moonbitlang/x@0.5.1</b></span>
-    <span>状态 <b>moon check ✓ · moon test 60/60 ✓</b></span>
+    <span>状态 <b>moon check ✓ · moon test 73/73 ✓</b></span>
   </div>
 </header>
 
@@ -116,7 +116,8 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   <thead><tr><th>包</th><th>内容</th><th class="c">实现行数</th><th class="c">测试</th><th>状态</th></tr></thead>
   <tbody>
     <tr><td class="mono">ical/text</td><td>折行展开（§3.1）、内容行解析（引号参数）、文本反转义、带行号 <code>ParseError</code></td><td class="c">309</td><td class="c">20 用例</td><td><span class="chip done">已落地</span></td></tr>
-    <tr><td class="mono">ical/model</td><td>组件树（BEGIN/END 嵌套、未知组件保留）、<code>IcalDateTime</code>（UTC/floating/TZID/全天四态）、<code>ZoneTable</code>（固定偏移 + feed 内嵌 VTIMEZONE）</td><td class="c">653</td><td class="c">40 用例</td><td><span class="chip done">已落地</span></td></tr>
+    <tr><td class="mono">ical/model</td><td>组件树（BEGIN/END 嵌套、未知组件保留）、<code>IcalDateTime</code>（四态时间，Eq）、<code>ZoneTable</code>（固定偏移 + feed 内嵌 VTIMEZONE）、<b>Event 类型化视图</b>（S1：<code>parse_events</code> / <code>Component::events</code>，RRULE 原文、EXDATE、RECURRENCE-ID）</td><td class="c">846</td><td class="c">53 用例</td><td><span class="chip done">已落地</span></td></tr>
+    <tr><td class="mono">demo</td><td>可运行入口：内嵌真实形态 fixture（折叠/转义/TZID/RRULE/EXDATE/全天/改期覆盖），打印事件清单（<code>moon run demo</code>）</td><td class="c">71</td><td class="c">—</td><td><span class="chip done">S1 起步</span></td></tr>
     <tr><td class="mono">ical/rrule</td><td>RRULE 解析 + 展开（S2/S3/S8）</td><td class="c">—</td><td class="c">—</td><td><span class="chip plan">S2 起</span></td></tr>
     <tr><td class="mono">ical/serialize</td><td>组件树 → .ics 文本（fold/escape）（S4）</td><td class="c">—</td><td class="c">—</td><td><span class="chip plan">S4</span></td></tr>
     <tr><td class="mono">ical/store</td><td>vdir 文件存储（native <code>@fs</code>）（S5）</td><td class="c">—</td><td class="c">—</td><td><span class="chip plan">S5</span></td></tr>
@@ -124,7 +125,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   </tbody>
 </table></div>
 
-<p><b>合计</b>：实现 962 行 + 测试 508 行，60 个测试块全绿。git 历史五个提交：<span class="mono">2693713</span> M0 脚手架 → <span class="mono">ba31393</span> M1 解析核心 → <span class="mono">c41a4cf</span> M2 日期时间模型 → <span class="mono">0ab8978</span> S0 清场（模板/探针已删，README/moon.mod 已就位）。</p>
+<p><b>合计</b>：实现 1155 行 + 测试 665 行，73 个测试块全绿。git 历史：<span class="mono">2693713</span> M0 脚手架 → <span class="mono">ba31393</span> M1 解析核心 → <span class="mono">c41a4cf</span> M2 日期时间模型 → <span class="mono">0ab8978</span> S0 清场（模板/探针已删，README/moon.mod 已就位）。</p>
 
 <!-- ============================================================ -->
 <h2 id="s03"><span class="num">03</span>架构与数据流</h2>
@@ -159,9 +160,15 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
             parse_single_date_time(String, ZoneTable, line_no?) -&gt; IcalDateTime raise
             parse_utc_offset(String, line_no~, raw~) -&gt; Int raise
             build_zone_table(Array[Component]) -&gt; ZoneTable
-            Component::{property, properties_named}
-            IcalDateTime::{instant_seconds, is_utc, is_floating, compare}
-            ZoneTable::{empty, builtin_common, with_builtin, insert, lookup}</code></pre>
+            Component::{property, properties_named, events}
+            IcalDateTime::{instant_seconds, is_utc, is_floating, compare}  // derive Eq（S1 起）
+            ZoneTable::{empty, builtin_common, with_builtin, insert, lookup}
+            parse_events(String) -&gt; Array[Event] raise
+            parse_date_time_value(String, ZoneTable, tzid?, value_is_date?, line_no?) raise
+            struct Event { uid, summary, location, description : String?
+                           dtstart, dtend, recurrence_id : IcalDateTime?
+                           rrule : String?  exdates : Array[IcalDateTime] }
+            Event::all_day(Self) -&gt; Bool      // impl Show</code></pre>
 
 <div class="note"><b>设计立场</b>：保真优先——未知组件/属性一律保留（竞品 mooncal 是固定字段清单）；时间四态显式建模；解析不了的输入带行号报错而不是静默吞掉。这三条是后续所有包必须继承的基线。</div>
 
