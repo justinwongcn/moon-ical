@@ -48,6 +48,36 @@ pub fn IcalDateTime::is_floating(self : IcalDateTime) -> Bool {
 }
 
 ///|
+/// The same clock reading as `self`, on another calendar day: the clock
+/// time, UTC offset, zone spelling, and all-day flag all carry over
+/// unchanged.
+///
+/// This is how a recurrence expansion moves a `DTSTART` through its
+/// occurrences. The offset is deliberately frozen at `self`'s value: the
+/// fixed-offset `ZoneTable` has no DST history (seam S2 in
+/// docs/upstream-seams.md), so a series crossing a DST change keeps the
+/// `DTSTART` offset rather than guessing — the boundary README documents
+/// this. Raises if `date` is not a valid calendar day.
+pub fn IcalDateTime::on_date(
+  self : IcalDateTime,
+  date : @time.PlainDate,
+) -> IcalDateTime raise {
+  {
+    wall: @time.PlainDateTime::of(
+      date.year(),
+      date.month(),
+      date.day(),
+      hour=self.wall.hour(),
+      minute=self.wall.minute(),
+      second=self.wall.second(),
+    ),
+    utc_offset: self.utc_offset,
+    zone_id: self.zone_id,
+    all_day: self.all_day,
+  }
+}
+
+///|
 /// Negative when `self` happens before `other`, zero for the same instant,
 /// positive afterwards. All-day values compare by their calendar day.
 pub fn IcalDateTime::compare(self : IcalDateTime, other : IcalDateTime) -> Int {
