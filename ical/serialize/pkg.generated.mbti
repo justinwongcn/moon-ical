@@ -1,0 +1,22 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "justinwongcn/moon-ical/ical/serialize"
+
+import {
+  "justinwongcn/moon-ical/ical/model",
+  "justinwongcn/moon-ical/ical/text",
+}
+
+// Values
+pub fn serialize_component(@model.Component) -> String
+
+pub fn serialize_components(Array[@model.Component]) -> String
+
+pub fn serialize_content_line(@text.ContentLine) -> String
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

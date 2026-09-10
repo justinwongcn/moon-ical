@@ -6,6 +6,8 @@ import {
 }
 
 // Values
+pub fn escape_value(String) -> String
+
 pub fn parse_content_line(String, Int) -> ContentLine raise
 
 pub fn unescape_value(String) -> String

@@ -104,3 +104,16 @@ test "unescape_value on a string with no escapes is identity" {
 test "a trailing lone backslash does not run off the end" {
   assert_eq(@text.unescape_value("ends\\"), "ends\\")
 }
+
+///|
+test "escape_value is the inverse of unescape_value" {
+  assert_eq(
+    @text.escape_value("Team sync, 2026\nRoom B; weekly"),
+    "Team sync\\, 2026\\nRoom B\\; weekly",
+  )
+  assert_eq(
+    @text.unescape_value(@text.escape_value("a,b\nc;d\\e")),
+    "a,b\nc;d\\e",
+  )
+  assert_eq(@text.escape_value("plain"), "plain")
+}

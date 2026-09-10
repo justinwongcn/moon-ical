@@ -1,0 +1,10 @@
+// ical/serialize: component tree back to RFC 5545 text (fold, CRLF).
+import {
+  "justinwongcn/moon-ical/ical/model",
+  "justinwongcn/moon-ical/ical/text",
+}
+
+import {
+  "justinwongcn/moon-ical/ical/model",
+  "justinwongcn/moon-ical/ical/text",
+} for "test"

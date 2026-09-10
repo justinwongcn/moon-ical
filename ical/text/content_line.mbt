@@ -171,6 +171,41 @@ pub fn unescape_value(value : String) -> String {
 }
 
 ///|
+/// Escape text for use as a property value, the inverse of
+/// [`unescape_value`]: a newline becomes `\n`, and a literal comma,
+/// semicolon, or backslash gains its backslash. Characters that need no
+/// escape pass through untouched.
+///
+/// Parsed values keep their escaped wire form, so a round trip through
+/// parse and serialize never calls this — it is for *building* content
+/// from plain text.
+///
+/// # Example
+/// ```mbt nocheck
+/// fn test_example() {
+///   assert_eq(
+///     @text.escape_value("Team sync, 2026\nRoom B"),
+///     "Team sync\\, 2026\\nRoom B",
+///   )
+/// }
+/// ```
+pub fn escape_value(text : String) -> String {
+  let out : Array[Char] = []
+  for c in text.to_array() {
+    if c == '\n' {
+      out.push('\\')
+      out.push('n')
+    } else if c == ',' || c == ';' || c == '\\' {
+      out.push('\\')
+      out.push(c)
+    } else {
+      out.push(c)
+    }
+  }
+  String::from_array(out)
+}
+
+///|
 /// Split on `sep`, ignoring separators that sit inside double quotes.
 fn split_unquoted(s : String, sep : Char) -> Array[String] {
   let chars = s.to_array()
