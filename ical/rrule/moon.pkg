@@ -1,0 +1,10 @@
+// ical/rrule: RFC 5545 §3.3.10 recurrence-rule parsing (no expansion).
+import {
+  "justinwongcn/moon-ical/ical/model",
+  "justinwongcn/moon-ical/ical/text",
+  "moonbitlang/x/time",
+}
+
+import {
+  "moonbitlang/x/time",
+} for "test"

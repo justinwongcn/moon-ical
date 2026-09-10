@@ -1,0 +1,42 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "justinwongcn/moon-ical/ical/rrule"
+
+import {
+  "justinwongcn/moon-ical/ical/model",
+  "moonbitlang/core/debug",
+  "moonbitlang/x/time",
+}
+
+// Values
+pub fn parse_rule(String) -> Rule raise
+
+// Errors
+
+// Types and methods
+pub struct Byday {
+  ordinal : Int
+  weekday : @time.Weekday
+} derive(Eq, @debug.Debug)
+
+pub(all) enum Freq {
+  Yearly
+  Monthly
+  Weekly
+  Daily
+} derive(Eq, @debug.Debug)
+
+pub struct Rule {
+  freq : Freq
+  interval : Int
+  count : Int?
+  until : @model.IcalDateTime?
+  byday : Array[Byday]
+  bymonthday : Array[Int]
+  bymonth : Array[Int]
+  bysetpos : Array[Int]
+  wkst : @time.Weekday
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits

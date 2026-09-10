@@ -15,6 +15,7 @@ pub fn unfold(String) -> Array[String]
 // Errors
 pub(all) suberror ParseError {
   BadLine(line_no~ : Int, line~ : String, message~ : String)
+  BadRule(rule~ : String, message~ : String)
 } derive(Eq, @debug.Debug)
 pub impl Show for ParseError
 
