@@ -8,9 +8,16 @@ import {
 }
 
 // Values
+pub fn expand(Rule, @model.IcalDateTime, limit? : Int) -> Array[@model.IcalDateTime] raise
+
 pub fn parse_rule(String) -> Rule raise
 
 // Errors
+pub(all) suberror ExpandError {
+  Unsupported(feature~ : String)
+  Invalid(message~ : String)
+} derive(Eq, @debug.Debug)
+pub impl Show for ExpandError
 
 // Types and methods
 pub struct Byday {

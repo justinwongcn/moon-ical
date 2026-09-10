@@ -58,6 +58,7 @@ pub fn IcalDateTime::compare(Self, Self) -> Int
 pub fn IcalDateTime::instant_seconds(Self) -> Int64
 pub fn IcalDateTime::is_floating(Self) -> Bool
 pub fn IcalDateTime::is_utc(Self) -> Bool
+pub fn IcalDateTime::on_date(Self, @time.PlainDate) -> Self raise
 pub impl Show for IcalDateTime
 
 pub struct ZoneTable {
