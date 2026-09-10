@@ -1,0 +1,15 @@
+import {
+  "justinwongcn/moon-ical/ical/httpd",
+  "justinwongcn/moon-ical/ical/store",
+  "moonbitlang/async",
+  "moonbitlang/async/socket",
+  "moonbitlang/core/env",
+}
+
+import {
+  "moonbitlang/async/fs",
+} for "wbtest"
+
+supported_targets = "+native"
+
+pkgtype(kind: "executable")
