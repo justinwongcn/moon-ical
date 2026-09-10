@@ -1,0 +1,9 @@
+// ical/store: vdir storage — one .ics file per event, a directory per
+// calendar collection (the vdir convention cross-tool storage agrees on).
+import {
+  "moonbitlang/async/fs",
+}
+
+import {
+  "moonbitlang/async",
+} for "test"

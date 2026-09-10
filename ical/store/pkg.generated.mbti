@@ -1,0 +1,34 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "justinwongcn/moon-ical/ical/store"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn etag_of(String) -> String
+
+// Errors
+pub(all) suberror StoreError {
+  BadName(name~ : String)
+} derive(Eq, @debug.Debug)
+pub impl Show for StoreError
+
+// Types and methods
+pub(all) struct VdirFile {
+  text : String
+  etag : String
+} derive(Eq, @debug.Debug)
+
+pub struct VdirStore {
+  root : String
+}
+pub async fn VdirStore::delete(Self, String) -> Bool
+pub async fn VdirStore::get(Self, String) -> VdirFile?
+pub async fn VdirStore::list(Self) -> Array[String]
+pub fn VdirStore::new(String) -> Self
+pub async fn VdirStore::put(Self, String, String) -> String
+
+// Type aliases
+
+// Traits
