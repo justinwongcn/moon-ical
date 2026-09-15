@@ -27,6 +27,9 @@ recurrence expansion to a DAV calendar that stock clients can discover.
 moon add justinwongcn/moon-ical@0.1.0
 ```
 
+The repository is now developing 0.2.0. The published 0.1.0 remains the
+installable release until the new API and end-to-end checks are complete.
+
 ## Library usage
 
 ```mbt nocheck
@@ -45,7 +48,14 @@ test {
 
 Focused subpackages remain available under `ical/text`, `ical/model`,
 `ical/rrule`, `ical/serialize`, and `ical/caldav`. The root package re-exports
-their stable public APIs.
+the complete parse, recurrence, and serialization workflows; lower-level text,
+date-time, XML, HTTP-precondition, and CalDAV response primitives stay in their
+own subpackages.
+
+For 0.2.0, the root facade intentionally drops low-level re-exports from
+0.1.0. Existing advanced code can import `ical/text`, `ical/model`,
+`ical/serialize`, or `ical/caldav` directly; complete workflows continue to
+use the root package.
 
 ## Run
 
@@ -70,7 +80,7 @@ python tools/s5_acceptance.py
 python tools/s6_acceptance.py
 ```
 
-Current results: 131 wasm, 121 wasm-gc, 131 JavaScript, and 136 native tests;
+Current results: 134 wasm, 124 wasm-gc, 134 JavaScript, and 139 native tests;
 21 HTTP storage and 11 live CalDAV curl checks also pass.
 
 ## Client interoperability

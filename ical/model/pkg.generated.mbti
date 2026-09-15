@@ -10,6 +10,8 @@ import {
 // Values
 pub fn build_zone_table(Array[Component]) -> ZoneTable
 
+pub fn parse_calendar(String) -> Array[Component] raise
+
 pub fn parse_components(Array[String]) -> Array[Component] raise
 
 pub fn parse_date_time(@text.ContentLine, ZoneTable, line_no? : Int) -> IcalDateTime raise

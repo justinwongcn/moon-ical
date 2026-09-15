@@ -9,3 +9,10 @@ test "root facade parses and expands a series" {
   assert_eq(occurrences.length(), 3)
   assert_eq(occurrences[2].start.to_string(), "2026-09-03T09:00:00Z")
 }
+
+///|
+test "root facade preserves and serializes a calendar" {
+  let input = "BEGIN:VCALENDAR\r\nX-UNKNOWN:kept\r\nEND:VCALENDAR\r\n"
+  let calendar = parse_calendar(input)
+  assert_eq(serialize_components(calendar), input)
+}
