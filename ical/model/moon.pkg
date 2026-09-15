@@ -5,4 +5,5 @@ import {
 
 import {
   "justinwongcn/moon-ical/ical/text",
+  "moonbitlang/core/bench",
 } for "test"

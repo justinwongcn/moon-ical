@@ -18,15 +18,15 @@
 /// ```
 pub fn unfold(input : String) -> Array[String] {
   let logical : Array[String] = []
-  let chars = input.to_array()
-  let n = chars.length()
+  let view = input.view()
+  let n = view.length()
   let mut start = 0
   let mut i = 0
   while i < n {
-    if chars[i] == '\r' || chars[i] == '\n' {
-      push_physical(logical, String::from_array(chars[start:i]))
+    if view[i] == '\r' || view[i] == '\n' {
+      push_physical(logical, view[start:i])
       // A CRLF pair is one terminator, not two.
-      if chars[i] == '\r' && i + 1 < n && chars[i + 1] == '\n' {
+      if view[i] == '\r' && i + 1 < n && view[i + 1] == '\n' {
         i = i + 2
       } else {
         i = i + 1
@@ -37,7 +37,7 @@ pub fn unfold(input : String) -> Array[String] {
     }
   }
   if start < n {
-    push_physical(logical, String::from_array(chars[start:n]))
+    push_physical(logical, view[start:])
   }
   logical
 }
@@ -47,16 +47,16 @@ pub fn unfold(input : String) -> Array[String] {
 /// logical line, otherwise it starts a new one. A fold marker with nothing to
 /// fold into is kept as its own line rather than dropped, so malformed data
 /// survives the parse instead of vanishing.
-fn push_physical(logical : Array[String], physical : String) -> Unit {
+fn push_physical(logical : Array[String], physical : StringView) -> Unit {
   let is_fold = physical.length() > 0 &&
     (physical[0] == ' ' || physical[0] == '\t')
   if !is_fold {
     if physical.length() > 0 {
-      logical.push(physical)
+      logical.push(physical.to_owned())
     }
   } else {
     // Unfold drops exactly one leading WSP, then joins.
-    let rest = String::from_array(physical.to_array()[1:])
+    let rest = physical[1:].to_owned()
     if logical.length() > 0 {
       let last = logical.length() - 1
       logical[last] = logical[last] + rest

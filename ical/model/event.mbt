@@ -179,17 +179,8 @@ fn text_of(component : Component, name : String) -> String? {
 /// string helpers in this module: explicit slices, no view pitfalls.
 fn split_values(value : String) -> Array[String] {
   let parts : Array[String] = []
-  let chars = value.to_array()
-  let n = chars.length()
-  let mut start = 0
-  let mut i = 0
-  while i < n {
-    if chars[i] == ',' {
-      parts.push(String::from_array(chars[start:i]))
-      start = i + 1
-    }
-    i = i + 1
+  for part in value.view().split(",".view()) {
+    parts.push(part.to_owned())
   }
-  parts.push(String::from_array(chars[start:n]))
   parts
 }
