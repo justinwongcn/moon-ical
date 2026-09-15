@@ -102,7 +102,7 @@ def main() -> int:
         code, hdrs, _ = request("OPTIONS", "/cal/test.ics")
         check("OPTIONS -> 200", code == 200, f"got {code}")
         check("OPTIONS Allow lists PUT", "PUT" in hdrs.get("allow", ""))
-        check("OPTIONS DAV: 1", hdrs.get("dav", "") == "1")
+        check("OPTIONS DAV includes class 1", "1" in hdrs.get("dav", ""))
 
         # 2. PUT creates and answers 201 with an ETag.
         code, hdrs, _ = request("PUT", "/cal/test.ics", data=BODY_A)
@@ -116,15 +116,15 @@ def main() -> int:
         check("GET body is byte-identical", body == BODY_A.encode())
         check("GET ETag equals PUT ETag", hdrs.get("etag", "") == etag1)
 
-        # 4. Changed content moves the ETag; PUT reports a replace (200).
+        # 4. Changed content moves the ETag; CalDAV PUT reports a replace (204).
         code, hdrs, _ = request("PUT", "/cal/test.ics", data=BODY_B)
-        check("PUT replace -> 200", code == 200, f"got {code}")
+        check("PUT replace -> 204", code == 204, f"got {code}")
         etag2 = hdrs.get("etag", "")
         check("content change moves ETag", etag2 != etag1 and etag2 != "")
 
         # 5. Content-addressed: restoring the bytes restores the ETag.
         code, hdrs, _ = request("PUT", "/cal/test.ics", data=BODY_A)
-        check("PUT restore -> 200", code == 200, f"got {code}")
+        check("PUT restore -> 204", code == 204, f"got {code}")
         check("restored bytes restore ETag", hdrs.get("etag", "") == etag1)
 
         # 6. A chunked request body is refused with 411.
@@ -146,9 +146,9 @@ def main() -> int:
         check("collection listing -> 200", code == 200, f"got {code}")
         check("listing contains test.ics", b"test.ics" in body)
 
-        # 9. DELETE removes it (200), then reports nothing left (404).
+        # 9. DELETE removes it (204), then reports nothing left (404).
         code, _, _ = request("DELETE", "/cal/test.ics")
-        check("DELETE -> 200", code == 200, f"got {code}")
+        check("DELETE -> 204", code == 204, f"got {code}")
         code, _, _ = request("GET", "/cal/test.ics")
         check("GET after DELETE -> 404", code == 404, f"got {code}")
         code, _, _ = request("DELETE", "/cal/test.ics")

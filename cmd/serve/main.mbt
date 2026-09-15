@@ -1,5 +1,5 @@
 ///|
-/// The S5 calendar server: one HTTP/1.1 endpoint per vdir event.
+/// The moon-ical CalDAV server: WebDAV discovery plus one endpoint per vdir event.
 ///
 /// Routes (all under `/cal/`):
 ///
@@ -133,6 +133,27 @@ async fn route(
   request : @httpd.HttpRequest,
 ) -> Unit {
   let path = request.path
+  if path == "/.well-known/caldav" {
+    @httpd.respond(conn, 301, "Moved Permanently", headers=[
+      ("Location", "/cal/"),
+    ])
+    return
+  }
+  if path == "/" || path == "/principals/default/" {
+    if request.meth == "PROPFIND" {
+      let body = if path == "/" {
+        @caldav.root_propfind()
+      } else {
+        @caldav.principal_propfind()
+      }
+      dav_response(conn, body)
+    } else if request.meth == "OPTIONS" {
+      options_response(conn)
+    } else {
+      method_not_allowed(conn)
+    }
+    return
+  }
   if path == "/cal/" || path == "/cal" {
     if request.meth == "GET" {
       let names = store.list()
@@ -143,6 +164,22 @@ async fn route(
         headers=[("Content-Type", "text/plain; charset=utf-8")],
         body=names.join("\n") + "\n",
       )
+    } else if request.meth == "OPTIONS" {
+      options_response(conn)
+    } else if request.meth == "PROPFIND" {
+      let depth = if request.header("Depth") == Some("1") { 1 } else { 0 }
+      dav_response(
+        conn,
+        @caldav.collection_propfind(load_resources(store), depth),
+      )
+    } else if request.meth == "REPORT" {
+      match @caldav.report(request.body, load_resources(store)) {
+        Some(body) => dav_response(conn, body)
+        None =>
+          @httpd.respond(conn, 400, "Bad Request", body="unsupported REPORT")
+      }
+    } else if request.meth == "MKCALENDAR" {
+      @httpd.respond(conn, 201, "Created")
     } else {
       method_not_allowed(conn)
     }
@@ -150,11 +187,7 @@ async fn route(
   }
   let name = event_name(path)
   match (request.meth, name) {
-    ("OPTIONS", Some(_)) =>
-      @httpd.respond(conn, 200, "OK", headers=[
-        ("Allow", "OPTIONS, GET, PUT, DELETE"),
-        ("DAV", "1"),
-      ])
+    ("OPTIONS", Some(_)) => options_response(conn)
     ("GET", Some(n)) =>
       match store.get(n) {
         Some(file) =>
@@ -171,18 +204,44 @@ async fn route(
         None => @httpd.respond(conn, 404, "Not Found")
       }
     ("PUT", Some(n)) => {
-      let existed = store.get(n) is Some(_)
-      let etag = store.put(n, request.body)
-      let code = if existed { 200 } else { 201 }
-      let reason = if existed { "OK" } else { "Created" }
-      @httpd.respond(conn, code, reason, headers=[("ETag", "\"\{etag}\"")])
+      let current = store.get(n)
+      let current_tag = match current {
+        Some(file) => Some(file.etag)
+        None => None
+      }
+      if @caldav.check_preconditions(
+          current_tag,
+          request.header("If-Match"),
+          request.header("If-None-Match"),
+        )
+        is @caldav.Precondition::Failed {
+        @httpd.respond(conn, 412, "Precondition Failed")
+      } else {
+        let etag = store.put(n, request.body)
+        let code = if current is Some(_) { 204 } else { 201 }
+        let reason = if code == 204 { "No Content" } else { "Created" }
+        @httpd.respond(conn, code, reason, headers=[("ETag", "\"\{etag}\"")])
+      }
     }
-    ("DELETE", Some(n)) =>
-      if store.delete(n) {
-        @httpd.respond(conn, 200, "OK")
+    ("DELETE", Some(n)) => {
+      let current = store.get(n)
+      let current_tag = match current {
+        Some(file) => Some(file.etag)
+        None => None
+      }
+      if @caldav.check_preconditions(
+          current_tag,
+          request.header("If-Match"),
+          None,
+        )
+        is @caldav.Precondition::Failed {
+        @httpd.respond(conn, 412, "Precondition Failed")
+      } else if store.delete(n) {
+        @httpd.respond(conn, 204, "No Content")
       } else {
         @httpd.respond(conn, 404, "Not Found")
       }
+    }
     (_, Some(_)) => method_not_allowed(conn)
     (_, None) => @httpd.respond(conn, 404, "Not Found")
   }
@@ -206,6 +265,42 @@ fn event_name(path : String) -> String? {
 ///|
 async fn method_not_allowed(conn : @socket.Tcp) -> Unit {
   @httpd.respond(conn, 405, "Method Not Allowed", headers=[
-    ("Allow", "OPTIONS, GET, PUT, DELETE"),
+    ("Allow", "OPTIONS, GET, PUT, DELETE, PROPFIND, REPORT, MKCALENDAR"),
   ])
+}
+
+///|
+async fn options_response(conn : @socket.Tcp) -> Unit {
+  @httpd.respond(conn, 200, "OK", headers=[
+    ("Allow", "OPTIONS, GET, PUT, DELETE, PROPFIND, REPORT, MKCALENDAR"),
+    ("DAV", "1, 3, calendar-access"),
+  ])
+}
+
+///|
+async fn dav_response(conn : @socket.Tcp, body : String) -> Unit {
+  @httpd.respond(
+    conn,
+    207,
+    "Multi-Status",
+    headers=[("Content-Type", "application/xml; charset=utf-8")],
+    body~,
+  )
+}
+
+///|
+async fn load_resources(store : @store.VdirStore) -> Array[@caldav.DavResource] {
+  let resources : Array[@caldav.DavResource] = []
+  for name in store.list() {
+    match store.get(name) {
+      Some(file) =>
+        resources.push({
+          href: "/cal/\{name}",
+          etag: file.etag,
+          calendar_data: file.text,
+        })
+      None => ()
+    }
+  }
+  resources
 }

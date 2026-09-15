@@ -1,0 +1,2 @@
+// Pure WebDAV/CalDAV response and request semantics. Filesystem and sockets
+// remain in cmd/serve, which makes this package testable on every backend.

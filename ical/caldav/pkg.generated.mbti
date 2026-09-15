@@ -1,0 +1,37 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "justinwongcn/moon-ical/ical/caldav"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn check_preconditions(String?, String?, String?) -> Precondition
+
+pub fn collection_propfind(Array[DavResource], Int) -> String
+
+pub fn principal_propfind() -> String
+
+pub fn report(String, Array[DavResource]) -> String?
+
+pub fn root_propfind() -> String
+
+pub fn xml_escape(String) -> String
+
+// Errors
+
+// Types and methods
+pub(all) struct DavResource {
+  href : String
+  etag : String
+  calendar_data : String
+} derive(Eq, @debug.Debug)
+
+pub(all) enum Precondition {
+  Pass
+  Failed
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits
