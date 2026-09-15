@@ -208,7 +208,7 @@ fn xml_text_values(xml : String, local_name : String) -> Array[String] {
       while close < n && view[close] != '>' && view[close] != ' ' {
         close = close + 1
       }
-      let qname = view.sub(start=i + 1, end=close)
+      let qname = view[i + 1:close]
       if local_part(qname).equal_ignore_ascii_case(wanted) {
         let mut open_end = close
         while open_end < n && view[open_end] != '>' {
@@ -216,10 +216,10 @@ fn xml_text_values(xml : String, local_name : String) -> Array[String] {
         }
         if open_end < n {
           let close_name = "</\{qname}>"
-          let rest = view.sub(start=open_end + 1)
+          let rest = view[open_end + 1:]
           match rest.find(close_name.view()) {
             Some(offset) => {
-              values.push(rest.sub(end=offset).to_owned())
+              values.push(rest[:offset].to_owned())
               i = open_end + 1 + offset + close_name.length()
               continue
             }
@@ -236,7 +236,7 @@ fn xml_text_values(xml : String, local_name : String) -> Array[String] {
 ///|
 fn local_part(name : StringView) -> StringView {
   match name.rev_find(":".view()) {
-    Some(colon) => name.sub(start=colon + 1)
+    Some(colon) => name[colon + 1:]
     None => name
   }
 }
