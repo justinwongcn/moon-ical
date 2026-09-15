@@ -79,11 +79,21 @@ Current results: 131 wasm, 121 wasm-gc, 131 JavaScript, and 136 native tests;
 Rows are marked passed only after an actual client session; curl coverage is
 not presented as client-interoperability evidence.
 
+## 0.1.0 release scope (frozen)
+
+The hackathon release is feature-frozen at the reusable iCalendar library,
+minimal CalDAV server, live curl acceptance suites, and verified Thunderbird
+CRUD interoperability. DAVx5 and Apple Calendar remain evidence candidates,
+not release requirements. Cloud-account synchronization for Google Calendar,
+iCloud, Yahoo, and Outlook/Microsoft Graph is post-hackathon work.
+
 ## Boundaries
 
 - No complete IANA tzdb. Named zones use feed `VTIMEZONE` then a common
   fixed-offset table; recurring wall time keeps the resolved offset across DST.
 - No CalDAV scheduling (iTIP/iMIP), ACL system, built-in TLS, or CalDAV client.
+- No provider adapters or cloud-account synchronization for Google Calendar,
+  iCloud, Yahoo, or Outlook/Microsoft Graph.
 - Request bodies require `Content-Length`; chunked uploads receive `411`.
 - Sub-daily RRULE frequencies and `BYWEEKNO`, `BYYEARDAY`, `BYHOUR`,
   `BYMINUTE`, and `BYSECOND` are explicit parse errors.
