@@ -11,12 +11,14 @@ jobs:
   moonbit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hustcer/setup-moonbit@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         run: moon version --all
+      - name: Update MoonBit registry
+        run: moon update
       - name: Check every supported target
         run: moon check --target all --deny-warn
       - name: Test every supported target
