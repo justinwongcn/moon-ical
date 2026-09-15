@@ -10,34 +10,18 @@ fn expand_error_of(rule : String, dtstart : @model.IcalDateTime) -> String {
 }
 
 ///|
-test "the second-tier corpus rules are refused by name, not expanded wrongly" {
+test "ordinal BYDAY is rejected on frequencies where RFC forbids it" {
   let dtstart = @model.parse_single_date_time(
     "19970902T090000",
     @model.ZoneTable::empty(),
   )
   assert_eq(
-    expand_error_of("FREQ=MONTHLY;UNTIL=19971224T000000Z;BYDAY=1FR", dtstart),
-    "unsupported RRULE feature in expansion: ordinal BYDAY (S8)",
+    expand_error_of("FREQ=WEEKLY;COUNT=3;BYDAY=1FR", dtstart),
+    "invalid recurrence rule: ordinal BYDAY is only valid with MONTHLY or YEARLY",
   )
   assert_eq(
-    expand_error_of("FREQ=MONTHLY;BYMONTHDAY=-3", dtstart),
-    "unsupported RRULE feature in expansion: negative BYMONTHDAY (S8)",
-  )
-  assert_eq(
-    expand_error_of("FREQ=MONTHLY;COUNT=3;BYDAY=TU,WE,TH;BYSETPOS=3", dtstart),
-    "unsupported RRULE feature in expansion: BYSETPOS (S8)",
-  )
-  assert_eq(
-    expand_error_of("FREQ=MONTHLY;INTERVAL=2;COUNT=10;BYDAY=1SU,-1SU", dtstart),
-    "unsupported RRULE feature in expansion: ordinal BYDAY (S8)",
-  )
-  assert_eq(
-    expand_error_of("FREQ=MONTHLY;COUNT=6;BYDAY=-2MO", dtstart),
-    "unsupported RRULE feature in expansion: ordinal BYDAY (S8)",
-  )
-  assert_eq(
-    expand_error_of("FREQ=MONTHLY;COUNT=10;BYMONTHDAY=1,-1", dtstart),
-    "unsupported RRULE feature in expansion: negative BYMONTHDAY (S8)",
+    expand_error_of("FREQ=MONTHLY;COUNT=3;BYSETPOS=1", dtstart),
+    "invalid recurrence rule: BYSETPOS requires another BY rule",
   )
 }
 

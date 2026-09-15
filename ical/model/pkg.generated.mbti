@@ -43,6 +43,8 @@ pub struct Event {
   dtend : IcalDateTime?
   rrule : String?
   recurrence_id : IcalDateTime?
+  recurrence_range : String?
+  status : String?
   exdates : Array[IcalDateTime]
 } derive(@debug.Debug)
 pub fn Event::all_day(Self) -> Bool
@@ -59,6 +61,7 @@ pub fn IcalDateTime::instant_seconds(Self) -> Int64
 pub fn IcalDateTime::is_floating(Self) -> Bool
 pub fn IcalDateTime::is_utc(Self) -> Bool
 pub fn IcalDateTime::on_date(Self, @time.PlainDate) -> Self raise
+pub fn IcalDateTime::shift_seconds(Self, Int64) -> Self raise
 pub impl Show for IcalDateTime
 
 pub struct ZoneTable {
