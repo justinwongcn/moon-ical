@@ -8,6 +8,8 @@
   `ical/model`, `ical/serialize`, or `ical/caldav`.
 - Index recurrence overrides and exclusions once during `expand_series`.
 - Use zero-copy XML views and indexed href selection for CalDAV multiget.
+- Use `StringView` through the shared iCalendar unfolding and content-line
+  parser, materializing strings only at model ownership boundaries.
 
 ## 0.1.0
 

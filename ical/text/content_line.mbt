@@ -35,15 +35,15 @@ pub struct PropertyParam {
 /// }
 /// ```
 pub fn parse_content_line(line : String, line_no : Int) -> ContentLine raise {
-  let chars = line.to_array()
-  let n = chars.length()
+  let view = line.view()
+  let n = view.length()
   // The first ':' outside a quoted param value starts the value. A ':' inside
   // quotes belongs to that parameter, so splitting on ':' blindly is wrong.
   let mut colon = -1
   let mut quoted = false
   let mut i = 0
   while i < n && colon < 0 {
-    let c = chars[i]
+    let c = view[i]
     if c == '"' {
       quoted = !quoted
     } else if c == ':' && !quoted {
@@ -54,56 +54,35 @@ pub fn parse_content_line(line : String, line_no : Int) -> ContentLine raise {
   if colon < 0 {
     raise ParseError::BadLine(line_no~, line~, message="no ':' value separator")
   }
-  let head = String::from_array(chars[0:colon])
-  let value = String::from_array(chars[colon + 1:n])
+  let head = view[:colon]
+  let value = view[colon + 1:].to_owned()
   let parts = split_unquoted(head, ';')
-  let name = String::to_upper(trim_ascii(parts[0]))
+  let name = trim_ascii(parts[0]).to_upper().to_owned()
   if name.length() == 0 {
     raise ParseError::BadLine(line_no~, line~, message="empty property name")
   }
   let params : Array[PropertyParam] = []
   for raw in parts[1:] {
-    let eq = find_unquoted(raw, '=')
-    if eq < 0 {
-      raise ParseError::BadLine(
-        line_no~,
-        line~,
-        message="parameter without '=': \{raw}",
-      )
+    let eq = match find_unquoted(raw, '=') {
+      Some(index) => index
+      None =>
+        raise ParseError::BadLine(
+          line_no~,
+          line~,
+          message="parameter without '=': \{raw}",
+        )
     }
-    let raw_chars = raw.to_array()
-    let rn = raw_chars.length()
-    let pname = String::to_upper(
-      trim_ascii(String::from_array(raw_chars[0:eq])),
-    )
-    let pvalue = unquote(trim_ascii(String::from_array(raw_chars[eq + 1:rn])))
+    let pname = trim_ascii(raw[:eq]).to_upper().to_owned()
+    let pvalue = unquote(trim_ascii(raw[eq + 1:])).to_owned()
     params.push({ name: pname, value: pvalue, })
   }
   { name, params, value, }
 }
 
 ///|
-/// Trim surrounding spaces and horizontal tabs, returning a `String`.
-///
-/// Deliberately not built on `String::trim`: that yields a `StringView`, and
-/// `StringView::data` hands back the *whole* string being viewed rather than
-/// the viewed slice, which would silently un-trim the value.
-fn trim_ascii(s : String) -> String {
-  let chars = s.to_array()
-  let n = chars.length()
-  let mut first = 0
-  let mut last = n
-  while first < last && (chars[first] == ' ' || chars[first] == '\t') {
-    first = first + 1
-  }
-  while last > first && (chars[last - 1] == ' ' || chars[last - 1] == '\t') {
-    last = last - 1
-  }
-  if first == 0 && last == n {
-    s
-  } else {
-    String::from_array(chars[first:last])
-  }
+/// Trim protocol whitespace without materializing an intermediate string.
+fn trim_ascii(s : StringView) -> StringView {
+  s.trim(chars=" \t".view())
 }
 
 ///|
@@ -191,7 +170,7 @@ pub fn unescape_value(value : String) -> String {
 /// ```
 pub fn escape_value(text : String) -> String {
   let out : Array[Char] = []
-  for c in text.to_array() {
+  for c in text {
     if c == '\n' {
       out.push('\\')
       out.push('n')
@@ -207,40 +186,38 @@ pub fn escape_value(text : String) -> String {
 
 ///|
 /// Split on `sep`, ignoring separators that sit inside double quotes.
-fn split_unquoted(s : String, sep : Char) -> Array[String] {
-  let chars = s.to_array()
-  let parts : Array[String] = []
-  let n = chars.length()
+fn split_unquoted(s : StringView, sep : UInt16) -> Array[StringView] {
+  let parts : Array[StringView] = []
+  let n = s.length()
   let mut quoted = false
   let mut start = 0
   let mut i = 0
   while i < n {
-    let c = chars[i]
+    let c = s[i]
     if c == '"' {
       quoted = !quoted
     } else if c == sep && !quoted {
-      parts.push(String::from_array(chars[start:i]))
+      parts.push(s[start:i])
       start = i + 1
     }
     i = i + 1
   }
-  parts.push(String::from_array(chars[start:n]))
+  parts.push(s[start:])
   parts
 }
 
 ///|
 /// Index of `target` outside double quotes, or -1 when it is absent.
-fn find_unquoted(s : String, target : Char) -> Int {
-  let chars = s.to_array()
+fn find_unquoted(s : StringView, target : UInt16) -> Int? {
   let mut quoted = false
-  let mut found = -1
+  let mut found : Int? = None
   let mut i = 0
-  while i < chars.length() && found < 0 {
-    let c = chars[i]
+  while i < s.length() && found is None {
+    let c = s[i]
     if c == '"' {
       quoted = !quoted
     } else if c == target && !quoted {
-      found = i
+      found = Some(i)
     }
     i = i + 1
   }
@@ -249,11 +226,10 @@ fn find_unquoted(s : String, target : Char) -> Int {
 
 ///|
 /// Strip one layer of surrounding double quotes.
-fn unquote(s : String) -> String {
-  let chars = s.to_array()
-  let n = chars.length()
-  if n >= 2 && chars[0] == '"' && chars[n - 1] == '"' {
-    String::from_array(chars[1:n - 1])
+fn unquote(s : StringView) -> StringView {
+  let n = s.length()
+  if n >= 2 && s[0] == '"' && s[n - 1] == '"' {
+    s[1:n - 1]
   } else {
     s
   }
