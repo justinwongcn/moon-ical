@@ -56,14 +56,15 @@ fn tag_list_contains(value : String, current : String?) -> Bool {
     Some(tag) => {
       let quoted = "\"\{tag}\""
       let weak = "W/\{quoted}"
-      let mut found = false
-      for part in split(value, ',') {
-        let item = trim_ascii(part)
-        if item == quoted || item == weak || item == tag {
-          found = true
+      for part in value.view().split(",".view()) {
+        let item = part.trim(chars=" \t".view())
+        if item.equal_to_string(quoted) ||
+          item.equal_to_string(weak) ||
+          item.equal_to_string(tag) {
+          return true
         }
       }
-      found
+      false
     }
   }
 }
@@ -126,9 +127,13 @@ pub fn report(body : String, resources : Array[DavResource]) -> String? {
   let upper = String::to_upper(body)
   if upper.contains("CALENDAR-MULTIGET") {
     let hrefs = xml_text_values(body, "href")
+    let selected : Map[String, Unit] = Map([], capacity=hrefs.length())
+    for href in hrefs {
+      selected[href] = ()
+    }
     let entries : Array[String] = []
     for resource in resources {
-      if string_selected(hrefs, resource.href) {
+      if selected.contains(resource.href) {
         entries.push(resource_response(resource, true))
       }
     }
@@ -193,29 +198,28 @@ pub fn xml_escape(text : String) -> String {
 /// request selection and never interprets entities as markup.
 fn xml_text_values(xml : String, local_name : String) -> Array[String] {
   let values : Array[String] = []
-  let chars = xml.to_array()
-  let n = chars.length()
+  let view = xml.view()
+  let wanted = local_name.view()
+  let n = view.length()
   let mut i = 0
   while i < n {
-    if chars[i] == '<' && i + 1 < n && chars[i + 1] != '/' {
+    if view[i] == '<' && i + 1 < n && view[i + 1] != '/' {
       let mut close = i + 1
-      while close < n && chars[close] != '>' && chars[close] != ' ' {
+      while close < n && view[close] != '>' && view[close] != ' ' {
         close = close + 1
       }
-      let qname = String::from_array(chars[i + 1:close])
-      if local_part(qname).to_lower() == local_name.to_lower() {
+      let qname = view.sub(start=i + 1, end=close)
+      if local_part(qname).equal_ignore_ascii_case(wanted) {
         let mut open_end = close
-        while open_end < n && chars[open_end] != '>' {
+        while open_end < n && view[open_end] != '>' {
           open_end = open_end + 1
         }
         if open_end < n {
           let close_name = "</\{qname}>"
-          let rest = String::from_array(chars[open_end + 1:n])
-          match find_substring(rest, close_name) {
+          let rest = view.sub(start=open_end + 1)
+          match rest.find(close_name.view()) {
             Some(offset) => {
-              values.push(
-                String::from_array(chars[open_end + 1:open_end + 1 + offset]),
-              )
+              values.push(rest.sub(end=offset).to_owned())
               i = open_end + 1 + offset + close_name.length()
               continue
             }
@@ -230,80 +234,9 @@ fn xml_text_values(xml : String, local_name : String) -> Array[String] {
 }
 
 ///|
-fn local_part(name : String) -> String {
-  let chars = name.to_array()
-  let mut colon = -1
-  for i, c in chars {
-    if c == ':' {
-      colon = i
-    }
+fn local_part(name : StringView) -> StringView {
+  match name.rev_find(":".view()) {
+    Some(colon) => name.sub(start=colon + 1)
+    None => name
   }
-  if colon >= 0 {
-    String::from_array(chars[colon + 1:])
-  } else {
-    name
-  }
-}
-
-///|
-fn find_substring(text : String, needle : String) -> Int? {
-  let hay = text.to_array()
-  let pin = needle.to_array()
-  if pin.length() == 0 {
-    return Some(0)
-  }
-  if pin.length() > hay.length() {
-    return None
-  }
-  for i in 0..<=(hay.length() - pin.length()) {
-    let mut same = true
-    for j in 0..<pin.length() {
-      if hay[i + j] != pin[j] {
-        same = false
-      }
-    }
-    if same {
-      return Some(i)
-    }
-  }
-  None
-}
-
-///|
-fn string_selected(values : Array[String], value : String) -> Bool {
-  for item in values {
-    if item == value {
-      return true
-    }
-  }
-  false
-}
-
-///|
-fn split(text : String, separator : Char) -> Array[String] {
-  let out : Array[String] = []
-  let chars = text.to_array()
-  let mut start = 0
-  for i, c in chars {
-    if c == separator {
-      out.push(String::from_array(chars[start:i]))
-      start = i + 1
-    }
-  }
-  out.push(String::from_array(chars[start:]))
-  out
-}
-
-///|
-fn trim_ascii(text : String) -> String {
-  let chars = text.to_array()
-  let mut first = 0
-  let mut last = chars.length()
-  while first < last && (chars[first] == ' ' || chars[first] == '\t') {
-    first = first + 1
-  }
-  while last > first && (chars[last - 1] == ' ' || chars[last - 1] == '\t') {
-    last = last - 1
-  }
-  String::from_array(chars[first:last])
 }

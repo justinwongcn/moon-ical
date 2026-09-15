@@ -194,6 +194,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
     <tr><td class="c">S8</td><td>库层深度：RECURRENCE-ID 覆盖合并（改期/取消/THISANDFUTURE）+ 第二档 BY*（BYSETPOS/WKST/序数 BYDAY/负 BYMONTHDAY）+ ZoneTable 接入展开链</td><td class="c">~500–700</td><td>附录 A 全 32 用例按档位通过；RECURRENCE-ID 合并用例通过</td><td><span class="chip done">完成（S8）</span></td></tr>
     <tr><td class="c">S9</td><td>发布打磨：CI（check/test --target all + fmt + info）、mooncakes 发布、申报书、根包 re-export 门面、互操作矩阵进 README</td><td class="c">0.5 天</td><td>CI 绿、<code>moon publish</code> 成功、申报书一页</td><td><span class="chip done">完成（0.1.0 已发布，scope frozen）</span></td></tr>
     <tr><td class="c">R1</td><td>系列合并性能：一次索引同 UID overrides/EXDATE，按序游标应用 THISANDFUTURE</td><td class="c">~100</td><td>2000 occurrences + 500 无关 overrides 的 native release 基准由 20.27 ms 降至 1.64 ms；语义回归与全目标测试通过</td><td><span class="chip done">完成（约 12.4×）</span></td></tr>
+    <tr><td class="c">R2</td><td>CalDAV REPORT 热路径：StringView 零拷贝扫描 + href 哈希选择</td><td class="c">~100</td><td>500 hrefs × 500 resources 的 native release 基准由 68.17 ms 降至 3.87 ms；命名空间前缀回归与全目标测试通过</td><td><span class="chip done">完成（约 17.6×）</span></td></tr>
   </tbody>
 </table></div>
 

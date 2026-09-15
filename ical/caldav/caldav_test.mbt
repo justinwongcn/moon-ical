@@ -48,6 +48,14 @@ test "calendar-multiget selects requested hrefs" {
 }
 
 ///|
+test "calendar-multiget matches local names independent of prefix case" {
+  let body = "<calendar-multiget><x:HrEf>/cal/a.ics</x:HrEf></calendar-multiget>"
+  let result = @caldav.report(body, resources()).unwrap()
+  assert_true(result.contains("/cal/a.ics"))
+  assert_true(!result.contains("/cal/b.ics"))
+}
+
+///|
 test "entity-tag preconditions cover create update and lists" {
   assert_eq(
     @caldav.check_preconditions(None, None, Some("*")),
