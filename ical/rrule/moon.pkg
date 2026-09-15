@@ -8,5 +8,6 @@ import {
 import {
   "justinwongcn/moon-ical/ical/model",
   "justinwongcn/moon-ical/ical/text",
+  "moonbitlang/core/bench",
   "moonbitlang/x/time",
 } for "test"
