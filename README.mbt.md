@@ -21,6 +21,12 @@ recurrence expansion to a DAV calendar that stock clients can discover.
   `PROPFIND`, calendar-query/multiget `REPORT`, `MKCALENDAR`, and conditional
   PUT/DELETE.
 
+## Install
+
+```bash
+moon add justinwongcn/moon-ical@0.1.0
+```
+
 ## Library usage
 
 ```mbt nocheck
