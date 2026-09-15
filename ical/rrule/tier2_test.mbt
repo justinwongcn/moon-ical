@@ -106,3 +106,15 @@ test "feed ZoneTable flows through parse_events into series expansion" {
     "2026-09-01T09:00:00+09:30", "2026-09-02T09:00:00+09:30",
   ])
 }
+
+///|
+test "series merge ignores overrides from another UID" {
+  let text = "BEGIN:VCALENDAR\r\n" +
+    "BEGIN:VEVENT\r\nUID:target\r\nDTSTART:20260901T090000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nUID:other\r\nRECURRENCE-ID:20260902T090000Z\r\nDTSTART:20260902T120000Z\r\nEND:VEVENT\r\n" +
+    "END:VCALENDAR\r\n"
+  let merged = @rrule.expand_series(@model.parse_events(text))
+  assert_eq(merged.map(x => x.start.to_string()), [
+    "2026-09-01T09:00:00Z", "2026-09-02T09:00:00Z", "2026-09-03T09:00:00Z",
+  ])
+}

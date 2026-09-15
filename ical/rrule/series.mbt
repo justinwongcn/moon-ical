@@ -30,12 +30,26 @@ pub fn expand_series(
             None => [dtstart]
           }
           let uid = base.uid.unwrap_or("")
+          let index = SeriesIndex::build(events, base, uid)
+          let duration = match base.dtend {
+            Some(finish) =>
+              Some(finish.instant_seconds() - dtstart.instant_seconds())
+            None => None
+          }
           let out : Array[Occurrence] = []
+          let mut future_index = 0
+          let mut active_future : @model.Event? = None
           for slot in generated {
-            if excluded(base.exdates, slot) {
+            let key = slot.instant_seconds()
+            while future_index < index.future.length() &&
+                  index.future[future_index].0 <= key {
+              active_future = Some(index.future[future_index].1)
+              future_index = future_index + 1
+            }
+            if index.exdates.contains(key) {
               continue
             }
-            match exact_override(events, uid, slot) {
+            match index.exact.get(key) {
               Some(event) =>
                 if !cancelled(event) {
                   match event.dtstart {
@@ -51,7 +65,7 @@ pub fn expand_series(
                   }
                 }
               None =>
-                match latest_future_override(events, uid, slot) {
+                match active_future {
                   Some(event) => {
                     if cancelled(event) {
                       continue
@@ -63,7 +77,7 @@ pub fn expand_series(
                         out.push({
                           uid,
                           start: slot.shift_seconds(delta),
-                          end: shift_master_end(base, slot, delta),
+                          end: shifted_end(slot, duration, delta),
                           summary: match event.summary {
                             Some(value) => Some(value)
                             None => base.summary
@@ -78,7 +92,7 @@ pub fn expand_series(
                     out.push({
                       uid,
                       start: slot,
-                      end: shift_master_end(base, slot, 0),
+                      end: shifted_end(slot, duration, 0),
                       summary: base.summary,
                       recurrence_id: slot,
                     })
@@ -103,45 +117,55 @@ fn find_master(events : Array[@model.Event]) -> @model.Event? {
 }
 
 ///|
-fn exact_override(
-  events : Array[@model.Event],
-  uid : String,
-  slot : @model.IcalDateTime,
-) -> @model.Event? {
-  for event in events {
-    if event.uid.unwrap_or("") == uid {
-      match event.recurrence_id {
-        Some(id) => if id.compare(slot) == 0 { return Some(event) }
-        None => ()
-      }
-    }
-  }
-  None
+priv struct SeriesIndex {
+  exact : Map[Int64, @model.Event]
+  exdates : Map[Int64, Unit]
+  future : Array[(Int64, @model.Event)]
 }
 
 ///|
-fn latest_future_override(
+fn SeriesIndex::build(
   events : Array[@model.Event],
+  base : @model.Event,
   uid : String,
-  slot : @model.IcalDateTime,
-) -> @model.Event? {
-  let mut selected : @model.Event? = None
-  let mut selected_id : @model.IcalDateTime? = None
+) -> SeriesIndex {
+  let exact : Map[Int64, @model.Event] = Map([], capacity=events.length())
+  let future_by_slot : Map[Int64, @model.Event] = Map([])
   for event in events {
-    if event.uid.unwrap_or("") == uid &&
-      event.recurrence_range.map(r => r.to_upper()) == Some("THISANDFUTURE") {
+    if event.uid.unwrap_or("") == uid {
       match event.recurrence_id {
-        Some(id) =>
-          if id.compare(slot) <= 0 &&
-            (selected_id is None || id.compare(selected_id.unwrap()) > 0) {
-            selected = Some(event)
-            selected_id = Some(id)
+        Some(id) => {
+          let key = id.instant_seconds()
+          // The old linear lookup selected the first override at a duplicate
+          // RECURRENCE-ID, so preserve that deterministic wire-order rule.
+          if !exact.contains(key) {
+            exact[key] = event
           }
+          if event.recurrence_range.map(r => r.to_upper()) ==
+            Some("THISANDFUTURE") &&
+            !future_by_slot.contains(key) {
+            future_by_slot[key] = event
+          }
+        }
         None => ()
       }
     }
   }
-  selected
+  let future = future_by_slot.to_array()
+  future.sort_by((a, b) => {
+    if a.0 < b.0 {
+      -1
+    } else if a.0 > b.0 {
+      1
+    } else {
+      0
+    }
+  })
+  let exdates : Map[Int64, Unit] = Map([], capacity=base.exdates.length())
+  for date in base.exdates {
+    exdates[date.instant_seconds()] = ()
+  }
+  { exact, exdates, future, }
 }
 
 ///|
@@ -150,29 +174,13 @@ fn cancelled(event : @model.Event) -> Bool {
 }
 
 ///|
-fn excluded(
-  exdates : Array[@model.IcalDateTime],
+fn shifted_end(
   slot : @model.IcalDateTime,
-) -> Bool {
-  for date in exdates {
-    if date.compare(slot) == 0 {
-      return true
-    }
-  }
-  false
-}
-
-///|
-fn shift_master_end(
-  base : @model.Event,
-  slot : @model.IcalDateTime,
+  duration : Int64?,
   delta : Int64,
 ) -> @model.IcalDateTime? raise {
-  match (base.dtstart, base.dtend) {
-    (Some(start), Some(finish)) => {
-      let duration = finish.instant_seconds() - start.instant_seconds()
-      Some(slot.shift_seconds(duration + delta))
-    }
-    _ => None
+  match duration {
+    Some(seconds) => Some(slot.shift_seconds(seconds + delta))
+    None => None
   }
 }

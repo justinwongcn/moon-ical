@@ -193,6 +193,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
     <tr><td class="c">S7</td><td>真实客户端联调：以 Thunderbird 完整 CRUD 为首版验收；DAVx5 / Apple 日历降为赛后互操作候选</td><td class="c">0.5–1 天</td><td>≥1 个真实客户端完整走通；产出互操作矩阵（客户端 × 操作 × 结果）</td><td><span class="chip done">完成（Thunderbird 155.0.1 CRUD）</span></td></tr>
     <tr><td class="c">S8</td><td>库层深度：RECURRENCE-ID 覆盖合并（改期/取消/THISANDFUTURE）+ 第二档 BY*（BYSETPOS/WKST/序数 BYDAY/负 BYMONTHDAY）+ ZoneTable 接入展开链</td><td class="c">~500–700</td><td>附录 A 全 32 用例按档位通过；RECURRENCE-ID 合并用例通过</td><td><span class="chip done">完成（S8）</span></td></tr>
     <tr><td class="c">S9</td><td>发布打磨：CI（check/test --target all + fmt + info）、mooncakes 发布、申报书、根包 re-export 门面、互操作矩阵进 README</td><td class="c">0.5 天</td><td>CI 绿、<code>moon publish</code> 成功、申报书一页</td><td><span class="chip done">完成（0.1.0 已发布，scope frozen）</span></td></tr>
+    <tr><td class="c">R1</td><td>系列合并性能：一次索引同 UID overrides/EXDATE，按序游标应用 THISANDFUTURE</td><td class="c">~100</td><td>2000 occurrences + 500 无关 overrides 的 native release 基准由 20.27 ms 降至 1.64 ms；语义回归与全目标测试通过</td><td><span class="chip done">完成（约 12.4×）</span></td></tr>
   </tbody>
 </table></div>
 
