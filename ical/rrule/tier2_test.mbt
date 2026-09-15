@@ -97,8 +97,7 @@ test "THISANDFUTURE shifts the selected and later instances" {
 
 ///|
 test "feed ZoneTable flows through parse_events into series expansion" {
-  let text =
-    "BEGIN:VCALENDAR\r\n" +
+  let text = "BEGIN:VCALENDAR\r\n" +
     "BEGIN:VTIMEZONE\r\nTZID:PRIVATE-ZONE\r\nBEGIN:STANDARD\r\nTZOFFSETTO:+0930\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n" +
     "BEGIN:VEVENT\r\nUID:z\r\nDTSTART;TZID=PRIVATE-ZONE:20260901T090000\r\nRRULE:FREQ=DAILY;COUNT=2\r\nEND:VEVENT\r\n" +
     "END:VCALENDAR\r\n"

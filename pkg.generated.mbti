@@ -1,12 +1,91 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "justinwongcn/moon-ical"
 
+import {
+  "justinwongcn/moon-ical/ical/caldav",
+  "justinwongcn/moon-ical/ical/model",
+  "justinwongcn/moon-ical/ical/rrule",
+  "justinwongcn/moon-ical/ical/text",
+}
+
 // Values
+pub fn build_zone_table(Array[@model.Component]) -> @model.ZoneTable
+
+pub fn check_preconditions(String?, String?, String?) -> @caldav.Precondition
+
+pub fn collection_propfind(Array[@caldav.DavResource], Int) -> String
+
+pub fn escape_value(String) -> String
+
+pub fn expand(@rrule.Rule, @model.IcalDateTime, limit? : Int) -> Array[@model.IcalDateTime] raise
+
+pub fn expand_series(Array[@model.Event], limit? : Int) -> Array[@rrule.Occurrence] raise
+
+pub fn parse_components(Array[String]) -> Array[@model.Component] raise
+
+pub fn parse_content_line(String, Int) -> @text.ContentLine raise
+
+pub fn parse_date_time(@text.ContentLine, @model.ZoneTable, line_no? : Int) -> @model.IcalDateTime raise
+
+pub fn parse_date_time_value(String, @model.ZoneTable, tzid? : String?, value_is_date? : Bool, line_no? : Int) -> @model.IcalDateTime raise
+
+pub fn parse_events(String) -> Array[@model.Event] raise
+
+pub fn parse_rule(String) -> @rrule.Rule raise
+
+pub fn parse_single_date_time(String, @model.ZoneTable, line_no? : Int) -> @model.IcalDateTime raise
+
+pub fn parse_utc_offset(String, line_no~ : Int, raw~ : String) -> Int raise
+
+pub fn principal_propfind() -> String
+
+pub fn report(String, Array[@caldav.DavResource]) -> String?
+
+pub fn root_propfind() -> String
+
+pub fn serialize_component(@model.Component) -> String
+
+pub fn serialize_components(Array[@model.Component]) -> String
+
+pub fn serialize_content_line(@text.ContentLine) -> String
+
+pub fn unescape_value(String) -> String
+
+pub fn unfold(String) -> Array[String]
+
+pub fn xml_escape(String) -> String
 
 // Errors
 
 // Types and methods
 
 // Type aliases
+pub using @rrule {type Byday}
+
+pub using @model {type Component}
+
+pub using @text {type ContentLine}
+
+pub using @caldav {type DavResource}
+
+pub using @model {type Event}
+
+pub using @rrule {type ExpandError}
+
+pub using @rrule {type Freq}
+
+pub using @model {type IcalDateTime}
+
+pub using @rrule {type Occurrence}
+
+pub using @text {type ParseError}
+
+pub using @caldav {type Precondition}
+
+pub using @text {type PropertyParam}
+
+pub using @rrule {type Rule}
+
+pub using @model {type ZoneTable}
 
 // Traits
