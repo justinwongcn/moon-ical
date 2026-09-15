@@ -1,10 +1,7 @@
 ///|
 /// Why an expansion can fail even though the rule parsed.
 pub(all) suberror ExpandError {
-  /// The rule uses a second-tier feature — ordinal `BYDAY`, negative
-  /// `BYMONTHDAY`, or `BYSETPOS` — whose expansion lands in S8. The
-  /// feature is named in the message so a feed author learns the
-  /// boundary, not just the failure.
+  /// The rule uses a feature outside this package's supported boundary.
   Unsupported(feature~ : String)
   /// The rule is syntactically fine but semantically invalid with the
   /// `DTSTART` it was given; these checks were deferred from parsing
@@ -16,7 +13,7 @@ pub(all) suberror ExpandError {
 pub impl Show for ExpandError with fn output(self, logger) {
   match self {
     Unsupported(feature=f) =>
-      logger.write_string("unsupported RRULE feature in expansion: \{f} (S8)")
+      logger.write_string("unsupported RRULE feature in expansion: \{f}")
     Invalid(message=m) => logger.write_string("invalid recurrence rule: \{m}")
   }
 }
@@ -32,12 +29,9 @@ const MAX_PERIODS : Int = 10_000
 /// Expand a parsed [`Rule`] against its `DTSTART` into the occurrence
 /// date-times of the series, in chronological order (RFC 5545 §3.3.10).
 ///
-/// This is the first tier of expansion: every clause combination the S3
-/// boundary covers — `DAILY` / `WEEKLY` / `MONTHLY` / `YEARLY` with
-/// `INTERVAL`, `COUNT`, `UNTIL`, plain `BYDAY`, positive `BYMONTHDAY`,
-/// `BYMONTH`, and `WKST`, plus the `DTSTART` fallback when a frequency
-/// leaves a field unconstrained. Second-tier features raise
-/// [`Unsupported`] until S8 rather than expanding wrongly; the semantic
+/// Supports the calendar-grade RFC 5545 rules in this project: `DAILY` /
+/// `WEEKLY` / `MONTHLY` / `YEARLY`, ordinal `BYDAY`, positive and negative
+/// `BYMONTHDAY`, `BYSETPOS`, `BYMONTH`, and `WKST`. The semantic
 /// checks that need the `DTSTART` (`COUNT` + `UNTIL` exclusivity, `UNTIL`
 /// value-type agreement) happen here.
 ///
@@ -118,22 +112,21 @@ pub fn expand(
 }
 
 ///|
-/// The gate every expansion passes first: tier-2 features are named and
-/// refused (S8 expands them), and the DTSTART-dependent semantic checks
-/// deferred from parsing happen here.
+/// The gate every expansion passes first: DTSTART-dependent semantic checks
+/// deferred from parsing happen here, along with RFC placement constraints.
 fn check_expandable(rule : Rule, dtstart : @model.IcalDateTime) -> Unit raise {
   for entry in rule.byday {
-    if entry.ordinal != 0 {
-      raise ExpandError::Unsupported(feature="ordinal BYDAY")
+    if entry.ordinal != 0 && (rule.freq is Daily || rule.freq is Weekly) {
+      raise ExpandError::Invalid(
+        message="ordinal BYDAY is only valid with MONTHLY or YEARLY",
+      )
     }
   }
-  for day in rule.bymonthday {
-    if day < 0 {
-      raise ExpandError::Unsupported(feature="negative BYMONTHDAY")
-    }
-  }
-  if rule.bysetpos.length() > 0 {
-    raise ExpandError::Unsupported(feature="BYSETPOS")
+  if rule.bysetpos.length() > 0 &&
+    rule.byday.length() == 0 &&
+    rule.bymonthday.length() == 0 &&
+    rule.bymonth.length() == 0 {
+    raise ExpandError::Invalid(message="BYSETPOS requires another BY rule")
   }
   match (rule.count, rule.until) {
     (Some(_), Some(_)) =>
@@ -162,12 +155,41 @@ fn candidates_for(
   start : @time.PlainDate,
   period : Int,
 ) -> Array[@time.PlainDate] raise {
-  match rule.freq {
+  let all = match rule.freq {
     Daily => daily_candidates(rule, start, period)
     Weekly => weekly_candidates(rule, start, period)
     Monthly => monthly_candidates(rule, start, period)
     Yearly => yearly_candidates(rule, start, period)
   }
+  apply_setpos(all, rule.bysetpos)
+}
+
+///|
+/// Select positions from one frequency period after all other BY filters.
+/// Positive positions count from one; negative positions count backwards.
+fn apply_setpos(
+  candidates : Array[@time.PlainDate],
+  positions : Array[Int],
+) -> Array[@time.PlainDate] {
+  if positions.length() == 0 {
+    return candidates
+  }
+  let out : Array[@time.PlainDate] = []
+  for position in positions {
+    let index = if position > 0 {
+      position - 1
+    } else {
+      candidates.length() + position
+    }
+    if index >= 0 && index < candidates.length() {
+      let candidate = candidates[index]
+      if !date_selected(out, candidate) {
+        out.push(candidate)
+      }
+    }
+  }
+  out.sort_by((a, b) => if a < b { -1 } else if a > b { 1 } else { 0 })
+  out
 }
 
 ///|
@@ -255,6 +277,21 @@ fn yearly_candidates(
   period : Int,
 ) -> Array[@time.PlainDate] raise {
   let year = start.year() + period * rule.interval
+  if rule.bymonth.length() == 0 &&
+    rule.bymonthday.length() == 0 &&
+    has_ordinal_byday(rule.byday) {
+    let out : Array[@time.PlainDate] = []
+    for month in 1..<=12 {
+      let dim = @time.PlainDate::of(year, month, 1).days_in_month()
+      for day in 1..<=dim {
+        let date = @time.PlainDate::of(year, month, day)
+        if weekday_selected_in_year(rule.byday, date) {
+          out.push(date)
+        }
+      }
+    }
+    return out
+  }
   let months : Array[Int] = []
   if rule.bymonth.length() > 0 {
     for month in sorted_ints(rule.bymonth) {
@@ -289,26 +326,27 @@ fn month_days(
   let dim = @time.PlainDate::of(year, month, 1).days_in_month()
   let out : Array[Int] = []
   if rule.bymonthday.length() > 0 {
-    for day in sorted_ints(rule.bymonthday) {
-      if day <= dim {
+    for raw_day in sorted_ints(rule.bymonthday) {
+      let day = if raw_day > 0 { raw_day } else { dim + raw_day + 1 }
+      if day >= 1 && day <= dim {
         let weekday = @time.PlainDate::of(year, month, day).weekday()
-        if rule.byday.length() == 0 || weekday_selected(rule.byday, weekday) {
+        if rule.byday.length() == 0 ||
+          weekday_selected_in_month(rule.byday, year, month, day, weekday) {
           out.push(day)
         }
       }
     }
   } else if rule.byday.length() > 0 {
     for day in 1..<=dim {
-      if weekday_selected(
-          rule.byday,
-          @time.PlainDate::of(year, month, day).weekday(),
-        ) {
+      let weekday = @time.PlainDate::of(year, month, day).weekday()
+      if weekday_selected_in_month(rule.byday, year, month, day, weekday) {
         out.push(day)
       }
     }
   } else if start.day() <= dim {
     out.push(start.day())
   }
+  out.sort()
   out
 }
 
@@ -350,11 +388,86 @@ fn weekday_num(weekday : @time.Weekday) -> Int {
 fn weekday_selected(entries : Array[Byday], weekday : @time.Weekday) -> Bool {
   let mut found = false
   for entry in entries {
-    if entry.weekday == weekday {
+    if entry.ordinal == 0 && entry.weekday == weekday {
       found = true
     }
   }
   found
+}
+
+///|
+fn weekday_selected_in_month(
+  entries : Array[Byday],
+  year : Int,
+  month : Int,
+  day : Int,
+  weekday : @time.Weekday,
+) -> Bool raise {
+  let dim = @time.PlainDate::of(year, month, 1).days_in_month()
+  for entry in entries {
+    if entry.weekday == weekday {
+      if entry.ordinal == 0 {
+        return true
+      }
+      let ordinal = if entry.ordinal > 0 {
+        (day - 1) / 7 + 1
+      } else {
+        -((dim - day) / 7 + 1)
+      }
+      if ordinal == entry.ordinal {
+        return true
+      }
+    }
+  }
+  false
+}
+
+///|
+fn weekday_selected_in_year(
+  entries : Array[Byday],
+  date : @time.PlainDate,
+) -> Bool raise {
+  for entry in entries {
+    if entry.weekday == date.weekday() {
+      if entry.ordinal == 0 {
+        return true
+      }
+      let jan1 = @time.PlainDate::of(date.year(), 1, 1)
+      let dec31 = @time.PlainDate::of(date.year(), 12, 31)
+      let ordinal = if entry.ordinal > 0 {
+        (date.to_unix_day() - jan1.to_unix_day()).to_int() / 7 + 1
+      } else {
+        -((dec31.to_unix_day() - date.to_unix_day()).to_int() / 7 + 1)
+      }
+      if ordinal == entry.ordinal {
+        return true
+      }
+    }
+  }
+  false
+}
+
+///|
+fn has_ordinal_byday(entries : Array[Byday]) -> Bool {
+  for entry in entries {
+    if entry.ordinal != 0 {
+      return true
+    }
+  }
+  false
+}
+
+///|
+fn date_selected(
+  values : Array[@time.PlainDate],
+  value : @time.PlainDate,
+) -> Bool {
+  for item in values {
+    if item == value {
+      return true
+    }
+  }
+  false
 }
 
 ///|

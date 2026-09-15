@@ -78,6 +78,16 @@ pub fn IcalDateTime::on_date(
 }
 
 ///|
+/// Shift this wall-clock value by an exact number of seconds while preserving
+/// its zone spelling, fixed offset, and all-day marker.
+pub fn IcalDateTime::shift_seconds(
+  self : IcalDateTime,
+  seconds : Int64,
+) -> IcalDateTime raise {
+  { ..self, wall: self.wall.add_seconds(seconds), }
+}
+
+///|
 /// Negative when `self` happens before `other`, zero for the same instant,
 /// positive afterwards. All-day values compare by their calendar day.
 pub fn IcalDateTime::compare(self : IcalDateTime, other : IcalDateTime) -> Int {

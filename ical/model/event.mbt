@@ -26,6 +26,10 @@ pub struct Event {
   /// The series instance this event overrides, when this is an override
   /// event rather than a series definition.
   recurrence_id : IcalDateTime?
+  /// `RANGE=THISANDFUTURE` on RECURRENCE-ID, when present.
+  recurrence_range : String?
+  /// Event status, notably `CANCELLED` on an overridden instance.
+  status : String?
   /// Every `EXDATE` value across repeated property lines, in wire order.
   exdates : Array[IcalDateTime]
 } derive(Debug)
@@ -118,6 +122,10 @@ fn event_from_component(
     Some(line) => Some(parse_date_time(line, zones))
     None => None
   }
+  let recurrence_range = match component.property("RECURRENCE-ID") {
+    Some(line) => line.param("RANGE")
+    None => None
+  }
   let exdates : Array[IcalDateTime] = []
   for line in component.properties_named("EXDATE") {
     let tzid = line.param("TZID")
@@ -143,6 +151,8 @@ fn event_from_component(
       None => None
     },
     recurrence_id,
+    recurrence_range,
+    status: text_of(component, "STATUS"),
     exdates,
   }
 }
