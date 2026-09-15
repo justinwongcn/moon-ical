@@ -2,33 +2,19 @@
 /// Root package of moon-ical.
 ///
 /// The implementation remains in focused subpackages; this facade exposes the
-/// stable parsing, model, recurrence, serialization, and CalDAV semantics from
-/// one import for mooncakes.io users.
+/// complete parse, recurrence, and serialization workflows from one import.
+/// Protocol-building primitives stay in their focused subpackages.
 
 ///|
-pub using @text {
-  type ContentLine,
-  type ParseError,
-  type PropertyParam,
-  escape_value,
-  parse_content_line,
-  unescape_value,
-  unfold,
-}
+pub using @text {type ParseError}
 
 ///|
 pub using @model {
   type Component,
   type Event,
   type IcalDateTime,
-  type ZoneTable,
-  build_zone_table,
-  parse_components,
-  parse_date_time,
-  parse_date_time_value,
+  parse_calendar,
   parse_events,
-  parse_single_date_time,
-  parse_utc_offset,
 }
 
 ///|
@@ -44,20 +30,4 @@ pub using @rrule {
 }
 
 ///|
-pub using @serialize {
-  serialize_component,
-  serialize_components,
-  serialize_content_line,
-}
-
-///|
-pub using @caldav {
-  type DavResource,
-  type Precondition,
-  check_preconditions,
-  collection_propfind,
-  principal_propfind,
-  report,
-  root_propfind,
-  xml_escape,
-}
+pub using @serialize {serialize_component, serialize_components}

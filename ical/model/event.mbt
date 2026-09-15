@@ -76,6 +76,14 @@ pub fn Component::events(
 }
 
 ///|
+/// Parse a complete iCalendar document into its lossless component trees.
+/// Unknown components and properties remain available for inspection and
+/// serialization.
+pub fn parse_calendar(input : String) -> Array[Component] raise {
+  parse_components(@text.unfold(input))
+}
+
+///|
 /// Parse a whole iCalendar feed into typed events: unfold the text, build
 /// the component tree, resolve zones (the feed's own `VTIMEZONE` first,
 /// built-in guesses second), then map every `VEVENT`.
@@ -91,8 +99,7 @@ pub fn Component::events(
 /// }
 /// ```
 pub fn parse_events(input : String) -> Array[Event] raise {
-  let lines = @text.unfold(input)
-  let roots = parse_components(lines)
+  let roots = parse_calendar(input)
   let zones = ZoneTable::with_builtin(build_zone_table(roots))
   let out : Array[Event] = []
   for root in roots {
