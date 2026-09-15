@@ -64,7 +64,7 @@ python tools/s5_acceptance.py
 python tools/s6_acceptance.py
 ```
 
-Current results: 130 wasm, 120 wasm-gc, 130 JavaScript, and 135 native tests;
+Current results: 131 wasm, 121 wasm-gc, 131 JavaScript, and 136 native tests;
 21 HTTP storage and 11 live CalDAV curl checks also pass.
 
 ## Client interoperability
@@ -72,7 +72,7 @@ Current results: 130 wasm, 120 wasm-gc, 130 JavaScript, and 135 native tests;
 | Client or driver | Discovery | Read/list | Create/update/delete | Result |
 |---|---:|---:|---:|---|
 | Real curl over TCP | Yes | Yes | Yes | 32/32 live checks pass |
-| Thunderbird | Not run on current Windows host | Not run | Not run | Test client not installed |
+| Thunderbird 155.0.1 (Windows) | Yes | Yes | Yes | Passed against localhost: seed read, create, in-place update, and delete verified in vdir |
 | DAVx5 | Not run | Not run | Not run | Android device required |
 | Apple Calendar | Not run | Not run | Not run | macOS/iOS device required |
 
