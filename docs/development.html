@@ -192,7 +192,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
     <tr><td class="c">S6</td><td>WebDAV/CalDAV 核心：PROPFIND(Depth 0/1)、REPORT(calendar-query/multiget)、MKCALENDAR、well-known 重定向、发现链、If-Match/If-None-Match</td><td class="c">~450</td><td>curl 模拟 Thunderbird 发现链 + REPORT 序列全绿（录成集成测试）</td><td><span class="chip done">完成（S6）</span></td></tr>
     <tr><td class="c">S7</td><td>真实客户端联调：Thunderbird → DAVx5 → Apple 日历，逐个接入增删改查</td><td class="c">0.5–1 天</td><td>≥1 个真实客户端完整走通；产出互操作矩阵（客户端 × 操作 × 结果）</td><td><span class="chip plan">demo 高潮</span></td></tr>
     <tr><td class="c">S8</td><td>库层深度：RECURRENCE-ID 覆盖合并（改期/取消/THISANDFUTURE）+ 第二档 BY*（BYSETPOS/WKST/序数 BYDAY/负 BYMONTHDAY）+ ZoneTable 接入展开链</td><td class="c">~500–700</td><td>附录 A 全 32 用例按档位通过；RECURRENCE-ID 合并用例通过</td><td><span class="chip done">完成（S8）</span></td></tr>
-    <tr><td class="c">S9</td><td>发布打磨：CI（check/test --target all + fmt + info）、mooncakes 发布、申报书、根包 re-export 门面、互操作矩阵进 README</td><td class="c">0.5 天</td><td>CI 绿、<code>moon publish</code> 成功、申报书一页</td><td><span class="chip plan">计划</span></td></tr>
+    <tr><td class="c">S9</td><td>发布打磨：CI（check/test --target all + fmt + info）、mooncakes 发布、申报书、根包 re-export 门面、互操作矩阵进 README</td><td class="c">0.5 天</td><td>CI 绿、<code>moon publish</code> 成功、申报书一页</td><td><span class="chip plan">S9a 本地发布工程完成；待远程 CI/mooncakes</span></td></tr>
   </tbody>
 </table></div>
 

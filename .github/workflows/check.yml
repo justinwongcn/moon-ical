@@ -1,0 +1,31 @@
+name: Check and test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  moonbit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hustcer/setup-moonbit@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Toolchain
+        run: moon version --all
+      - name: Check every supported target
+        run: moon check --target all --deny-warn
+      - name: Test every supported target
+        run: moon test --target all --deny-warn
+      - name: Formatting
+        run: moon fmt --check
+      - name: Public interface is current
+        run: |
+          moon info
+          git diff --exit-code
+      - name: Build native CalDAV server
+        run: moon build cmd/serve --target native --release

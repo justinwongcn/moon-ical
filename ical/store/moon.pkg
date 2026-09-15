@@ -4,6 +4,8 @@ import {
   "moonbitlang/async/fs",
 }
 
+supported_targets = "+native"
+
 import {
   "moonbitlang/async",
 } for "test"

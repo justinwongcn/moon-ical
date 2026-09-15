@@ -1,5 +1,7 @@
 pkgtype(kind: "executable")
 
+supported_targets = "+native"
+
 import {
   "justinwongcn/moon-ical/ical/model",
   "justinwongcn/moon-ical/ical/fetch",

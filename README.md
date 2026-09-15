@@ -1,60 +1,93 @@
 # moon-ical
 
-[iCalendar (RFC 5545)](https://www.rfc-editor.org/rfc/rfc5545) parsing and
-recurrence expansion in pure [MoonBit](https://www.moonbitlang.com) — growing
-towards a minimal [CalDAV (RFC 4791)](https://www.rfc-editor.org/rfc/rfc4791)
-calendar server.
+A pure MoonBit [iCalendar (RFC 5545)](https://www.rfc-editor.org/rfc/rfc5545)
+library and minimal [CalDAV (RFC 4791)](https://www.rfc-editor.org/rfc/rfc4791)
+server. It covers the full path from `.ics` input through typed events and
+recurrence expansion to a DAV calendar that stock clients can discover.
 
-## What is here today
+## Features
 
-| Package | Contents |
-|---|---|
-| `ical/text` | Line unfolding (§3.1), content-line parsing with quoted parameters, RFC 5545 text unescaping, line-numbered `ParseError` |
-| `ical/model` | Generic component tree (`BEGIN`/`END` nesting, unknown components preserved), `IcalDateTime` with explicit UTC / floating / TZID / all-day semantics, `ZoneTable` fixed-offset resolution incl. feed-embedded `VTIMEZONE` |
+- iCalendar unfolding, quoted parameters, TEXT escaping, nested components,
+  and preservation of unknown properties.
+- UTC, floating, `TZID`, and all-day values; feed-embedded `VTIMEZONE` takes
+  precedence over the documented common fixed-offset table.
+- `DAILY`, `WEEKLY`, `MONTHLY`, and `YEARLY` recurrence with `INTERVAL`,
+  `COUNT`, `UNTIL`, ordinal `BYDAY`, positive/negative `BYMONTHDAY`,
+  `BYMONTH`, `BYSETPOS`, and `WKST`.
+- Effective-series merging for `EXDATE`, moved/cancelled `RECURRENCE-ID`, and
+  `RANGE=THISANDFUTURE`.
+- RFC-style CRLF serialization with UTF-8-safe 75-octet folding.
+- Native CalDAV server: vdir storage, content-addressed ETags, discovery,
+  `PROPFIND`, calendar-query/multiget `REPORT`, `MKCALENDAR`, and conditional
+  PUT/DELETE.
 
-Both packages carry assertion tests (60 at S0), including RFC 5545
-Appendix A recurrence cases ported for the expansion engine.
+## Library usage
 
-## Direction
-
-The mooncakes.io registry currently has several offline iCalendar/RRULE
-computation libraries and **no** CalDAV server or calendar subscription
-package at all. moon-ical takes the end-to-end seat: parse real feeds, expand
-recurrence, and serve them over CalDAV so stock calendar clients
-(Thunderbird, DAVx5, Apple Calendar) can connect.
-
-Roadmap (one verifiable step per commit):
-
-1. **S1–S4** typed event layer → RRULE parsing → tier-1 expansion (DAILY /
-   WEEKLY / MONTHLY, Appendix A cross-checked) → iCalendar serialization
-2. **S5–S7** HTTP/1.1 request layer on `moonbitlang/async` sockets + vdir
-   file store → WebDAV/CalDAV core (PROPFIND, REPORT, MKCALENDAR) → real
-   client interop matrix
-3. **S8–S9** RECURRENCE-ID override merge + tier-2 BY* clauses → CI,
-   mooncakes.io publish
-
-Seam register and spike evidence live in `docs/upstream-seams.md` and
-`docs/spike-notes.md`. The living development handbook — positioning,
-architecture, milestone ladder (S0–S9), engineering conventions, risk
-register — is [`docs/development.html`](docs/development.html), updated at
-every milestone commit (a local, untracked progress journal backs it).
-
-## Boundaries (explicit non-goals)
-
-- No full IANA tzdb — zone resolution is fixed-offset plus feed-embedded
-  `VTIMEZONE` (see seam S2 in `docs/upstream-seams.md`).
-- CalDAV server only, not a CalDAV client; no scheduling (iTIP/iMIP), no ACL
-  system, no TLS in the first release.
-- Unsupported RRULE clauses raise a typed error instead of being silently
-  dropped.
-
-## Development
-
-```bash
-moon check   # type-check all packages
-moon test    # run the assertion suite
+```mbt nocheck
+test {
+  let events = @moon_ical.parse_events(
+    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:demo\r\n" +
+    "DTSTART:20260901T090000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\n" +
+    "END:VEVENT\r\nEND:VCALENDAR\r\n",
+  )
+  let occurrences = @moon_ical.expand_series(events)
+  assert_eq(occurrences.length(), 3)
+  assert_eq(occurrences[2].start.to_string(), "2026-09-03T09:00:00Z")
+}
 ```
 
-## License
+Focused subpackages remain available under `ical/text`, `ical/model`,
+`ical/rrule`, `ical/serialize`, and `ical/caldav`. The root package re-exports
+their stable public APIs.
 
-Apache-2.0
+## Run
+
+```bash
+moon run demo --target native
+moon run demo --target native -- https://example.com/calendar.ics
+moon run cmd/serve --target native -- ./caldata 8437
+```
+
+The calendar home is `http://127.0.0.1:8437/cal/`; discovery starts at
+`/.well-known/caldav`. The first release is local/plain HTTP. Put TLS and
+authentication in a reverse proxy before exposing it outside a trusted host.
+
+## Verification
+
+```bash
+moon check --target all --deny-warn
+moon test --target all --deny-warn
+moon fmt --check
+moon info
+python tools/s5_acceptance.py
+python tools/s6_acceptance.py
+```
+
+Current results: 130 wasm, 120 wasm-gc, 130 JavaScript, and 135 native tests;
+21 HTTP storage and 11 live CalDAV curl checks also pass.
+
+## Client interoperability
+
+| Client or driver | Discovery | Read/list | Create/update/delete | Result |
+|---|---:|---:|---:|---|
+| Real curl over TCP | Yes | Yes | Yes | 32/32 live checks pass |
+| Thunderbird | Not run on current Windows host | Not run | Not run | Test client not installed |
+| DAVx5 | Not run | Not run | Not run | Android device required |
+| Apple Calendar | Not run | Not run | Not run | macOS/iOS device required |
+
+Rows are marked passed only after an actual client session; curl coverage is
+not presented as client-interoperability evidence.
+
+## Boundaries
+
+- No complete IANA tzdb. Named zones use feed `VTIMEZONE` then a common
+  fixed-offset table; recurring wall time keeps the resolved offset across DST.
+- No CalDAV scheduling (iTIP/iMIP), ACL system, built-in TLS, or CalDAV client.
+- Request bodies require `Content-Length`; chunked uploads receive `411`.
+- Sub-daily RRULE frequencies and `BYWEEKNO`, `BYYEARDAY`, `BYHOUR`,
+  `BYMINUTE`, and `BYSECOND` are explicit parse errors.
+
+The architecture and milestone record are in
+[docs/development.html](docs/development.html); corpus provenance and ecosystem
+research are under `docs/research/`. This is an independent MoonBit
+implementation, licensed under Apache-2.0.
