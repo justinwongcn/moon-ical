@@ -10,6 +10,8 @@
 - Use zero-copy XML views and indexed href selection for CalDAV multiget.
 - Use `StringView` through the shared iCalendar unfolding and content-line
   parser, materializing strings only at model ownership boundaries.
+- Normalize RRULE month filters once per expansion and cache month-day
+  candidates for 28–31-day months without mutating parsed rules.
 
 ## 0.1.0
 

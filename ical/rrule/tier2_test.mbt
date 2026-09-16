@@ -69,6 +69,25 @@ test "negative BYMONTHDAY and BYSETPOS expand" {
 }
 
 ///|
+test "normalized month days respect leap lengths and leave the parsed rule intact" {
+  let rule = @rrule.parse_rule(
+    "FREQ=MONTHLY;BYMONTHDAY=31,-1,28,29,30;BYSETPOS=-1;COUNT=5",
+  )
+  let wire_order = rule.bymonthday.copy()
+  let start = @model.parse_single_date_time(
+    "20240228T090000Z",
+    @model.ZoneTable::empty(),
+  )
+  let got = @rrule.expand(rule, start).map(x => x.to_string())
+  assert_eq(got, [
+    "2024-02-29T09:00:00Z", "2024-03-31T09:00:00Z", "2024-04-30T09:00:00Z", "2024-05-31T09:00:00Z",
+    "2024-06-30T09:00:00Z",
+  ])
+  assert_eq(rule.bymonthday, wire_order)
+  assert_eq(rule.bysetpos, [-1])
+}
+
+///|
 test "RECURRENCE-ID moves excludes and cancels instances" {
   let text = "BEGIN:VCALENDAR\r\n" +
     "BEGIN:VEVENT\r\nUID:s\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T093000Z\r\nRRULE:FREQ=DAILY;COUNT=5\r\nEXDATE:20260902T090000Z\r\nSUMMARY:base\r\nEND:VEVENT\r\n" +

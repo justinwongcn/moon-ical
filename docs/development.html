@@ -197,6 +197,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
     <tr><td class="c">R2</td><td>CalDAV REPORT 热路径：StringView 零拷贝扫描 + href 哈希选择</td><td class="c">~100</td><td>500 hrefs × 500 resources 的 native release 基准由 68.17 ms 降至 3.87 ms；命名空间前缀回归与全目标测试通过</td><td><span class="chip done">完成（约 17.6×）</span></td></tr>
     <tr><td class="c">R3</td><td>0.2 根门面收口：新增整文档 <code>parse_calendar</code>，顶层只暴露完整 parse / recurrence / serialize 工作流</td><td class="c">~50</td><td><code>pkg.generated.mbti</code> 明确移除协议与文本层拼装 API；子包高级入口保留；门面往返测试通过</td><td><span class="chip done">完成（待发布）</span></td></tr>
     <tr><td class="c">R4</td><td>通用 ICS 解析链 StringView 化：unfold、内容行、参数和 EXDATE 列表仅在所有权边界分配</td><td class="c">~120</td><td>1000 VEVENT 的 native release 基准由 25.83 ms 降至 15.10 ms；既有 Unicode 折行与全目标回归通过</td><td><span class="chip done">完成（约 1.71×）</span></td></tr>
+    <tr><td class="c">R5</td><td>RRULE 预归一化：排序 BYMONTH/BYMONTHDAY，并缓存 28–31 天月份的实际候选日</td><td class="c">~80</td><td>密集月度规则 10000 occurrences 的 native release 基准由 5.83 ms 降至约 5.19 ms；闰年、负月日、原 Rule 不变的回归通过</td><td><span class="chip done">完成（约 11%）</span></td></tr>
   </tbody>
 </table></div>
 
