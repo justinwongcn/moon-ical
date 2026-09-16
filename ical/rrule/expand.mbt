@@ -68,6 +68,8 @@ pub fn expand(
   limit? : Int = 200,
 ) -> Array[@model.IcalDateTime] raise {
   check_expandable(rule, dtstart)
+  let normalized = NormalizedRule::new(rule)
+  let rule = normalized.rule
   let start = plain_date_of(dtstart.wall)
   let until_instant : Int64? = match rule.until {
     Some(u) => Some(u.instant_seconds())
@@ -77,7 +79,7 @@ pub fn expand(
   let mut done = false
   let mut period = 0
   while !done && period < MAX_PERIODS {
-    for day in candidates_for(rule, start, period) {
+    for day in candidates_for(normalized, start, period) {
       if day < start {
         continue
       }
@@ -109,6 +111,37 @@ pub fn expand(
     period = period + 1
   }
   out
+}
+
+///|
+/// Normalize BYMONTH and BYMONTHDAY once for all periods. Cache the realized
+/// day numbers for every possible month length; negative days depend on that
+/// length, but not on the particular year or month.
+priv struct NormalizedRule {
+  rule : Rule
+  monthdays_by_length : Array[Array[Int]]
+}
+
+///|
+fn NormalizedRule::new(rule : Rule) -> NormalizedRule {
+  let bymonth = rule.bymonth.copy()
+  let bymonthday = rule.bymonthday.copy()
+  bymonth.sort()
+  bymonthday.sort()
+  let sorted_rule = { ..rule, bymonth, bymonthday, }
+  let monthdays_by_length : Array[Array[Int]] = []
+  for days_in_month in 28..<=31 {
+    let days : Array[Int] = []
+    for raw_day in bymonthday {
+      let day = if raw_day > 0 { raw_day } else { days_in_month + raw_day + 1 }
+      if day >= 1 && day <= days_in_month {
+        days.push(day)
+      }
+    }
+    days.sort()
+    monthdays_by_length.push(days)
+  }
+  { rule: sorted_rule, monthdays_by_length, }
 }
 
 ///|
@@ -151,15 +184,16 @@ fn check_expandable(rule : Rule, dtstart : @model.IcalDateTime) -> Unit raise {
 /// much of the calendar one period covers is what the frequency means:
 /// one interval-step of days, weeks, months, or years.
 fn candidates_for(
-  rule : Rule,
+  normalized : NormalizedRule,
   start : @time.PlainDate,
   period : Int,
 ) -> Array[@time.PlainDate] raise {
+  let rule = normalized.rule
   let all = match rule.freq {
     Daily => daily_candidates(rule, start, period)
     Weekly => weekly_candidates(rule, start, period)
-    Monthly => monthly_candidates(rule, start, period)
-    Yearly => yearly_candidates(rule, start, period)
+    Monthly => monthly_candidates(normalized, start, period)
+    Yearly => yearly_candidates(normalized, start, period)
   }
   apply_setpos(all, rule.bysetpos)
 }
@@ -247,17 +281,18 @@ fn weekly_candidates(
 /// match. Days missing from the calendar (February 30) are skipped, not
 /// clamped: RFC 5545 has no such date to emit.
 fn monthly_candidates(
-  rule : Rule,
+  normalized : NormalizedRule,
   start : @time.PlainDate,
   period : Int,
 ) -> Array[@time.PlainDate] raise {
+  let rule = normalized.rule
   let months = start.year() * 12 + (start.month() - 1) + period * rule.interval
   let year = months / 12
   let month = months % 12 + 1
   if rule.bymonth.length() > 0 && !int_selected(rule.bymonth, month) {
     return []
   }
-  let days = month_days(rule, start, year, month)
+  let days = month_days(normalized, start, year, month)
   let out : Array[@time.PlainDate] = []
   for day in days {
     out.push(@time.PlainDate::of(year, month, day))
@@ -272,10 +307,11 @@ fn monthly_candidates(
 /// Inside each month the same day selection as `MONTHLY` applies, so the
 /// `DTSTART` fallback yields the anniversary date.
 fn yearly_candidates(
-  rule : Rule,
+  normalized : NormalizedRule,
   start : @time.PlainDate,
   period : Int,
 ) -> Array[@time.PlainDate] raise {
+  let rule = normalized.rule
   let year = start.year() + period * rule.interval
   if rule.bymonth.length() == 0 &&
     rule.bymonthday.length() == 0 &&
@@ -294,7 +330,7 @@ fn yearly_candidates(
   }
   let months : Array[Int] = []
   if rule.bymonth.length() > 0 {
-    for month in sorted_ints(rule.bymonth) {
+    for month in rule.bymonth {
       months.push(month)
     }
   } else if rule.byday.length() > 0 || rule.bymonthday.length() > 0 {
@@ -306,7 +342,7 @@ fn yearly_candidates(
   }
   let out : Array[@time.PlainDate] = []
   for month in months {
-    for day in month_days(rule, start, year, month) {
+    for day in month_days(normalized, start, year, month) {
       out.push(@time.PlainDate::of(year, month, day))
     }
   }
@@ -318,22 +354,20 @@ fn yearly_candidates(
 /// when both are present, either alone, or `DTSTART`'s day as the
 /// fallback. Ascending, and never a day the calendar lacks.
 fn month_days(
-  rule : Rule,
+  normalized : NormalizedRule,
   start : @time.PlainDate,
   year : Int,
   month : Int,
 ) -> Array[Int] raise {
+  let rule = normalized.rule
   let dim = @time.PlainDate::of(year, month, 1).days_in_month()
   let out : Array[Int] = []
   if rule.bymonthday.length() > 0 {
-    for raw_day in sorted_ints(rule.bymonthday) {
-      let day = if raw_day > 0 { raw_day } else { dim + raw_day + 1 }
-      if day >= 1 && day <= dim {
-        let weekday = @time.PlainDate::of(year, month, day).weekday()
-        if rule.byday.length() == 0 ||
-          weekday_selected_in_month(rule.byday, year, month, day, weekday) {
-          out.push(day)
-        }
+    for day in normalized.monthdays_by_length[dim - 28] {
+      let weekday = @time.PlainDate::of(year, month, day).weekday()
+      if rule.byday.length() == 0 ||
+        weekday_selected_in_month(rule.byday, year, month, day, weekday) {
+        out.push(day)
       }
     }
   } else if rule.byday.length() > 0 {
@@ -346,7 +380,6 @@ fn month_days(
   } else if start.day() <= dim {
     out.push(start.day())
   }
-  out.sort()
   out
 }
 
@@ -471,41 +504,9 @@ fn date_selected(
 }
 
 ///|
-/// Whether the list contains the value.
+/// Whether a normalized, ascending clause list contains the value.
 fn int_selected(list : Array[Int], value : Int) -> Bool {
-  let mut found = false
-  for entry in list {
-    if entry == value {
-      found = true
-    }
-  }
-  found
-}
-
-///|
-/// An ascending copy of the list — clause values arrive in wire order
-/// (`BYMONTHDAY=30,15` is legal) but candidates must be chronological.
-fn sorted_ints(list : Array[Int]) -> Array[Int] {
-  let out : Array[Int] = []
-  for value in list {
-    out.push(value)
-  }
-  let n = out.length()
-  for i in 1..<n {
-    let key = out[i]
-    let mut j = i - 1
-    let mut placed = false
-    while !placed {
-      if j >= 0 && out[j] > key {
-        out[j + 1] = out[j]
-        j = j - 1
-      } else {
-        out[j + 1] = key
-        placed = true
-      }
-    }
-  }
-  out
+  list.binary_search(value) is Ok(_)
 }
 
 ///|
