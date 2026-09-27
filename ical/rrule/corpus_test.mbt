@@ -1,7 +1,8 @@
 ///|
-/// The RRULE strings of graham's rrule test suite
-/// (`.survey/src/graham_rrule/basic_test.go`): every rule string its
-/// `basic_test.go` feeds to `Parse`, which is the RFC 5545 Appendix A set
+/// The RRULE strings of the graham/rrule test suite
+/// (https://github.com/graham/rrule, `basic_test.go`; the MIT license
+/// notice is in THIRD-PARTY-NOTICES.md): every rule string it feeds to
+/// `Parse`, which is the RFC 5545 Appendix A set
 /// in full, plus the RFC 2445-era sub-daily examples graham kept and the
 /// WKST variants of the "every other week on Tuesday and Sunday" example.
 /// Counted as strings rather than examples, the corpus is 40: the 32

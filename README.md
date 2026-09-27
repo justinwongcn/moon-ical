@@ -104,6 +104,6 @@ iCloud, Yahoo, and Outlook/Microsoft Graph is post-hackathon work.
   `BYMINUTE`, and `BYSECOND` are explicit parse errors.
 
 The architecture and milestone record are in
-[docs/development.html](docs/development.html); corpus provenance and ecosystem
-research are under `docs/research/`. This is an independent MoonBit
-implementation, licensed under Apache-2.0.
+[docs/development.html](docs/development.html); third-party corpus provenance
+is recorded in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). This is an
+independent MoonBit implementation, licensed under Apache-2.0.

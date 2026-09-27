@@ -1,6 +1,7 @@
 ///|
 /// The S3 expansion cross-check: every first-tier rule string of
-/// graham's corpus (`.survey/src/graham_rrule/basic_test.go`),
+/// graham's corpus (the graham/rrule test suite,
+/// https://github.com/graham/rrule — see THIRD-PARTY-NOTICES.md),
 /// paired with the occurrence list graham's own tests assert. The
 /// expectations were lifted mechanically from that file by
 /// `tools/gen_s3_corpus_test.py` — they are graham's numbers, not ours.

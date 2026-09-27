@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Emit the MoonBit S3 corpus cross-check table from graham's corpus.
 
-Reads the case table below (lifted mechanically from
-`.survey/src/graham_rrule/basic_test.go`, the rrule.js-derived suite
-graham vendored) and prints `ical/rrule/expand_corpus_test.mbt`: one row
+Reads the case table below (lifted mechanically from the `basic_test.go`
+of https://github.com/graham/rrule, the rrule.js-derived suite graham
+vendored) and prints `ical/rrule/expand_corpus_test.mbt`: one row
 per FIRST-TIER rule string — no ordinal BYDAY, no negative BYMONTHDAY,
 no BYSETPOS — paired with the occurrence list graham's own tests assert.
 The expectations are graham's, mechanically lifted; this script only
-formats them. Re-run it only when the survey corpus changes:
+formats them. Re-run it only when the upstream corpus changes:
 
     python tools/gen_s3_corpus_test.py > ical/rrule/expand_corpus_test.mbt
 """
@@ -163,7 +163,8 @@ def wall(d: date) -> str:
 
 HEADER = """///|
 /// The S3 expansion cross-check: every first-tier rule string of
-/// graham's corpus (`.survey/src/graham_rrule/basic_test.go`),
+/// graham's corpus (the graham/rrule test suite,
+/// https://github.com/graham/rrule — see THIRD-PARTY-NOTICES.md),
 /// paired with the occurrence list graham's own tests assert. The
 /// expectations were lifted mechanically from that file by
 /// `tools/gen_s3_corpus_test.py` — they are graham's numbers, not ours.

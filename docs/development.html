@@ -102,7 +102,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
 <p>立项依据（申报书可直接引用，全部 2026-09-08 核实）：</p>
 <ul>
   <li><b>生态空位</b>：mooncakes.io 检索 <code>caldav</code> / <code>webdav</code> / <code>webcal</code> / <code>calendar-import</code> 均返回 <span class="mono">No modules found</span>。</li>
-  <li><b>五家竞品全是离线库</b>：mooncal、mooncalguard、rrule_lab、moon-schedule、moonrrule 输入均为调用方喂好的字符串；mooncal 明言「不做 CalDAV 网络同步」「文件输入不属于 0.1.2 范围」。逐包核实见 <code>docs/research/mooncakes-competitors-survey.html</code>（§02 五道工序矩阵）。</li>
+  <li><b>五家竞品全是离线库</b>：mooncal、mooncalguard、rrule_lab、moon-schedule、moonrrule 输入均为调用方喂好的字符串；mooncal 明言「不做 CalDAV 网络同步」「文件输入不属于 0.1.2 范围」。调研期间已按五道工序逐包核实。</li>
   <li><b>评委口径</b>：2026-09-08 评委确认「CalDAV 这个选题没问题」。</li>
   <li><b>业界参照</b>：Python 的 Radicale 证明「只实现到各家客户端能理解为止」的最小 CalDAV 服务端路线可行；vdir「一文件一项」是跨工具互认的存储约定。</li>
 </ul>
@@ -186,7 +186,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
     <tr><td class="c">S1</td><td>类型化事件层：<code>Event</code> 结构 + <code>Component::events()</code>（映射层，无新算法）</td><td class="c">~150</td><td>demo 读本地 fixture .ics 打印事件清单</td><td><span class="chip done">完成（S1）</span></td></tr>
     <tr><td class="c">S1.5</td><td>取件切片：<code>ical/fetch</code>（<code>@http.get</code> 薄层，非 200 抛 <code>FetchError</code>）+ demo 支持 URL 输入：<code>URL → 事件清单</code> 端到端。网络测试不进 CI（Google 源本网络不可达，演示用 calendarlabs）</td><td class="c">~130</td><td>给真实可达 .ics URL，打印解析后事件清单；CI 仍走本地 fixture</td><td><span class="chip done">完成（S1.5）</span></td></tr>
     <tr><td class="c">S2</td><td>RRULE 解析（不展开）：第一档子句 → <code>Rule</code>；不支持子句显式报错</td><td class="c">~200</td><td>graham 32 个用例的 rule 串全部按档位解析或报错</td><td><span class="chip done">完成（S2）</span></td></tr>
-    <tr><td class="c">S3</td><td>第一档展开：DAILY/WEEKLY/MONTHLY + INTERVAL/COUNT/UNTIL/BYDAY(无offset)/BYMONTHDAY(正) + DTSTART 回退特例</td><td class="c">~400</td><td>RFC 附录 A 第一档 ~20 用例对拍全绿（语料：<code>.survey/src/graham_rrule/basic_test.go</code>）</td><td><span class="chip done">完成（S3）</span></td></tr>
+    <tr><td class="c">S3</td><td>第一档展开：DAILY/WEEKLY/MONTHLY + INTERVAL/COUNT/UNTIL/BYDAY(无offset)/BYMONTHDAY(正) + DTSTART 回退特例</td><td class="c">~400</td><td>RFC 附录 A 第一档 ~20 用例对拍全绿（语料：<a href="https://github.com/graham/rrule">graham/rrule</a> 测试套件，见 THIRD-PARTY-NOTICES.md）</td><td><span class="chip done">完成（S3）</span></td></tr>
     <tr><td class="c">S4</td><td>iCalendar 序列化写回：fold(75字符)/escape/组件树→ics（CalDAV 响应体就是它，故提前）</td><td class="c">~200</td><td>parse → serialize → parse 往返不变</td><td><span class="chip done">完成（S4）</span></td></tr>
     <tr><td class="c">S5</td><td>HTTP/1.1 请求层 + vdir 存储：accept + 手解析请求行/头/Content-Length 体；OPTIONS/GET/PUT/DELETE</td><td class="c">~350</td><td>curl 完成事件 PUT/GET/DELETE 往返，ETag 正确变化；chunked 请求回 411</td><td><span class="chip done">完成（S5）</span></td></tr>
     <tr><td class="c">S6</td><td>WebDAV/CalDAV 核心：PROPFIND(Depth 0/1)、REPORT(calendar-query/multiget)、MKCALENDAR、well-known 重定向、发现链、If-Match/If-None-Match</td><td class="c">~450</td><td>curl 模拟 Thunderbird 发现链 + REPORT 序列全绿（录成集成测试）</td><td><span class="chip done">完成（S6）</span></td></tr>
@@ -282,7 +282,7 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
     <tr><td>手解析 HTTP 边界情况（keep-alive、多值头、Expect: 100-continue）</td><td class="c"><span class="chip risk">中</span></td><td>明确 411/501 拒绝并写进边界；S7 联调日志驱动补齐；Radicale 哲学「够用即止」</td></tr>
     <tr><td>真实客户端差异不可控（发现链/PROPFIND 形状各家不同）</td><td class="c"><span class="chip risk">中</span></td><td>S7 独立成步预留整天；优先 Thunderbird（最宽容、文档全），DAVx5 次之；问题→修复→复测记进互操作矩阵</td></tr>
     <tr><td>XML 命名空间（客户端前缀任意：D:/d:/默认 ns）</td><td class="c"><span class="chip risk">中</span></td><td>按 (namespace-uri, local-name) 匹配而非前缀；测试带前缀变体</td></tr>
-    <tr><td>RRULE 序号算术（BYSETPOS/负值/序数 BYDAY）正确性</td><td class="c"><span class="chip risk">中</span></td><td>隔离在 S8 独立成步；附录 A 全量对拍；graham 源码在 <code>.survey/src/</code> 随时对照</td></tr>
+    <tr><td>RRULE 序号算术（BYSETPOS/负值/序数 BYDAY）正确性</td><td class="c"><span class="chip risk">中</span></td><td>隔离在 S8 独立成步；附录 A 全量对拍；graham/rrule 上游源码（GitHub）随时对照</td></tr>
     <tr><td>九月场规则未确认（本地技能只有八月场章程）</td><td class="c"><span class="chip risk">低</span></td><td>以八月场为底线准备（一页 MD 申报书/CI/mooncakes/≥5 提交）；提交前官方渠道确认一次</td></tr>
     <tr><td>规模不足（当前 962 行 vs 4–10k 参考）</td><td class="c"><span class="chip risk">低</span></td><td>S1–S8 累计估 ~2.6k 实现 + ~2.5k 测试 ≈ 5k+，落在区间；宁加用例不堆无关功能</td></tr>
   </tbody>
@@ -307,9 +307,9 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
 </table></div>
 
 <footer>
-  证据来源：docs/research/mooncakes-competitors-survey.html（五竞品逐包核实）· docs/spike-notes.md（M0 实测）·
-  docs/upstream-seams.md（接缝登记）· .mooncakes/moonbitlang/async 源码（types.mbt / server.mbt 行号）·
-  moon search caldav/webdav/xml（2026-09-08）。
+  证据来源：docs/spike-notes.md（M0 实测）· docs/upstream-seams.md（接缝登记）·
+  moonbitlang/async 上游源码（https://github.com/moonbitlang/async，types.mbt / server.mbt 行号）·
+  moon search caldav/webdav/xml（2026-09-08）· 五竞品逐包核实（调研期记录，本地存档未入库）。
   本手册提交于 S0 之后（0ab8978），随每个里程碑提交同步更新。跨会话进度与交接看 <code>docs/PROGRESS.md</code>——本地文件、不入库（AGENTS.md 已约定开工先读、收工必更，钩子校验新鲜度）。
 </footer>
 
