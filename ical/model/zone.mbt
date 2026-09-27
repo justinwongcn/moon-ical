@@ -17,6 +17,9 @@ pub struct ZoneTable {
 } derive(Debug)
 
 ///|
+pub extend ZoneTable with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 /// An empty table: every `TZID` fails to resolve until zones are added.
 pub fn ZoneTable::empty() -> ZoneTable {
   { entries: [], }

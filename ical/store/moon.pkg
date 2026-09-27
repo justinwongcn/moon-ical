@@ -2,6 +2,7 @@
 // calendar collection (the vdir convention cross-tool storage agrees on).
 import {
   "moonbitlang/async/fs",
+  "moonbitlang/core/debug",
 }
 
 supported_targets = "+native"

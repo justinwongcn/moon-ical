@@ -14,6 +14,12 @@ pub(all) enum Freq {
 } derive(Debug, Eq)
 
 ///|
+pub extend Freq with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Freq with Eq::{not_equal, equal}
+
+///|
 /// One `BYDAY` entry: a weekday, optionally qualified by an ordinal.
 ///
 /// `TU` is any Tuesday (`ordinal = 0`), `1FR` the first Friday of the
@@ -24,6 +30,12 @@ pub struct Byday {
   ordinal : Int
   weekday : @time.Weekday
 } derive(Debug, Eq)
+
+///|
+pub extend Byday with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Byday with Eq::{not_equal, equal}
 
 ///|
 /// A parsed `RRULE` value (RFC 5545 §3.3.10): the *syntax* of a recurrence
@@ -49,3 +61,9 @@ pub struct Rule {
   bysetpos : Array[Int]
   wkst : @time.Weekday
 } derive(Debug, Eq)
+
+///|
+pub extend Rule with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Rule with Eq::{not_equal, equal}

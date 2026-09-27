@@ -26,11 +26,17 @@ pub(all) struct DavResource {
   etag : String
   calendar_data : String
 } derive(Eq, @debug.Debug)
+pub fn DavResource::equal(Self, Self) -> Bool
+pub fn DavResource::not_equal(Self, Self) -> Bool
+pub fn DavResource::to_repr(Self) -> @debug.Repr
 
 pub(all) enum Precondition {
   Pass
   Failed
 } derive(Eq, @debug.Debug)
+pub fn Precondition::equal(Self, Self) -> Bool
+pub fn Precondition::not_equal(Self, Self) -> Bool
+pub fn Precondition::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

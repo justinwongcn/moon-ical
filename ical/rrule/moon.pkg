@@ -2,6 +2,7 @@
 import {
   "justinwongcn/moon-ical/ical/model",
   "justinwongcn/moon-ical/ical/text",
+  "moonbitlang/core/debug",
   "moonbitlang/x/time",
 }
 

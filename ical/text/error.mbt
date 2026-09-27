@@ -13,6 +13,12 @@ pub(all) suberror ParseError {
 } derive(Debug, Eq)
 
 ///|
+pub extend ParseError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ParseError with Eq::{not_equal, equal}
+
+///|
 pub impl Show for ParseError with fn output(self, logger) {
   match self {
     BadLine(line_no=no, line~, message=msg) =>
@@ -21,3 +27,6 @@ pub impl Show for ParseError with fn output(self, logger) {
       logger.write_string("invalid RRULE: \{msg} (in `\{rule}`)")
   }
 }
+
+///|
+pub extend ParseError with Show::{to_string, output}

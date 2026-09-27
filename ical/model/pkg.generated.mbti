@@ -32,9 +32,12 @@ pub struct Component {
   properties : Array[@text.ContentLine]
   children : Array[Component]
 } derive(Eq, @debug.Debug)
+pub fn Component::equal(Self, Self) -> Bool
 pub fn Component::events(Self, zones~ : ZoneTable) -> Array[Event] raise
+pub fn Component::not_equal(Self, Self) -> Bool
 pub fn Component::properties_named(Self, String) -> Array[@text.ContentLine]
 pub fn Component::property(Self, String) -> @text.ContentLine?
+pub fn Component::to_repr(Self) -> @debug.Repr
 
 pub struct Event {
   uid : String?
@@ -50,6 +53,9 @@ pub struct Event {
   exdates : Array[IcalDateTime]
 } derive(@debug.Debug)
 pub fn Event::all_day(Self) -> Bool
+pub fn Event::output(Self, &Logger) -> Unit
+pub fn Event::to_repr(Self) -> @debug.Repr
+pub fn Event::to_string(Self) -> String
 pub impl Show for Event
 
 pub struct IcalDateTime {
@@ -59,11 +65,16 @@ pub struct IcalDateTime {
   all_day : Bool
 } derive(Eq, @debug.Debug)
 pub fn IcalDateTime::compare(Self, Self) -> Int
+pub fn IcalDateTime::equal(Self, Self) -> Bool
 pub fn IcalDateTime::instant_seconds(Self) -> Int64
 pub fn IcalDateTime::is_floating(Self) -> Bool
 pub fn IcalDateTime::is_utc(Self) -> Bool
+pub fn IcalDateTime::not_equal(Self, Self) -> Bool
 pub fn IcalDateTime::on_date(Self, @time.PlainDate) -> Self raise
+pub fn IcalDateTime::output(Self, &Logger) -> Unit
 pub fn IcalDateTime::shift_seconds(Self, Int64) -> Self raise
+pub fn IcalDateTime::to_repr(Self) -> @debug.Repr
+pub fn IcalDateTime::to_string(Self) -> String
 pub impl Show for IcalDateTime
 
 pub struct ZoneTable {
@@ -73,6 +84,7 @@ pub fn ZoneTable::builtin_common() -> Self
 pub fn ZoneTable::empty() -> Self
 pub fn ZoneTable::insert(Self, String, Int) -> Unit
 pub fn ZoneTable::lookup(Self, String) -> Int?
+pub fn ZoneTable::to_repr(Self) -> @debug.Repr
 pub fn ZoneTable::with_builtin(Self) -> Self
 
 // Type aliases

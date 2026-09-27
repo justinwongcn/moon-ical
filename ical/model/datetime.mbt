@@ -26,6 +26,12 @@ pub struct IcalDateTime {
 } derive(Debug, Eq)
 
 ///|
+pub extend IcalDateTime with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend IcalDateTime with Eq::{not_equal, equal}
+
+///|
 /// Seconds since the Unix epoch for this value.
 ///
 /// A floating value is treated as UTC so that floating and explicitly-zoned
@@ -121,6 +127,9 @@ pub impl Show for IcalDateTime with fn output(self, logger) {
     logger.write_string("\{day}T\{clock}\{suffix}")
   }
 }
+
+///|
+pub extend IcalDateTime with Show::{to_string, output}
 
 ///|
 /// Parse a `DTSTART` / `DTEND` / `DUE` property into an [`IcalDateTime`].

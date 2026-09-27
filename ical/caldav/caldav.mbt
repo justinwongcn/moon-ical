@@ -7,11 +7,23 @@ pub(all) struct DavResource {
 } derive(Debug, Eq)
 
 ///|
+pub extend DavResource with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend DavResource with Eq::{not_equal, equal}
+
+///|
 /// The result of evaluating HTTP entity-tag preconditions.
 pub(all) enum Precondition {
   Pass
   Failed
 } derive(Debug, Eq)
+
+///|
+pub extend Precondition with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Precondition with Eq::{not_equal, equal}
 
 ///|
 /// Evaluate `If-Match` and `If-None-Match` against the current entity tag.

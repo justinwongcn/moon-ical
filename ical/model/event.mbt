@@ -35,6 +35,9 @@ pub struct Event {
 } derive(Debug)
 
 ///|
+pub extend Event with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 /// An all-day event is one whose `DTSTART` is a DATE value.
 pub fn Event::all_day(self : Event) -> Bool {
   match self.dtstart {
@@ -52,6 +55,9 @@ pub impl Show for Event with fn output(self, logger) {
     None => logger.write_string("VEVENT \{uid}: \{summary}")
   }
 }
+
+///|
+pub extend Event with Show::{to_string, output}
 
 ///|
 /// The `VEVENT` children of this component as typed events, in wire order.

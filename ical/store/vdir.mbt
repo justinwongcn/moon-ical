@@ -23,6 +23,12 @@ pub(all) struct VdirFile {
 } derive(Debug, Eq)
 
 ///|
+pub extend VdirFile with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend VdirFile with Eq::{not_equal, equal}
+
+///|
 /// Why a store call failed. `BadName` carries the refused name so the
 /// HTTP layer can answer 404/400 without echoing a path anywhere near a
 /// filesystem.
@@ -31,11 +37,20 @@ pub(all) suberror StoreError {
 } derive(Debug, Eq)
 
 ///|
+pub extend StoreError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend StoreError with Eq::{not_equal, equal}
+
+///|
 pub impl Show for StoreError with fn output(self, logger) {
   match self {
     BadName(name=n) => logger.write_string("refused store name: \{n}")
   }
 }
+
+///|
+pub extend StoreError with Show::{to_string, output}
 
 ///|
 /// Open (or designate) the collection rooted at `root`. The directory

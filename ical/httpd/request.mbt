@@ -33,11 +33,23 @@ pub(all) struct HttpRequest {
 } derive(Debug, Eq)
 
 ///|
+pub extend HttpRequest with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend HttpRequest with Eq::{not_equal, equal}
+
+///|
 /// One header of an [`HttpRequest`], with the name lower-cased.
 pub(all) struct HttpHeader {
   name : String
   value : String
 } derive(Debug, Eq)
+
+///|
+pub extend HttpHeader with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend HttpHeader with Eq::{not_equal, equal}
 
 ///|
 /// Why a request could not be read. The server maps each shape to a
@@ -51,6 +63,12 @@ pub(all) suberror HttpParseError {
 } derive(Debug, Eq)
 
 ///|
+pub extend HttpParseError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend HttpParseError with Eq::{not_equal, equal}
+
+///|
 pub impl Show for HttpParseError with fn output(self, logger) {
   match self {
     Malformed(message=m) => logger.write_string("malformed request: \{m}")
@@ -60,6 +78,9 @@ pub impl Show for HttpParseError with fn output(self, logger) {
       logger.write_string("request body exceeds \{k} bytes")
   }
 }
+
+///|
+pub extend HttpParseError with Show::{to_string, output}
 
 ///|
 /// The first header value with this name, if any. Names match

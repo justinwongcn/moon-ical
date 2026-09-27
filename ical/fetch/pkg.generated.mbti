@@ -12,6 +12,11 @@ pub async fn fetch_ics(String) -> String
 pub(all) suberror FetchError {
   BadStatus(status~ : Int, url~ : String)
 } derive(Eq, @debug.Debug)
+pub fn FetchError::equal(Self, Self) -> Bool
+pub fn FetchError::not_equal(Self, Self) -> Bool
+pub fn FetchError::output(Self, &Logger) -> Unit
+pub fn FetchError::to_repr(Self) -> @debug.Repr
+pub fn FetchError::to_string(Self) -> String
 pub impl Show for FetchError
 
 // Types and methods

@@ -10,6 +10,12 @@ pub(all) struct Occurrence {
 } derive(Debug, Eq)
 
 ///|
+pub extend Occurrence with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Occurrence with Eq::{not_equal, equal}
+
+///|
 /// Expand and merge one UID's VEVENT series. A cancelled override removes its
 /// instance; a moved override replaces that instance; RANGE=THISANDFUTURE
 /// shifts the selected instance and every later generated instance by the

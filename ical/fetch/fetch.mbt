@@ -10,12 +10,21 @@ pub(all) suberror FetchError {
 } derive(Debug, Eq)
 
 ///|
+pub extend FetchError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend FetchError with Eq::{not_equal, equal}
+
+///|
 pub impl Show for FetchError with fn output(self, logger) {
   match self {
     BadStatus(status~, url~) =>
       logger.write_string("fetch \{url}: unexpected status \{status}")
   }
 }
+
+///|
+pub extend FetchError with Show::{to_string, output}
 
 ///|
 /// Fetch an iCalendar feed over HTTP(S) — pipeline stage ① 取件.

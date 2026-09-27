@@ -17,6 +17,11 @@ pub(all) suberror HttpParseError {
   ChunkedBody
   BodyTooLarge(limit~ : Int)
 } derive(Eq, @debug.Debug)
+pub fn HttpParseError::equal(Self, Self) -> Bool
+pub fn HttpParseError::not_equal(Self, Self) -> Bool
+pub fn HttpParseError::output(Self, &Logger) -> Unit
+pub fn HttpParseError::to_repr(Self) -> @debug.Repr
+pub fn HttpParseError::to_string(Self) -> String
 pub impl Show for HttpParseError
 
 // Types and methods
@@ -24,6 +29,9 @@ pub(all) struct HttpHeader {
   name : String
   value : String
 } derive(Eq, @debug.Debug)
+pub fn HttpHeader::equal(Self, Self) -> Bool
+pub fn HttpHeader::not_equal(Self, Self) -> Bool
+pub fn HttpHeader::to_repr(Self) -> @debug.Repr
 
 pub(all) struct HttpRequest {
   meth : String
@@ -32,7 +40,10 @@ pub(all) struct HttpRequest {
   headers : Array[HttpHeader]
   body : String
 } derive(Eq, @debug.Debug)
+pub fn HttpRequest::equal(Self, Self) -> Bool
 pub fn HttpRequest::header(Self, String) -> String?
+pub fn HttpRequest::not_equal(Self, Self) -> Bool
+pub fn HttpRequest::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

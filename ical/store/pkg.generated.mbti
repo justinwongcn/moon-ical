@@ -12,6 +12,11 @@ pub fn etag_of(String) -> String
 pub(all) suberror StoreError {
   BadName(name~ : String)
 } derive(Eq, @debug.Debug)
+pub fn StoreError::equal(Self, Self) -> Bool
+pub fn StoreError::not_equal(Self, Self) -> Bool
+pub fn StoreError::output(Self, &Logger) -> Unit
+pub fn StoreError::to_repr(Self) -> @debug.Repr
+pub fn StoreError::to_string(Self) -> String
 pub impl Show for StoreError
 
 // Types and methods
@@ -19,6 +24,9 @@ pub(all) struct VdirFile {
   text : String
   etag : String
 } derive(Eq, @debug.Debug)
+pub fn VdirFile::equal(Self, Self) -> Bool
+pub fn VdirFile::not_equal(Self, Self) -> Bool
+pub fn VdirFile::to_repr(Self) -> @debug.Repr
 
 pub struct VdirStore {
   root : String

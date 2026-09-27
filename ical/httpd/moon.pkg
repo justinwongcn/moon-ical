@@ -1,6 +1,7 @@
 // ical/httpd: HTTP/1.1 request reading, hand-parsed (seam S6).
 import {
   "moonbitlang/async/io",
+  "moonbitlang/core/debug",
   "moonbitlang/core/encoding/utf8",
 }
 

@@ -10,12 +10,24 @@ pub struct ContentLine {
 } derive(Debug, Eq)
 
 ///|
+pub extend ContentLine with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ContentLine with Eq::{not_equal, equal}
+
+///|
 /// A single parameter of a content line, with surrounding quotes already
 /// stripped from its value.
 pub struct PropertyParam {
   name : String
   value : String
 } derive(Debug, Eq)
+
+///|
+pub extend PropertyParam with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend PropertyParam with Eq::{not_equal, equal}
 
 ///|
 /// Parse one logical (already unfolded) content line.

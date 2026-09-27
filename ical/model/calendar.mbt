@@ -10,6 +10,12 @@ pub struct Component {
 } derive(Debug, Eq)
 
 ///|
+pub extend Component with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Component with Eq::{not_equal, equal}
+
+///|
 /// The first property with this name, if the component carries one.
 pub fn Component::property(
   self : Component,

@@ -19,6 +19,11 @@ pub(all) suberror ExpandError {
   Unsupported(feature~ : String)
   Invalid(message~ : String)
 } derive(Eq, @debug.Debug)
+pub fn ExpandError::equal(Self, Self) -> Bool
+pub fn ExpandError::not_equal(Self, Self) -> Bool
+pub fn ExpandError::output(Self, &Logger) -> Unit
+pub fn ExpandError::to_repr(Self) -> @debug.Repr
+pub fn ExpandError::to_string(Self) -> String
 pub impl Show for ExpandError
 
 // Types and methods
@@ -26,6 +31,9 @@ pub struct Byday {
   ordinal : Int
   weekday : @time.Weekday
 } derive(Eq, @debug.Debug)
+pub fn Byday::equal(Self, Self) -> Bool
+pub fn Byday::not_equal(Self, Self) -> Bool
+pub fn Byday::to_repr(Self) -> @debug.Repr
 
 pub(all) enum Freq {
   Yearly
@@ -33,6 +41,9 @@ pub(all) enum Freq {
   Weekly
   Daily
 } derive(Eq, @debug.Debug)
+pub fn Freq::equal(Self, Self) -> Bool
+pub fn Freq::not_equal(Self, Self) -> Bool
+pub fn Freq::to_repr(Self) -> @debug.Repr
 
 pub(all) struct Occurrence {
   uid : String
@@ -41,6 +52,9 @@ pub(all) struct Occurrence {
   summary : String?
   recurrence_id : @model.IcalDateTime
 } derive(Eq, @debug.Debug)
+pub fn Occurrence::equal(Self, Self) -> Bool
+pub fn Occurrence::not_equal(Self, Self) -> Bool
+pub fn Occurrence::to_repr(Self) -> @debug.Repr
 
 pub struct Rule {
   freq : Freq
@@ -53,6 +67,9 @@ pub struct Rule {
   bysetpos : Array[Int]
   wkst : @time.Weekday
 } derive(Eq, @debug.Debug)
+pub fn Rule::equal(Self, Self) -> Bool
+pub fn Rule::not_equal(Self, Self) -> Bool
+pub fn Rule::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

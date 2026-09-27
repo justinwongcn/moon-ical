@@ -10,6 +10,12 @@ pub(all) suberror ExpandError {
 } derive(Debug, Eq)
 
 ///|
+pub extend ExpandError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ExpandError with Eq::{not_equal, equal}
+
+///|
 pub impl Show for ExpandError with fn output(self, logger) {
   match self {
     Unsupported(feature=f) =>
@@ -17,6 +23,9 @@ pub impl Show for ExpandError with fn output(self, logger) {
     Invalid(message=m) => logger.write_string("invalid recurrence rule: \{m}")
   }
 }
+
+///|
+pub extend ExpandError with Show::{to_string, output}
 
 ///|
 /// A safety bound on how many rule periods `expand` walks before giving
