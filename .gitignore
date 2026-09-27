@@ -14,3 +14,8 @@ docs/research/
 
 # cross-session progress tracker — local only, never committed
 /docs/PROGRESS.md
+
+# contest-internal files — local only, never commit
+/docs/OSC2026-PROPOSAL.md
+.agents/skills/osc2026-guide/references/2026 MoonBit 国产基础软件开源大赛章程.md
+.agents/skills/osc2026-guide/references/2026 MoonBit 国产基础软件生态开源大赛-8月黑客松活动说明.md
