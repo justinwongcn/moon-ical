@@ -119,3 +119,52 @@ async test "a multibyte body round-trips through the UTF-8 decode" {
   ).unwrap()
   assert_eq(req.body, body)
 }
+
+///|
+async test "EOF inside headers is a malformed request" {
+  assert_eq(
+    request_error_of("GET / HTTP/1.1\r\nHost: x\r\n"),
+    "malformed request: EOF in headers",
+  )
+}
+
+///|
+async test "a non-UTF-8 body is refused as malformed" {
+  let reader = @io.MemoryReader() <| w => {
+    w.write("PUT /a.ics HTTP/1.1\r\nContent-Length: 3\r\n\r\n")
+    w.write(b"\xff\xfe\x00")
+  }
+  defer reader.close()
+  try {
+    let _ = @httpd.read_request(reader)
+    fail("expected a malformed-body error")
+  } catch {
+    err =>
+      assert_eq(err.to_string(), "malformed request: body is not valid UTF-8")
+  }
+}
+
+///|
+/// A test sink that collects everything `respond` writes, as text. The
+/// rendezvous pipe would block `respond` until a reader shows up, so a
+/// collector keeps the test single-coroutine.
+priv struct CollectWriter {
+  parts : Array[String]
+}
+
+///|
+impl @io.Writer for CollectWriter with fn write_once(self, bytes, offset~, len~) -> Int {
+  self.parts.push(@utf8.decode(bytes[offset:offset + len]))
+  len
+}
+
+///|
+async test "respond writes a byte-accurate Content-Length for multibyte bodies" {
+  // 四个中文字符是 12 个 UTF-8 字节：按字符数会算成 4，客户端就会挂起。
+  let sink : CollectWriter = { parts: [], }
+  @httpd.respond(sink, 200, "OK", body="中文日历")
+  assert_eq(
+    sink.parts.join(""),
+    "HTTP/1.1 200 OK\r\nContent-Length: 12\r\n\r\n中文日历",
+  )
+}

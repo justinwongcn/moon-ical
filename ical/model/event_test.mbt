@@ -140,6 +140,15 @@ test "only direct VEVENT children are mapped" {
 }
 
 ///|
+test "an event without a DTSTART is not all-day" {
+  let events = @model.parse_events(
+    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x\r\nSUMMARY:no time\r\nEND:VEVENT\r\nEND:VCALENDAR",
+  )
+  assert_eq(events.length(), 1)
+  assert_false(events[0].all_day())
+}
+
+///|
 test "a malformed DTSTART is loud, not silently dropped" {
   let msg = feed_error_of(
     "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x\r\nDTSTART:2026-09-10T09:00\r\nEND:VEVENT\r\nEND:VCALENDAR",

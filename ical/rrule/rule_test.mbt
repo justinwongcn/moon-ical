@@ -174,6 +174,38 @@ test "the never-supported frequencies and clauses are rejected loudly" {
 }
 
 ///|
+test "malformed clause values are rejected with named errors" {
+  assert_eq(
+    rule_error_of("FREQ=DAILY;COUNT=+"),
+    "invalid RRULE: malformed COUNT value: + (in `FREQ=DAILY;COUNT=+`)",
+  )
+  assert_eq(
+    rule_error_of("FREQ=DAILY;COUNT=1x"),
+    "invalid RRULE: malformed COUNT value: 1x (in `FREQ=DAILY;COUNT=1x`)",
+  )
+  assert_eq(
+    rule_error_of("FREQ=DAILY;=1"),
+    "invalid RRULE: malformed rule part: =1 (in `FREQ=DAILY;=1`)",
+  )
+  assert_eq(
+    rule_error_of("FREQ=DAILY;BYDAY=X"),
+    "invalid RRULE: malformed BYDAY value: X (in `FREQ=DAILY;BYDAY=X`)",
+  )
+  assert_eq(
+    rule_error_of("FREQ=DAILY;WKST=XX"),
+    "invalid RRULE: malformed WKST value: XX (in `FREQ=DAILY;WKST=XX`)",
+  )
+  assert_eq(
+    rule_error_of("FREQ=DAILY;BYMONTHDAY=1a"),
+    "invalid RRULE: malformed BYMONTHDAY value: 1a (in `FREQ=DAILY;BYMONTHDAY=1a`)",
+  )
+  assert_eq(
+    rule_error_of("FREQ=DAILY;BYMONTH=+3"),
+    "invalid RRULE: malformed BYMONTH value: +3 (in `FREQ=DAILY;BYMONTH=+3`)",
+  )
+}
+
+///|
 test "FREQ is required exactly once and other clauses at most once" {
   assert_eq(
     rule_error_of("INTERVAL=2"),

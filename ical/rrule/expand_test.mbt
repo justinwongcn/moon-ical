@@ -138,6 +138,77 @@ test "a rule whose dates never exist terminates with an empty series" {
 }
 
 ///|
+test "BYSETPOS reorders within one period and deduplicates selections" {
+  // DTSTART Monday 2026-09-28: the week's Mon/Tue/Wed candidates picked in
+  // the rule's 3-then-1 order must come back chronological, and a repeated
+  // position must not emit the same date twice.
+  assert_eq(
+    expand_strings(
+      "FREQ=WEEKLY;COUNT=2;BYDAY=MO,TU,WE;BYSETPOS=3,1", "20260928T090000Z", 4,
+    ),
+    ["2026-09-28T09:00:00Z", "2026-09-30T09:00:00Z"],
+  )
+  assert_eq(
+    expand_strings(
+      "FREQ=WEEKLY;COUNT=1;BYDAY=MO,TU;BYSETPOS=1,1", "20260928T090000Z", 4,
+    ),
+    ["2026-09-28T09:00:00Z"],
+  )
+}
+
+///|
+test "YEARLY expands plain and negative-ordinal BYDAY across the whole year" {
+  // A plain weekday with no BYMONTH/BYMONTHDAY ranges over every month.
+  assert_eq(
+    expand_strings("FREQ=YEARLY;BYDAY=MO;COUNT=3", "20260101T090000Z", 3),
+    ["2026-01-05T09:00:00Z", "2026-01-12T09:00:00Z", "2026-01-19T09:00:00Z"],
+  )
+  // A plain weekday beside an ordinal one still matches by weekday alone:
+  // the first Friday of the year, then the first two Mondays.
+  assert_eq(
+    expand_strings("FREQ=YEARLY;BYDAY=MO,1FR;COUNT=3", "20260101T090000Z", 3),
+    ["2026-01-02T09:00:00Z", "2026-01-05T09:00:00Z", "2026-01-12T09:00:00Z"],
+  )
+  // -1SU counts from the end of the year: the last Sunday of 2026.
+  assert_eq(
+    expand_strings("FREQ=YEARLY;BYDAY=-1SU;COUNT=1", "20260101T090000Z", 2),
+    ["2026-12-27T09:00:00Z"],
+  )
+}
+
+///|
+test "weekly expansion reads every weekday and WKST spelling" {
+  // DTSTART on each of the not-yet-exercised weekdays keeps the week
+  // arithmetic honest across the full Weekday row.
+  assert_eq(
+    expand_strings(
+      "FREQ=WEEKLY;BYDAY=WE;COUNT=2;WKST=SU", "20260930T090000Z", 2,
+    ),
+    ["2026-09-30T09:00:00Z", "2026-10-07T09:00:00Z"],
+  )
+  assert_eq(
+    expand_strings("FREQ=WEEKLY;BYDAY=TH;COUNT=1", "20261001T090000Z", 1),
+    ["2026-10-01T09:00:00Z"],
+  )
+  assert_eq(
+    expand_strings("FREQ=WEEKLY;BYDAY=FR;COUNT=1", "20261002T090000Z", 1),
+    ["2026-10-02T09:00:00Z"],
+  )
+  assert_eq(
+    expand_strings("FREQ=WEEKLY;BYDAY=SA;COUNT=1", "20261003T090000Z", 1),
+    ["2026-10-03T09:00:00Z"],
+  )
+}
+
+///|
+test "the Unsupported error renders its feature name" {
+  let err : @rrule.ExpandError = @rrule.ExpandError::Unsupported(
+    feature="BYWEEKNO",
+  )
+  assert_eq(err.to_string(), "unsupported RRULE feature in expansion: BYWEEKNO")
+}
+
+///|
 test "WKST defaults to Monday and only matters near a week boundary" {
   // With DTSTART on a Tuesday, BYDAY=TU,SU under the default (Monday)
   // week start matches the corpus's WKST=MO expectations.

@@ -127,6 +127,75 @@ test "feed ZoneTable flows through parse_events into series expansion" {
 }
 
 ///|
+test "a series without a master, DTSTART, or RRULE degrades to the base case" {
+  assert_eq(
+    @rrule.expand_series(
+      @model.parse_events("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n"),
+    ),
+    [],
+  )
+  let no_dtstart = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:empty\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+  assert_eq(@rrule.expand_series(@model.parse_events(no_dtstart)), [])
+  let no_rrule = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:once\r\nDTSTART:20260901T090000Z\r\nSUMMARY:once\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+  assert_eq(
+    @rrule.expand_series(@model.parse_events(no_rrule)).map(x => {
+      x.start.to_string()
+    }),
+    ["2026-09-01T09:00:00Z"],
+  )
+}
+
+///|
+test "a cancelled THISANDFUTURE removes every instance it would have shifted" {
+  // File order puts the later RECURRENCE-ID first, so the merge index
+  // genuinely has to sort its future overrides before applying them.
+  let text = "BEGIN:VCALENDAR\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T093000Z\r\nRRULE:FREQ=DAILY;COUNT=4\r\nSUMMARY:base\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nRECURRENCE-ID;RANGE=THISANDFUTURE:20260904T090000Z\r\nDTSTART:20260904T120000Z\r\nDTEND:20260904T123000Z\r\nSUMMARY:moved\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nRECURRENCE-ID;RANGE=THISANDFUTURE:20260902T090000Z\r\nSTATUS:CANCELLED\r\nEND:VEVENT\r\n" +
+    "END:VCALENDAR\r\n"
+  let merged = @rrule.expand_series(@model.parse_events(text))
+  assert_eq(merged.map(x => x.start.to_string()), [
+    "2026-09-01T09:00:00Z", "2026-09-04T12:00:00Z",
+  ])
+  assert_eq(merged[1].summary, Some("moved"))
+  assert_eq(merged[1].end.map(e => e.to_string()), Some("2026-09-04T12:30:00Z"))
+}
+
+///|
+test "a THISANDFUTURE override without a DTSTART is skipped wherever it acts" {
+  // At its own slot the override is an exact match with nothing to show;
+  // at later slots it is the active future override, still with no
+  // DTSTART to shift from — both shapes must be skipped, not crash.
+  let text = "BEGIN:VCALENDAR\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T100000Z\r\nRRULE:FREQ=DAILY;COUNT=4\r\nSUMMARY:base\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nRECURRENCE-ID;RANGE=THISANDFUTURE:20260903T090000Z\r\nEND:VEVENT\r\n" +
+    "END:VCALENDAR\r\n"
+  let merged = @rrule.expand_series(@model.parse_events(text))
+  assert_eq(merged.map(x => x.start.to_string()), [
+    "2026-09-01T09:00:00Z", "2026-09-02T09:00:00Z",
+  ])
+}
+
+///|
+test "a moved instance without its own summary inherits the series summary" {
+  let text = "BEGIN:VCALENDAR\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T093000Z\r\nRRULE:FREQ=DAILY;COUNT=4\r\nSUMMARY:base\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nRECURRENCE-ID;RANGE=THISANDFUTURE:20260902T090000Z\r\nDTSTART:20260902T110000Z\r\nEND:VEVENT\r\n" +
+    "END:VCALENDAR\r\n"
+  let merged = @rrule.expand_series(@model.parse_events(text))
+  assert_eq(merged.map(x => x.start.to_string()), [
+    "2026-09-01T09:00:00Z", "2026-09-02T11:00:00Z", "2026-09-03T11:00:00Z", "2026-09-04T11:00:00Z",
+  ])
+  // The exact override itself carries no summary; the shifted instances
+  // fall back to the series summary, and the duration travels with them.
+  assert_eq(merged[0].summary, Some("base"))
+  assert_eq(merged[1].summary, None)
+  assert_eq(merged[2].summary, Some("base"))
+  assert_eq(merged[2].end.map(e => e.to_string()), Some("2026-09-03T11:30:00Z"))
+}
+
+///|
 test "series merge ignores overrides from another UID" {
   let text = "BEGIN:VCALENDAR\r\n" +
     "BEGIN:VEVENT\r\nUID:target\r\nDTSTART:20260901T090000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nEND:VEVENT\r\n" +

@@ -17,6 +17,28 @@ fn error_of(line : String) -> String {
 }
 
 ///|
+test "a broken designator, date, or time part is a line error" {
+  assert_eq(
+    error_of("DTSTART:20260908T093000Q"),
+    "line 0: malformed date-time designator in: 20260908T093000Q (in `20260908T093000Q`)",
+  )
+  assert_eq(
+    error_of("DTSTART:2026AB08T093000"),
+    "line 0: malformed date part in: 2026AB08T093000 (in `2026AB08T093000`)",
+  )
+  assert_eq(
+    error_of("DTSTART:20260908TAB3000"),
+    "line 0: malformed time part in: 20260908TAB3000 (in `20260908TAB3000`)",
+  )
+}
+
+///|
+test "floating and zoned values answer is_floating oppositely" {
+  assert_true(dt("DTSTART:20260908T093000").is_floating())
+  assert_false(dt("DTSTART;TZID=Asia/Shanghai:20260908T093000").is_floating())
+}
+
+///|
 test "a trailing Z is UTC" {
   let v = dt("DTSTART:20260908T013000Z")
   assert_eq(v.utc_offset, Some(0))
