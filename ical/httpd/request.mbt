@@ -88,13 +88,12 @@ pub extend HttpParseError with Show::{to_string, output}
 /// is folded the same way).
 pub fn HttpRequest::header(self : HttpRequest, name : String) -> String? {
   let want = String::to_lower(name)
-  let mut found : String? = None
   for h in self.headers {
-    if h.name == want && found is None {
-      found = Some(h.value)
+    if h.name == want {
+      return Some(h.value)
     }
   }
-  found
+  None
 }
 
 ///|

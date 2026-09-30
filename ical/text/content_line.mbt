@@ -222,18 +222,17 @@ fn split_unquoted(s : StringView, sep : UInt16) -> Array[StringView] {
 /// Index of `target` outside double quotes, or -1 when it is absent.
 fn find_unquoted(s : StringView, target : UInt16) -> Int? {
   let mut quoted = false
-  let mut found : Int? = None
   let mut i = 0
-  while i < s.length() && found is None {
+  while i < s.length() {
     let c = s[i]
     if c == '"' {
       quoted = !quoted
     } else if c == target && !quoted {
-      found = Some(i)
+      return Some(i)
     }
     i = i + 1
   }
-  found
+  None
 }
 
 ///|

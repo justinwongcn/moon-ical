@@ -123,22 +123,18 @@ fn event_from_component(
   component : Component,
   zones : ZoneTable,
 ) -> Event raise {
-  let dtstart = match component.property("DTSTART") {
-    Some(line) => Some(parse_date_time(line, zones))
-    None => None
-  }
-  let dtend = match component.property("DTEND") {
-    Some(line) => Some(parse_date_time(line, zones))
-    None => None
-  }
-  let recurrence_id = match component.property("RECURRENCE-ID") {
-    Some(line) => Some(parse_date_time(line, zones))
-    None => None
-  }
-  let recurrence_range = match component.property("RECURRENCE-ID") {
-    Some(line) => line.param("RANGE")
-    None => None
-  }
+  let dtstart = component
+    .property("DTSTART")
+    .map(line => parse_date_time(line, zones))
+  let dtend = component
+    .property("DTEND")
+    .map(line => parse_date_time(line, zones))
+  let recurrence_id = component
+    .property("RECURRENCE-ID")
+    .map(line => parse_date_time(line, zones))
+  let recurrence_range = component
+    .property("RECURRENCE-ID")
+    .bind(line => line.param("RANGE"))
   let exdates : Array[IcalDateTime] = []
   for line in component.properties_named("EXDATE") {
     let tzid = line.param("TZID")
@@ -159,10 +155,7 @@ fn event_from_component(
     description: text_of(component, "DESCRIPTION"),
     dtstart,
     dtend,
-    rrule: match component.property("RRULE") {
-      Some(line) => Some(line.value)
-      None => None
-    },
+    rrule: component.property("RRULE").map(line => line.value),
     recurrence_id,
     recurrence_range,
     status: text_of(component, "STATUS"),
@@ -181,8 +174,7 @@ fn text_of(component : Component, name : String) -> String? {
 
 ///|
 /// Split a comma-separated property value into its parts, as `EXDATE` and
-/// `RDATE` lists are written. Hand-rolled for the same reason as the other
-/// string helpers in this module: explicit slices, no view pitfalls.
+/// `RDATE` lists are written.
 fn split_values(value : String) -> Array[String] {
   let parts : Array[String] = []
   for part in value.view().split(",".view()) {

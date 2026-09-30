@@ -28,6 +28,15 @@
 ///   assert_eq(rule.byday.length(), 2)
 /// }
 /// ```
+
+///|
+/// Build the one error shape `parse_rule` reports, so every rejection
+/// names the whole rule value it failed on.
+fn bad_rule(rule : String, message : String) -> @text.ParseError {
+  @text.ParseError::BadRule(rule~, message~)
+}
+
+///|
 pub fn parse_rule(rule : String) -> Rule raise {
   let body = without_rrule_prefix(rule)
   let mut freq : Freq? = None
@@ -42,59 +51,35 @@ pub fn parse_rule(rule : String) -> Rule raise {
   let seen : Array[String] = []
   for part in split_on(body, ';') {
     if part == "" {
-      raise @text.ParseError::BadRule(rule~, message="empty rule part")
+      raise bad_rule(rule, "empty rule part")
     }
     let (name, value) = match split_at_equals(part) {
       Some(pair) => pair
-      None =>
-        raise @text.ParseError::BadRule(
-          rule~,
-          message="malformed rule part: \{part}",
-        )
+      None => raise bad_rule(rule, "malformed rule part: \{part}")
     }
     if name == "" {
-      raise @text.ParseError::BadRule(
-        rule~,
-        message="malformed rule part: \{part}",
-      )
+      raise bad_rule(rule, "malformed rule part: \{part}")
     }
     let key = String::to_upper(name)
-    if has_clause(seen, key) {
-      raise @text.ParseError::BadRule(rule~, message="duplicate clause: \{key}")
+    if seen.contains(key) {
+      raise bad_rule(rule, "duplicate clause: \{key}")
     }
     seen.push(key)
-    if key == "FREQ" {
-      freq = Some(parse_freq(value, rule))
-    } else if key == "INTERVAL" {
-      interval = Some(positive_clause("INTERVAL", value, rule))
-    } else if key == "COUNT" {
-      count = Some(positive_clause("COUNT", value, rule))
-    } else if key == "UNTIL" {
-      until = Some(parse_until(value, rule))
-    } else if key == "BYDAY" {
-      byday = parse_byday_list(value, rule)
-    } else if key == "BYMONTHDAY" {
-      bymonthday = parse_int_list(value, "BYMONTHDAY", rule, 31, true)
-    } else if key == "BYMONTH" {
-      bymonth = parse_int_list(value, "BYMONTH", rule, 12, false)
-    } else if key == "BYSETPOS" {
-      bysetpos = parse_int_list(value, "BYSETPOS", rule, 366, true)
-    } else if key == "WKST" {
-      wkst = Some(parse_weekday_code(value, rule))
-    } else if key == "BYWEEKNO" ||
-      key == "BYYEARDAY" ||
-      key == "BYHOUR" ||
-      key == "BYMINUTE" ||
-      key == "BYSECOND" {
-      raise @text.ParseError::BadRule(
-        rule~,
-        message="unsupported RRULE clause: \{key}",
-      )
-    } else {
-      raise @text.ParseError::BadRule(
-        rule~,
-        message="unknown RRULE clause: \{key}",
-      )
+    match key {
+      "FREQ" => freq = Some(parse_freq(value, rule))
+      "INTERVAL" => interval = Some(positive_clause("INTERVAL", value, rule))
+      "COUNT" => count = Some(positive_clause("COUNT", value, rule))
+      "UNTIL" => until = Some(parse_until(value, rule))
+      "BYDAY" => byday = parse_byday_list(value, rule)
+      "BYMONTHDAY" =>
+        bymonthday = parse_int_list(value, "BYMONTHDAY", rule, 31, true)
+      "BYMONTH" => bymonth = parse_int_list(value, "BYMONTH", rule, 12, false)
+      "BYSETPOS" =>
+        bysetpos = parse_int_list(value, "BYSETPOS", rule, 366, true)
+      "WKST" => wkst = Some(parse_weekday_code(value, rule))
+      "BYWEEKNO" | "BYYEARDAY" | "BYHOUR" | "BYMINUTE" | "BYSECOND" =>
+        raise bad_rule(rule, "unsupported RRULE clause: \{key}")
+      _ => raise bad_rule(rule, "unknown RRULE clause: \{key}")
     }
   }
   match freq {
@@ -110,8 +95,7 @@ pub fn parse_rule(rule : String) -> Rule raise {
         bysetpos,
         wkst: wkst.unwrap_or(@time.Weekday::Monday),
       }
-    None =>
-      raise @text.ParseError::BadRule(rule~, message="missing FREQ clause")
+    None => raise bad_rule(rule, "missing FREQ clause")
   }
 }
 
@@ -165,28 +149,15 @@ fn split_at_equals(part : String) -> (String, String)? {
   while i < n {
     if cs[i] == '=' {
       found = i
-      i = n
-    } else {
-      i = i + 1
+      break
     }
+    i = i + 1
   }
   if found < 0 {
     None
   } else {
     Some((String::from_array(cs[0:found]), String::from_array(cs[found + 1:n])))
   }
-}
-
-///|
-/// Whether this clause name has already appeared in the rule.
-fn has_clause(seen : Array[String], key : String) -> Bool {
-  let mut found = false
-  for entry in seen {
-    if entry == key {
-      found = true
-    }
-  }
-  found
 }
 
 ///|
@@ -200,12 +171,8 @@ fn parse_freq(value : String, rule : String) -> Freq raise {
     "WEEKLY" => Weekly
     "DAILY" => Daily
     "HOURLY" | "MINUTELY" | "SECONDLY" =>
-      raise @text.ParseError::BadRule(
-        rule~,
-        message="unsupported FREQ: \{value}",
-      )
-    _ =>
-      raise @text.ParseError::BadRule(rule~, message="unknown FREQ: \{value}")
+      raise bad_rule(rule, "unsupported FREQ: \{value}")
+    _ => raise bad_rule(rule, "unknown FREQ: \{value}")
   }
 }
 
@@ -217,16 +184,9 @@ fn positive_clause(key : String, value : String, rule : String) -> Int raise {
       if n >= 1 {
         n
       } else {
-        raise @text.ParseError::BadRule(
-          rule~,
-          message="\{key} must be a positive integer: \{value}",
-        )
+        raise bad_rule(rule, "\{key} must be a positive integer: \{value}")
       }
-    None =>
-      raise @text.ParseError::BadRule(
-        rule~,
-        message="malformed \{key} value: \{value}",
-      )
+    None => raise bad_rule(rule, "malformed \{key} value: \{value}")
   }
 }
 
@@ -236,11 +196,7 @@ fn positive_clause(key : String, value : String, rule : String) -> Int raise {
 /// failure so every `parse_rule` caller sees one error shape.
 fn parse_until(value : String, rule : String) -> @model.IcalDateTime raise {
   @model.parse_single_date_time(value, @model.ZoneTable::empty()) catch {
-    _ =>
-      raise @text.ParseError::BadRule(
-        rule~,
-        message="malformed UNTIL value: \{value}",
-      )
+    _ => raise bad_rule(rule, "malformed UNTIL value: \{value}")
   }
 }
 
@@ -252,11 +208,7 @@ fn parse_byday_list(value : String, rule : String) -> Array[Byday] raise {
   for item in split_on(value, ',') {
     match parse_byday_item(item) {
       Some(entry) => out.push(entry)
-      None =>
-        raise @text.ParseError::BadRule(
-          rule~,
-          message="malformed BYDAY value: \{item}",
-        )
+      None => raise bad_rule(rule, "malformed BYDAY value: \{item}")
     }
   }
   out
@@ -299,11 +251,7 @@ fn parse_byday_item(item : String) -> Byday? {
 fn parse_weekday_code(value : String, rule : String) -> @time.Weekday raise {
   match weekday_of(String::to_upper(value)) {
     Some(weekday) => weekday
-    None =>
-      raise @text.ParseError::BadRule(
-        rule~,
-        message="malformed WKST value: \{value}",
-      )
+    None => raise bad_rule(rule, "malformed WKST value: \{value}")
   }
 }
 
@@ -338,26 +286,16 @@ fn parse_int_list(
   for item in split_on(value, ',') {
     let cs = item.to_array()
     if !signed && cs.length() > 0 && (cs[0] == '-' || cs[0] == '+') {
-      raise @text.ParseError::BadRule(
-        rule~,
-        message="malformed \{key} value: \{item}",
-      )
+      raise bad_rule(rule, "malformed \{key} value: \{item}")
     }
     match parse_signed_int(item) {
       Some(n) =>
         if n == 0 || n.abs() > bound {
-          raise @text.ParseError::BadRule(
-            rule~,
-            message="\{key} value out of range: \{item}",
-          )
+          raise bad_rule(rule, "\{key} value out of range: \{item}")
         } else {
           out.push(n)
         }
-      None =>
-        raise @text.ParseError::BadRule(
-          rule~,
-          message="malformed \{key} value: \{item}",
-        )
+      None => raise bad_rule(rule, "malformed \{key} value: \{item}")
     }
   }
   out
@@ -385,19 +323,16 @@ fn parse_signed_int(text : String) -> Int? {
     } else {
       let mut acc = 0
       let mut digits = 0
-      let mut ok = true
       while i < n {
         let d = cs[i].to_int() - '0'.to_int()
         if d < 0 || d > 9 {
-          ok = false
-          i = n
-        } else {
-          acc = acc * 10 + d
-          digits = digits + 1
-          i = i + 1
+          return None
         }
+        acc = acc * 10 + d
+        digits = digits + 1
+        i = i + 1
       }
-      if ok && digits <= 9 {
+      if digits <= 9 {
         Some(sign * acc)
       } else {
         None

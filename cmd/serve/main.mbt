@@ -57,6 +57,13 @@ async fn drain(conn : @socket.Tcp) -> Unit {
 const DRAIN_CAP : Int = 10 * 1024 * 1024
 
 ///|
+/// Whether the connection loop goes on to read the next request.
+priv enum Outcome {
+  Next
+  Stop
+}
+
+///|
 /// Keep-alive: answer every request on this connection until the peer
 /// hangs up (a clean EOF between requests), sends something malformed,
 /// or a request fails to parse.
@@ -70,10 +77,10 @@ async fn handle_connection(
     // response instead of escaping as a failed connection.
     let outcome = try {
       match @httpd.read_request(conn) {
-        None => "closed" // clean disconnect between requests
+        None => Stop // clean disconnect between requests
         Some(request) => {
           route(conn, store, request)
-          "ok"
+          Next
         }
       }
     } catch {
@@ -85,7 +92,7 @@ async fn handle_connection(
         // Draining it lets the response actually reach the client
         // before the close, instead of an RST discarding it.
         drain(conn)
-        "close"
+        Stop
       }
       @httpd.HttpParseError::BodyTooLarge(limit=k) => {
         @httpd.respond(
@@ -95,7 +102,7 @@ async fn handle_connection(
           headers=[("Connection", "close")],
           body="body over \{k} bytes refused",
         )
-        "close"
+        Stop
       }
       @httpd.HttpParseError::Malformed(message=m) => {
         // A malformed request stream cannot be trusted to
@@ -107,7 +114,7 @@ async fn handle_connection(
           headers=[("Connection", "close")],
           body="malformed request: \{m}",
         )
-        "close"
+        Stop
       }
       _ => {
         // Anything raised below the request layer (store, filesystem)
@@ -115,10 +122,10 @@ async fn handle_connection(
         @httpd.respond(conn, 500, "Internal Server Error", headers=[
           ("Connection", "close"),
         ])
-        "close"
+        Stop
       }
     }
-    if outcome != "ok" {
+    if outcome is Stop {
       break
     }
   }
@@ -205,10 +212,7 @@ async fn route(
       }
     ("PUT", Some(n)) => {
       let current = store.get(n)
-      let current_tag = match current {
-        Some(file) => Some(file.etag)
-        None => None
-      }
+      let current_tag = current.map(file => file.etag)
       if @caldav.check_preconditions(
           current_tag,
           request.header("If-Match"),
@@ -225,10 +229,7 @@ async fn route(
     }
     ("DELETE", Some(n)) => {
       let current = store.get(n)
-      let current_tag = match current {
-        Some(file) => Some(file.etag)
-        None => None
-      }
+      let current_tag = current.map(file => file.etag)
       if @caldav.check_preconditions(
           current_tag,
           request.header("If-Match"),

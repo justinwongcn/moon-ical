@@ -158,15 +158,7 @@ fn SeriesIndex::build(
     }
   }
   let future = future_by_slot.to_array()
-  future.sort_by((a, b) => {
-    if a.0 < b.0 {
-      -1
-    } else if a.0 > b.0 {
-      1
-    } else {
-      0
-    }
-  })
+  future.sort_by((a, b) => a.0.compare(b.0))
   let exdates : Map[Int64, Unit] = Map([], capacity=base.exdates.length())
   for date in base.exdates {
     exdates[date.instant_seconds()] = ()

@@ -224,14 +224,13 @@ fn apply_setpos(
     } else {
       candidates.length() + position
     }
-    if index >= 0 && index < candidates.length() {
-      let candidate = candidates[index]
-      if !date_selected(out, candidate) {
-        out.push(candidate)
-      }
+    if index >= 0 &&
+      index < candidates.length() &&
+      !out.contains(candidates[index]) {
+      out.push(candidates[index])
     }
   }
-  out.sort_by((a, b) => if a < b { -1 } else if a > b { 1 } else { 0 })
+  out.sort_by((a, b) => Compare::compare(a, b))
   out
 }
 
@@ -428,13 +427,12 @@ fn weekday_num(weekday : @time.Weekday) -> Int {
 ///|
 /// Whether one of the plain `BYDAY` entries names this weekday.
 fn weekday_selected(entries : Array[Byday], weekday : @time.Weekday) -> Bool {
-  let mut found = false
   for entry in entries {
     if entry.ordinal == 0 && entry.weekday == weekday {
-      found = true
+      return true
     }
   }
-  found
+  false
 }
 
 ///|
@@ -493,19 +491,6 @@ fn weekday_selected_in_year(
 fn has_ordinal_byday(entries : Array[Byday]) -> Bool {
   for entry in entries {
     if entry.ordinal != 0 {
-      return true
-    }
-  }
-  false
-}
-
-///|
-fn date_selected(
-  values : Array[@time.PlainDate],
-  value : @time.PlainDate,
-) -> Bool {
-  for item in values {
-    if item == value {
       return true
     }
   }

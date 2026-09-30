@@ -97,15 +97,7 @@ pub fn IcalDateTime::shift_seconds(
 /// Negative when `self` happens before `other`, zero for the same instant,
 /// positive afterwards. All-day values compare by their calendar day.
 pub fn IcalDateTime::compare(self : IcalDateTime, other : IcalDateTime) -> Int {
-  let a = self.instant_seconds()
-  let b = other.instant_seconds()
-  if a < b {
-    -1
-  } else if a > b {
-    1
-  } else {
-    0
-  }
+  self.instant_seconds().compare(other.instant_seconds())
 }
 
 ///|
