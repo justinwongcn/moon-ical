@@ -28,15 +28,6 @@
 ///   assert_eq(rule.byday.length(), 2)
 /// }
 /// ```
-
-///|
-/// Build the one error shape `parse_rule` reports, so every rejection
-/// names the whole rule value it failed on.
-fn bad_rule(rule : String, message : String) -> @text.ParseError {
-  @text.ParseError::BadRule(rule~, message~)
-}
-
-///|
 pub fn parse_rule(rule : String) -> Rule raise {
   let body = without_rrule_prefix(rule)
   let mut freq : Freq? = None
@@ -97,6 +88,13 @@ pub fn parse_rule(rule : String) -> Rule raise {
       }
     None => raise bad_rule(rule, "missing FREQ clause")
   }
+}
+
+///|
+/// Build the one error shape `parse_rule` reports, so every rejection
+/// names the whole rule value it failed on.
+fn bad_rule(rule : String, message : String) -> @text.ParseError {
+  @text.ParseError::BadRule(rule~, message~)
 }
 
 ///|
