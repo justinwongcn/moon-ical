@@ -78,7 +78,7 @@ pub fn IcalDateTime::to_string(Self) -> String
 pub impl Show for IcalDateTime
 
 pub struct ZoneTable {
-  entries : Array[(String, Int)]
+  entries : Map[String, Int]
 } derive(@debug.Debug)
 pub fn ZoneTable::builtin_common() -> Self
 pub fn ZoneTable::empty() -> Self

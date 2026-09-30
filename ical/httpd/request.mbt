@@ -302,15 +302,16 @@ pub async fn[W : @io.Writer] respond(
   headers? : Array[(String, String)] = [],
   body? : String = "",
 ) -> Unit {
-  let mut text = "HTTP/1.1 \{code} \{reason}\r\n"
+  let out = StringBuilder()
+  out.write_string("HTTP/1.1 \{code} \{reason}\r\n")
   for pair in headers {
     let (name, value) = pair
-    text = text + "\{name}: \{value}\r\n"
+    out.write_string("\{name}: \{value}\r\n")
   }
-  text = text + "Content-Length: \{utf8_byte_len(body)}"
-  text = text + "\r\n\r\n"
-  text = text + body
-  writer.write(text)
+  out.write_string("Content-Length: \{utf8_byte_len(body)}")
+  out.write_string("\r\n\r\n")
+  out.write_string(body)
+  writer.write(out.to_string())
 }
 
 ///|

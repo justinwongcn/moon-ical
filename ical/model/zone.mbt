@@ -13,7 +13,7 @@
 /// offset here (+01:00), while a feed that embeds its own `VTIMEZONE` gets the
 /// offset its author actually declared.
 pub struct ZoneTable {
-  entries : Array[(String, Int)]
+  entries : Map[String, Int]
 } derive(Debug)
 
 ///|
@@ -22,40 +22,40 @@ pub extend ZoneTable with @moonbitlang/core/debug.Debug::{to_repr}
 ///|
 /// An empty table: every `TZID` fails to resolve until zones are added.
 pub fn ZoneTable::empty() -> ZoneTable {
-  { entries: [], }
+  { entries: Map([]), }
 }
 
 ///|
 /// Offsets for the named zones that actually show up in the feeds we test
 /// against. Standard-time values only, on purpose (see the `ZoneTable` doc).
 pub fn ZoneTable::builtin_common() -> ZoneTable {
-  let zones : Array[(String, Int)] = [
-    ("UTC", 0),
-    ("GMT", 0),
-    ("Z", 0),
-    ("ASIA/SHANGHAI", offset(8, 0)),
-    ("ASIA/CHONGQING", offset(8, 0)),
-    ("ASIA/HONG_KONG", offset(8, 0)),
-    ("ASIA/TAIPEI", offset(8, 0)),
-    ("ASIA/SINGAPORE", offset(8, 0)),
-    ("ASIA/URUMQI", offset(6, 0)),
-    ("ASIA/TOKYO", offset(9, 0)),
-    ("ASIA/SEOUL", offset(9, 0)),
-    ("ASIA/KOLKATA", offset(5, 30)),
-    ("ASIA/DUBAI", offset(4, 0)),
-    ("AUSTRALIA/SYDNEY", offset(10, 0)),
-    ("EUROPE/LONDON", offset(0, 0)),
-    ("EUROPE/BERLIN", offset(1, 0)),
-    ("EUROPE/PARIS", offset(1, 0)),
-    ("EUROPE/BELGRADE", offset(1, 0)),
-    ("EUROPE/MOSCOW", offset(3, 0)),
-    ("AMERICA/NEW_YORK", offset(-5, 0)),
-    ("AMERICA/CHICAGO", offset(-6, 0)),
-    ("AMERICA/DENVER", offset(-7, 0)),
-    ("AMERICA/LOS_ANGELES", offset(-8, 0)),
-    ("AMERICA/SAO_PAULO", offset(-3, 0)),
-    ("AFRICA/JOHANNESBURG", offset(2, 0)),
-  ]
+  let zones : Map[String, Int] = {
+    "UTC": 0,
+    "GMT": 0,
+    "Z": 0,
+    "ASIA/SHANGHAI": offset(8, 0),
+    "ASIA/CHONGQING": offset(8, 0),
+    "ASIA/HONG_KONG": offset(8, 0),
+    "ASIA/TAIPEI": offset(8, 0),
+    "ASIA/SINGAPORE": offset(8, 0),
+    "ASIA/URUMQI": offset(6, 0),
+    "ASIA/TOKYO": offset(9, 0),
+    "ASIA/SEOUL": offset(9, 0),
+    "ASIA/KOLKATA": offset(5, 30),
+    "ASIA/DUBAI": offset(4, 0),
+    "AUSTRALIA/SYDNEY": offset(10, 0),
+    "EUROPE/LONDON": offset(0, 0),
+    "EUROPE/BERLIN": offset(1, 0),
+    "EUROPE/PARIS": offset(1, 0),
+    "EUROPE/BELGRADE": offset(1, 0),
+    "EUROPE/MOSCOW": offset(3, 0),
+    "AMERICA/NEW_YORK": offset(-5, 0),
+    "AMERICA/CHICAGO": offset(-6, 0),
+    "AMERICA/DENVER": offset(-7, 0),
+    "AMERICA/LOS_ANGELES": offset(-8, 0),
+    "AMERICA/SAO_PAULO": offset(-3, 0),
+    "AFRICA/JOHANNESBURG": offset(2, 0),
+  }
   { entries: zones, }
 }
 
@@ -81,7 +81,7 @@ pub fn ZoneTable::insert(
   tzid : String,
   seconds : Int,
 ) -> Unit {
-  self.entries.push((normalize_zone_id(tzid), seconds))
+  self.entries[normalize_zone_id(tzid)] = seconds
 }
 
 ///|
@@ -90,8 +90,8 @@ pub fn ZoneTable::insert(
 /// better than our guess, and everything else still resolves.
 pub fn ZoneTable::with_builtin(feed : ZoneTable) -> ZoneTable {
   let table = ZoneTable::builtin_common()
-  for pair in feed.entries {
-    table.entries.push(pair)
+  for name, seconds in feed.entries {
+    table.entries[name] = seconds
   }
   table
 }
@@ -99,15 +99,7 @@ pub fn ZoneTable::with_builtin(feed : ZoneTable) -> ZoneTable {
 ///|
 /// Look a zone up, case-insensitively; the most recently inserted match wins.
 pub fn ZoneTable::lookup(self : ZoneTable, tzid : String) -> Int? {
-  let key = normalize_zone_id(tzid)
-  let mut found : Int? = None
-  for pair in self.entries {
-    let (name, seconds) = pair
-    if name == key {
-      found = Some(seconds)
-    }
-  }
-  found
+  self.entries.get(normalize_zone_id(tzid))
 }
 
 ///|
