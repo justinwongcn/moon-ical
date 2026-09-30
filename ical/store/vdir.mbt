@@ -133,8 +133,8 @@ pub fn etag_of(text : String) -> String {
   // FNV-1a 64-bit: offset basis, then per byte: hash ^= byte;
   // hash *= prime. Arithmetic stays in UInt64.
   let mut hash : UInt64 = 0xcbf29ce484222325
-  for b in text.to_array() {
-    let code = b.to_int()
+  for c in text {
+    let code = c.to_int()
     // Encode this character's UTF-8 bytes into the hash directly,
     // avoiding a Bytes round-trip for what is a byte-order-insensitive
     // content fingerprint.
@@ -146,7 +146,7 @@ pub fn etag_of(text : String) -> String {
       }
     }
   }
-  hash.to_string()
+  hash.to_string(radix=16)
 }
 
 ///|
@@ -191,18 +191,17 @@ fn path_of(root : String, name : String) -> String {
 /// Windows drive letters) from ever reaching the filesystem — the
 /// name that arrives over HTTP is data, not a path.
 fn check_name(name : String) -> Unit raise {
-  let ok = name.length() > 0 && name[0] != '.'
-  if ok {
-    for c in name.to_array() {
-      let code = c.to_int()
-      let letter = (code >= 'a'.to_int() && code <= 'z'.to_int()) ||
-        (code >= 'A'.to_int() && code <= 'Z'.to_int())
-      let digit = code >= '0'.to_int() && code <= '9'.to_int()
-      if !(letter || digit || c == '.' || c == '_' || c == '-') {
-        raise StoreError::BadName(name~)
-      }
-    }
-  } else {
+  if name.length() == 0 || name[0] == '.' {
     raise StoreError::BadName(name~)
+  }
+  for c in name {
+    if !(c is ('a'..='z') ||
+      c is ('A'..='Z') ||
+      c is ('0'..='9') ||
+      c == '.' ||
+      c == '_' ||
+      c == '-') {
+      raise StoreError::BadName(name~)
+    }
   }
 }

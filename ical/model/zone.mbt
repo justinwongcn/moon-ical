@@ -70,16 +70,7 @@ fn offset(hours : Int, minutes : Int) -> Int {
 ///|
 /// Normalise a zone name for table keys and lookups.
 fn normalize_zone_id(tzid : String) -> String {
-  let mut trimmed = tzid
-  while trimmed.length() > 0 && (trimmed[0] == ' ' || trimmed[0] == '\t') {
-    trimmed = String::from_array(trimmed.to_array()[1:])
-  }
-  let cs = trimmed.to_array()
-  let mut last = cs.length()
-  while last > 0 && (cs[last - 1] == ' ' || cs[last - 1] == '\t') {
-    last = last - 1
-  }
-  String::to_upper(String::from_array(cs[0:last]))
+  tzid.view().trim(chars=" \t".view()).to_upper().to_owned()
 }
 
 ///|
@@ -142,8 +133,8 @@ pub fn parse_utc_offset(
   line_no~ : Int,
   raw~ : String,
 ) -> Int raise {
-  let cs = text.to_array()
-  let n = cs.length()
+  let v = text.view()
+  let n = v.length()
   if n < 3 {
     raise @text.ParseError::BadLine(
       line_no~,
@@ -151,9 +142,9 @@ pub fn parse_utc_offset(
       message="UTC offset too short: \{text}",
     )
   }
-  let sign = if cs[0] == '-' {
+  let sign = if v[0] == '-' {
     -1
-  } else if cs[0] == '+' {
+  } else if v[0] == '+' {
     1
   } else {
     raise @text.ParseError::BadLine(
@@ -162,8 +153,8 @@ pub fn parse_utc_offset(
       message="UTC offset needs a sign: \{text}",
     )
   }
-  let hours = digits(cs, 1, 2)
-  let minutes = if n == 5 { digits(cs, 3, 2) } else { Some(0) }
+  let hours = digits(v, 1, 2)
+  let minutes = if n == 5 { digits(v, 3, 2) } else { Some(0) }
   match (hours, minutes) {
     (Some(h), Some(m)) => sign * (h * 3600 + m * 60)
     _ =>

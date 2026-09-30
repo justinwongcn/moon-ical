@@ -50,7 +50,7 @@ pub fn serialize_component(root : @model.Component) -> String {
 fn join_pieces(pieces : Array[String]) -> String {
   let out : Array[Char] = []
   for piece in pieces {
-    for c in piece.to_array() {
+    for c in piece {
       out.push(c)
     }
   }
@@ -137,7 +137,7 @@ fn fold_line(chars : Array[Char]) -> String {
 ///|
 /// Append every character of `text` to `out`.
 fn append_string(out : Array[Char], text : String) -> Unit {
-  for c in text.to_array() {
+  for c in text {
     out.push(c)
   }
 }

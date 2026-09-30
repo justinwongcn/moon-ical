@@ -103,15 +103,9 @@ pub fn parse_rule(rule : String) -> Rule raise {
 /// Drop a leading `RRULE:` property-name prefix, if present, so a whole
 /// content line and a bare property value both parse.
 fn without_rrule_prefix(rule : String) -> String {
-  let cs = rule.to_array()
-  let n = cs.length()
-  if n >= 6 {
-    let head = String::to_upper(String::from_array(cs[0:6]))
-    if head == "RRULE:" {
-      String::from_array(cs[6:n])
-    } else {
-      rule
-    }
+  let v = rule.view()
+  if v.length() >= 6 && v[:6].to_upper().to_owned() == "RRULE:" {
+    v[6:].to_owned()
   } else {
     rule
   }
@@ -121,20 +115,18 @@ fn without_rrule_prefix(rule : String) -> String {
 /// Split on a one-character separator, keeping every part — including a
 /// trailing empty one — so `a;;b` and `a;` stay visible to the caller as
 /// breakage instead of being quietly folded away.
-fn split_on(text : String, sep : Char) -> Array[String] {
+fn split_on(text : String, sep : UInt16) -> Array[String] {
   let parts : Array[String] = []
-  let cs = text.to_array()
-  let n = cs.length()
+  let v = text.view()
+  let n = v.length()
   let mut start = 0
-  let mut i = 0
-  while i < n {
-    if cs[i] == sep {
-      parts.push(String::from_array(cs[start:i]))
+  for i in 0..<n {
+    if v[i] == sep {
+      parts.push(v[start:i].to_owned())
       start = i + 1
     }
-    i = i + 1
   }
-  parts.push(String::from_array(cs[start:n]))
+  parts.push(v[start:].to_owned())
   parts
 }
 
@@ -142,21 +134,10 @@ fn split_on(text : String, sep : Char) -> Array[String] {
 /// Split a clause into its name and value at the first `=`; `None` when
 /// there is no separator at all.
 fn split_at_equals(part : String) -> (String, String)? {
-  let cs = part.to_array()
-  let n = cs.length()
-  let mut found = -1
-  let mut i = 0
-  while i < n {
-    if cs[i] == '=' {
-      found = i
-      break
-    }
-    i = i + 1
-  }
-  if found < 0 {
-    None
-  } else {
-    Some((String::from_array(cs[0:found]), String::from_array(cs[found + 1:n])))
+  let v = part.view()
+  match v.find("=".view()) {
+    Some(i) => Some((v[:i].to_owned(), v[i + 1:].to_owned()))
+    None => None
   }
 }
 
@@ -219,15 +200,15 @@ fn parse_byday_list(value : String, rule : String) -> Array[Byday] raise {
 /// by a two-letter weekday code.
 fn parse_byday_item(item : String) -> Byday? {
   let text = String::to_upper(item)
-  let cs = text.to_array()
-  let n = cs.length()
+  let v = text.view()
+  let n = v.length()
   if n < 2 {
     None
   } else {
-    match weekday_of(String::from_array(cs[n - 2:n])) {
+    match weekday_of(v[n - 2:].to_owned()) {
       None => None
       Some(weekday) => {
-        let head = String::from_array(cs[0:n - 2])
+        let head = v[:n - 2].to_owned()
         if head == "" {
           Some({ ordinal: 0, weekday, })
         } else {
@@ -284,8 +265,8 @@ fn parse_int_list(
 ) -> Array[Int] raise {
   let out : Array[Int] = []
   for item in split_on(value, ',') {
-    let cs = item.to_array()
-    if !signed && cs.length() > 0 && (cs[0] == '-' || cs[0] == '+') {
+    let v = item.view()
+    if !signed && v.length() > 0 && (v[0] == '-' || v[0] == '+') {
       raise bad_rule(rule, "malformed \{key} value: \{item}")
     }
     match parse_signed_int(item) {
@@ -305,38 +286,36 @@ fn parse_int_list(
 /// A decimal integer with an optional sign. Values longer than nine digits
 /// are refused rather than risked through silent wrap-around.
 fn parse_signed_int(text : String) -> Int? {
-  let cs = text.to_array()
-  let n = cs.length()
+  let v = text.view()
+  let n = v.length()
   if n == 0 {
-    None
+    return None
+  }
+  let mut i = 0
+  let mut sign = 1
+  if v[0] == '-' {
+    sign = -1
+    i = 1
+  } else if v[0] == '+' {
+    i = 1
+  }
+  if i >= n {
+    return None
+  }
+  let mut acc = 0
+  let mut digits = 0
+  while i < n {
+    let c = v[i]
+    if !(c is ('0'..='9')) {
+      return None
+    }
+    acc = acc * 10 + (c.to_int() - '0'.to_int())
+    digits = digits + 1
+    i = i + 1
+  }
+  if digits <= 9 {
+    Some(sign * acc)
   } else {
-    let mut i = 0
-    let mut sign = 1
-    if cs[0] == '-' {
-      sign = -1
-      i = 1
-    } else if cs[0] == '+' {
-      i = 1
-    }
-    if i >= n {
-      None
-    } else {
-      let mut acc = 0
-      let mut digits = 0
-      while i < n {
-        let d = cs[i].to_int() - '0'.to_int()
-        if d < 0 || d > 9 {
-          return None
-        }
-        acc = acc * 10 + d
-        digits = digits + 1
-        i = i + 1
-      }
-      if digits <= 9 {
-        Some(sign * acc)
-      } else {
-        None
-      }
-    }
+    None
   }
 }

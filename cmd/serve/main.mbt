@@ -253,11 +253,8 @@ async fn route(
 /// store-validated before it ever reaches the filesystem, so this only
 /// decides whether the path *looks* like an event route.
 fn event_name(path : String) -> String? {
-  let prefix = "/cal/"
-  let chars = path.to_array()
-  let plen = prefix.length()
-  if chars.length() > plen && String::from_array(chars[0:plen]) == prefix {
-    Some(String::from_array(chars[plen:]))
+  if path.has_prefix("/cal/") && path.length() > 5 {
+    Some(path[5:].to_owned())
   } else {
     None
   }

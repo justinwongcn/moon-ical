@@ -199,26 +199,26 @@ fn parse_value(
   zones : ZoneTable,
   line_no : Int,
 ) -> IcalDateTime raise {
-  let cs = raw.to_array()
-  let n = cs.length()
+  let v = raw.view()
+  let n = v.length()
   // An 8-digit value is a DATE. Anything longer needs the T separator.
   if n == 8 {
-    let (y, m, d) = read_date(cs, line_no, raw)
+    let (y, m, d) = read_date(v, line_no, raw)
     IcalDateTime::{
       wall: @time.PlainDateTime::of(y, m, d),
       utc_offset: None,
       zone_id: "",
       all_day: true,
     }
-  } else if n < 15 || cs[8] != 'T' {
+  } else if n < 15 || v[8] != 'T' {
     raise @text.ParseError::BadLine(
       line_no~,
       line=raw,
       message="malformed date-time: \{raw}",
     )
   } else {
-    let (y, m, d) = read_date(cs, line_no, raw)
-    let (hh, mm, ss) = read_time(cs, line_no, raw)
+    let (y, m, d) = read_date(v, line_no, raw)
+    let (hh, mm, ss) = read_time(v, line_no, raw)
     let wall = @time.PlainDateTime::of(y, m, d, hour=hh, minute=mm, second=ss)
     // `YYYYMMDDThhmmss` is 15 chars; anything past that is
     // the designator: nothing, `Z`, or `+hhmm`/`-hhmm`.
@@ -250,15 +250,15 @@ fn parse_value(
             all_day: value_is_date,
           }
       }
-    } else if tail == 1 && cs[15] == 'Z' {
+    } else if tail == 1 && v[15] == 'Z' {
       IcalDateTime::{
         wall,
         utc_offset: Some(0),
         zone_id: "Z",
         all_day: value_is_date,
       }
-    } else if tail == 5 && (cs[15] == '+' || cs[15] == '-') {
-      let text = String::from_array(cs[15:n])
+    } else if tail == 5 && (v[15] == '+' || v[15] == '-') {
+      let text = v[15:].to_owned()
       IcalDateTime::{
         wall,
         utc_offset: Some(parse_utc_offset(text, line_no~, raw~)),
@@ -278,11 +278,11 @@ fn parse_value(
 ///|
 /// YYYYMMDD from positions 0..8 of a value's chars.
 fn read_date(
-  cs : Array[Char],
+  v : StringView,
   line_no : Int,
   raw : String,
 ) -> (Int, Int, Int) raise {
-  match (digits(cs, 0, 4), digits(cs, 4, 2), digits(cs, 6, 2)) {
+  match (digits(v, 0, 4), digits(v, 4, 2), digits(v, 6, 2)) {
     (Some(y), Some(m), Some(d)) => (y, m, d)
     _ =>
       raise @text.ParseError::BadLine(
@@ -296,11 +296,11 @@ fn read_date(
 ///|
 /// THHMMSS from positions 9..14 of a value's chars.
 fn read_time(
-  cs : Array[Char],
+  v : StringView,
   line_no : Int,
   raw : String,
 ) -> (Int, Int, Int) raise {
-  match (digits(cs, 9, 2), digits(cs, 11, 2), digits(cs, 13, 2)) {
+  match (digits(v, 9, 2), digits(v, 11, 2), digits(v, 13, 2)) {
     (Some(h), Some(mi), Some(s)) => (h, mi, s)
     _ =>
       raise @text.ParseError::BadLine(
@@ -314,30 +314,20 @@ fn read_time(
 ///|
 /// Read `width` decimal digits starting at `from`, or `None` when the range is
 /// out of bounds or holds a non-digit.
-fn digits(cs : Array[Char], from : Int, width : Int) -> Int? {
+fn digits(v : StringView, from : Int, width : Int) -> Int? {
   let end = from + width
-  if from < 0 || end > cs.length() {
-    None
-  } else {
-    let mut acc = 0
-    let mut i = from
-    let mut done = true
-    while i < end {
-      let d = cs[i].to_int() - '0'.to_int()
-      if d < 0 || d > 9 {
-        done = false
-        i = end
-      } else {
-        acc = acc * 10 + d
-        i = i + 1
-      }
-    }
-    if done {
-      Some(acc)
-    } else {
-      None
-    }
+  if from < 0 || end > v.length() {
+    return None
   }
+  let mut acc = 0
+  for i in from..<end {
+    let c = v[i]
+    if !(c is ('0'..='9')) {
+      return None
+    }
+    acc = acc * 10 + (c.to_int() - '0'.to_int())
+  }
+  Some(acc)
 }
 
 ///|
@@ -356,8 +346,7 @@ fn pad4(n : Int) -> String {
     s
   } else {
     // Keep the last four digits of the zero-padded text.
-    let chars = ("0000" + s).to_array()
-    let k = chars.length()
-    String::from_array(chars[k - 4:k])
+    let padded = "0000" + s
+    padded[padded.length() - 4:].to_owned()
   }
 }

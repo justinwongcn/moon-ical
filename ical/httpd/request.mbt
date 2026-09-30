@@ -167,10 +167,10 @@ pub async fn[R : @io.Reader] read_request(reader : R) -> HttpRequest? {
 async fn[R : @io.Reader] read_line(reader : R) -> String? {
   match reader.read_until("\n") {
     Some(line) => {
-      let chars = line.to_array()
-      let n = chars.length()
-      if n > 0 && chars[n - 1] == '\r' {
-        Some(String::from_array(chars[0:n - 1]))
+      let v = line.view()
+      let n = v.length()
+      if n > 0 && v[n - 1] == '\r' {
+        Some(v[:n - 1].to_owned())
       } else {
         Some(line)
       }
@@ -184,25 +184,21 @@ async fn[R : @io.Reader] read_line(reader : R) -> String? {
 /// spacing real clients occasionally send.
 fn split_spaces(line : String) -> Array[String] {
   let parts : Array[String] = []
-  let chars = line.to_array()
-  let n = chars.length()
+  let v = line.view()
+  let n = v.length()
   let mut start = -1
-  let mut i = 0
-  while i <= n {
-    let at_end = i == n
-    let is_space = !at_end && chars[i] == ' '
-    if is_space {
+  for i in 0..<n {
+    if v[i] == ' ' {
       if start >= 0 {
-        parts.push(String::from_array(chars[start:i]))
+        parts.push(v[start:i].to_owned())
         start = -1
       }
-    } else if start < 0 && !at_end {
+    } else if start < 0 {
       start = i
     }
-    i = i + 1
   }
   if start >= 0 {
-    parts.push(String::from_array(chars[start:n]))
+    parts.push(v[start:].to_owned())
   }
   parts
 }
@@ -211,27 +207,25 @@ fn split_spaces(line : String) -> Array[String] {
 /// `Name: value` → [`HttpHeader`] with a lower-cased name; `None` when
 /// there is no colon or the name is empty.
 fn parse_header(line : String) -> HttpHeader? {
-  let chars = line.to_array()
-  let n = chars.length()
+  let v = line.view()
+  let n = v.length()
   let mut colon = -1
-  let mut i = 0
-  while i < n && colon < 0 {
-    if chars[i] == ':' {
+  for i in 0..<n {
+    if v[i] == ':' {
       colon = i
+      break
     }
-    i = i + 1
   }
   if colon <= 0 {
-    None
-  } else {
-    let name = String::to_lower(String::from_array(chars[0:colon]))
-    // Skip the optional whitespace RFC 7230 allows after the colon.
-    let mut first = colon + 1
-    while first < n && (chars[first] == ' ' || chars[first] == '\t') {
-      first = first + 1
-    }
-    Some({ name, value: String::from_array(chars[first:n]), })
+    return None
   }
+  let name = v[:colon].to_lower().to_owned()
+  // Skip the optional whitespace RFC 7230 allows after the colon.
+  let mut first = colon + 1
+  while first < n && (v[first] == ' ' || v[first] == '\t') {
+    first = first + 1
+  }
+  Some({ name, value: v[first:].to_owned(), })
 }
 
 ///|
@@ -279,29 +273,20 @@ async fn[R : @io.Reader] read_body(
 ///|
 /// Decimal digits only; anything else is refused rather than guessed.
 fn parse_int(text : String) -> Int {
-  let chars = text.to_array()
-  let n = chars.length()
+  let v = text.view()
+  let n = v.length()
   if n == 0 || n > 9 {
-    -1
-  } else {
-    let mut acc = 0
-    let mut ok = true
-    let mut i = 0
-    while i < n && ok {
-      let d = chars[i].to_int() - '0'.to_int()
-      if d < 0 || d > 9 {
-        ok = false
-      } else {
-        acc = acc * 10 + d
-        i = i + 1
-      }
-    }
-    if ok {
-      acc
-    } else {
-      -1
-    }
+    return -1
   }
+  let mut acc = 0
+  for i in 0..<n {
+    let c = v[i]
+    if !(c is ('0'..='9')) {
+      return -1
+    }
+    acc = acc * 10 + (c.to_int() - '0'.to_int())
+  }
+  acc
 }
 
 ///|
@@ -332,7 +317,7 @@ pub async fn[W : @io.Writer] respond(
 /// The UTF-8 byte length of a string — the unit HTTP lengths count in.
 fn utf8_byte_len(text : String) -> Int {
   let mut total = 0
-  for c in text.to_array() {
+  for c in text {
     let code = c.to_int()
     if code < 0x80 {
       total = total + 1
