@@ -127,7 +127,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   </tbody>
 </table></div>
 
-<p><b>合计</b>：0.2.0 开发分支严格全目标测试为 wasm 135、wasm-gc 125、JavaScript 135、native 140；S5 21 项与 S6 11 项真实 curl 活体验收全绿。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
+<p><b>合计</b>：0.2.0 开发分支严格全目标测试为 wasm 150、wasm-gc 137、JavaScript 150、native 155；S5 21 项与 S6 11 项真实 curl 活体验收全绿。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
 
 <!-- ============================================================ -->
 <h2 id="s03"><span class="num">03</span>架构与数据流</h2>
@@ -198,6 +198,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
     <tr><td class="c">R3</td><td>0.2 根门面收口：新增整文档 <code>parse_calendar</code>，顶层只暴露完整 parse / recurrence / serialize 工作流</td><td class="c">~50</td><td><code>pkg.generated.mbti</code> 明确移除协议与文本层拼装 API；子包高级入口保留；门面往返测试通过</td><td><span class="chip done">完成（待发布）</span></td></tr>
     <tr><td class="c">R4</td><td>通用 ICS 解析链 StringView 化：unfold、内容行、参数和 EXDATE 列表仅在所有权边界分配</td><td class="c">~120</td><td>1000 VEVENT 的 native release 基准由 25.83 ms 降至 15.10 ms；既有 Unicode 折行与全目标回归通过</td><td><span class="chip done">完成（约 1.71×）</span></td></tr>
     <tr><td class="c">R5</td><td>RRULE 预归一化：排序 BYMONTH/BYMONTHDAY，并缓存 28–31 天月份的实际候选日</td><td class="c">~80</td><td>密集月度规则 10000 occurrences 的 native release 基准由 5.83 ms 降至约 5.19 ms；闰年、负月日、原 Rule 不变的回归通过</td><td><span class="chip done">完成（约 11%）</span></td></tr>
+    <tr><td class="c">R8–R11</td><td>赛后优化审计落地：测试盲区补齐（15 项）、AI 生成痕迹清理（净 -105 行）、StringView 残余迁移（R4 边界之后的全部值解析）、respond 缓冲 + ZoneTable Map 索引；<code>HttpRequest.meth</code> 经实测确认为避让保留字 <code>method</code>，不改名</td><td class="c">~-160</td><td>四目标 150/137/150/155 全绿；基准保持 R 系列基线（parse 15.6 ms、multiget 3.7 ms、series 1.68 ms、monthly 5.5 ms）；.mbti 仅 ZoneTable.entries 一处预期变更</td><td><span class="chip done">完成</span></td></tr>
   </tbody>
 </table></div>
 
