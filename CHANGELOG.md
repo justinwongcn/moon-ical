@@ -2,6 +2,9 @@
 
 ## 0.4.0
 
+- Upgrade to moonbitlang/async 0.22.5 and moonbitlang/x 0.5.6 (the
+  routine pre-release pass; every strict gate and both live suites
+  pass, interfaces unchanged).
 - Keep the first root of a request body with two top-level elements:
   the coverage audit caught the documented "first root wins" shape
   actually being last-root-wins, which let a trailing root override
