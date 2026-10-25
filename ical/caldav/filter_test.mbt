@@ -262,3 +262,55 @@ test "a malformed filter is reported as invalid-filter" {
     }
   }
 }
+
+///|
+test "a text-match needle decodes XML entities before comparing" {
+  // S3 of the review round: a client searching for "R&D" must send
+  // "R&amp;D" on the wire, so the needle has to be decoded to match.
+  let data = calendar("UID:t\r\nSUMMARY:R&D meeting\r\n")
+  let needle = "<C:prop-filter name=\"SUMMARY\">" +
+    "<C:text-match>R&amp;D meeting</C:text-match></C:prop-filter>"
+  assert_true(matches(event_filter(needle), data))
+  // The same needle shape naming a different text selects nothing.
+  let other = "<C:prop-filter name=\"SUMMARY\">" +
+    "<C:text-match>Q&amp;D meeting</C:text-match></C:prop-filter>"
+  assert_false(matches(event_filter(other), data))
+}
+
+///|
+test "a body nested past the depth cap is refused, not walked" {
+  // S2 of the review round: an unbounded tree overflowed the stack in
+  // the recursive filter walks and killed the whole server process
+  // (live-verified exit code 0xC00000FD at ~50k levels). Past the cap
+  // the document is refused whole — the same 403 valid-filter
+  // precondition any unreadable body gets.
+  fn nested(depth : Int32) -> String {
+    let out = StringBuilder()
+    for _ in 0..<depth {
+      out.write_string("<x>")
+    }
+    out.write_string("y")
+    for _ in 0..<depth {
+      out.write_string("</x>")
+    }
+    out.to_string()
+  }
+  fn error_of(body : String) -> String {
+    try {
+      let _ = @caldav.parse_filter(body)
+      "no-error"
+    } catch {
+      err => err.to_string()
+    }
+  }
+  // Below the cap the tree builds and the walk reports the missing
+  // filter element; past it the document never becomes a tree at all.
+  assert_eq(
+    error_of(nested(60)),
+    "invalid filter: calendar-query without a CALDAV:filter element",
+  )
+  assert_eq(
+    error_of(nested(100)),
+    "invalid filter: report body is not an XML element",
+  )
+}

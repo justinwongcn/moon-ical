@@ -161,3 +161,24 @@ test "entity-tag preconditions cover create update and lists" {
     @caldav.Precondition::Failed,
   )
 }
+
+///|
+test "a multiget href decodes XML entities before selection" {
+  let resources : Array[@caldav.DavResource] = [
+    {
+      href: "/cal/a&b.ics",
+      etag: "t1",
+      calendar_data: "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n",
+    },
+  ]
+  let body = "<C:calendar-multiget xmlns:D=\"DAV:\">" +
+    "<D:prop><D:getetag/></D:prop>" +
+    "<D:href>/cal/a&amp;b.ics</D:href></C:calendar-multiget>"
+  let result = report_body(body, resources)
+  // The response re-escapes the href, so it carries the entity form.
+  assert_true(result.contains("/cal/a&amp;b.ics"))
+  let miss = "<C:calendar-multiget xmlns:D=\"DAV:\">" +
+    "<D:prop><D:getetag/></D:prop>" +
+    "<D:href>/cal/a&amp;x.ics</D:href></C:calendar-multiget>"
+  assert_false(report_body(miss, resources).contains("/cal/a&amp;b.ics"))
+}

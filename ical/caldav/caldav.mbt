@@ -189,7 +189,9 @@ pub fn report(body : String, resources : Array[DavResource]) -> ReportOutcome {
     let hrefs = xml_text_values(body, "href")
     let selected : Map[String, Unit] = Map([], capacity=hrefs.length())
     for href in hrefs {
-      selected[href] = ()
+      // hrefs arrive entity-encoded like any other character data; a
+      // query-string ampersand sits on the wire as &amp;.
+      selected[decode_xml_entities(href)] = ()
     }
     let entries : Array[String] = []
     for resource in resources {

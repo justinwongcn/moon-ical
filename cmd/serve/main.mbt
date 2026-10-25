@@ -314,9 +314,25 @@ async fn event_request(
   collection : String?,
   name : String,
 ) -> Unit {
-  match store_for(store, collection) {
-    None => @httpd.respond(conn, 404, "Not Found")
-    Some(target) => event_method(conn, target, request, name)
+  // `/cal/<name>` with no trailing slash names a collection when a
+  // directory is there. Its canonical URL carries the slash (RFC 4918
+  // §5.2), so point the client there instead of routing a collection
+  // into the event methods — which would PUT/DELETE a directory and
+  // answer 500 on Windows, or silently rmdir an empty collection on
+  // POSIX.
+  if collection is None {
+    match store.collection(name) {
+      Some(_) =>
+        @httpd.respond(conn, 301, "Moved Permanently", headers=[
+          ("Location", "/cal/\{name}/"),
+        ])
+      None => event_method(conn, store, request, name)
+    }
+  } else {
+    match store_for(store, collection) {
+      None => @httpd.respond(conn, 404, "Not Found")
+      Some(target) => event_method(conn, target, request, name)
+    }
   }
 }
 

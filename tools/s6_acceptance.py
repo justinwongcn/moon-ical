@@ -121,6 +121,14 @@ def main():
         check("the created collection lists its own event", code == 207 and "/cal/work/w.ics" in body)
         code, _, body = request("REPORT", "/cal/work/", query, ["Content-Type: application/xml"])
         check("calendar-query is scoped to the collection", code == 207 and "UID:s6-work@moon-ical" in body and "UID:s6@moon-ical" not in body)
+        # A collection URL without its trailing slash redirects to the
+        # canonical form instead of routing the collection into the event
+        # methods (which PUT/DELETE a directory: 500 on Windows, a silent
+        # rmdir of an empty collection on POSIX).
+        code, hdrs, _ = request("GET", "/cal/work")
+        check("collection URL without the slash redirects", code == 301 and hdrs.get("location") == "/cal/work/")
+        code, _, _ = request("GET", "/cal/missing.ics")
+        check("a missing event without a slash is a plain 404", code == 404)
         code, _, _ = request("DELETE", "/cal/work/")
         check("deleting a non-empty collection is refused", code == 409)
         code, _, _ = request("DELETE", "/cal/work/w.ics")

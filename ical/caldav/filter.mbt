@@ -296,7 +296,9 @@ fn parse_text_match(element : XmlElement) -> TextMatch raise FilterError {
     Some(value) => value.to_lower() == "yes"
     None => false
   }
-  { text: element.text, negate, collation, }
+  // Character data arrives entity-encoded; a needle for "R&D" sits on
+  // the wire as "R&amp;D", so compare against the decoded text.
+  { text: decode_xml_entities(element.text), negate, collation, }
 }
 
 ///|

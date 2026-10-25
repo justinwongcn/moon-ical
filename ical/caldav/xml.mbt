@@ -31,7 +31,7 @@ priv struct TagInfo {
 
 ///|
 /// Parse the outermost element of an XML document, or `None` when no complete
-/// element is present.
+/// element is present or the nesting is deeper than [`MAX_XML_DEPTH`].
 fn parse_xml_element(input : String) -> XmlElement? {
   let v = input.view()
   let n = v.length()
@@ -94,6 +94,15 @@ fn parse_xml_element(input : String) -> XmlElement? {
               stack[last].children.push(element)
             }
           } else {
+            // The walks that consume this tree (find_descendant,
+            // parse_comp_filter, comp_matches) recurse per level, so an
+            // unbounded depth is a stack overflow — an uncatchable process
+            // kill, not an error response. Refusing the whole document
+            // turns a megabytes-deep body into the same 403 valid-filter
+            // any unreadable body already gets.
+            if stack.length() >= MAX_XML_DEPTH {
+              return None
+            }
             if stack.length() > 0 {
               let last = stack.length() - 1
               stack[last].children.push(element)
@@ -109,6 +118,12 @@ fn parse_xml_element(input : String) -> XmlElement? {
   }
   root
 }
+
+///|
+/// How deep a REPORT body may nest. A CalDAV filter is a handful of
+/// levels (filter > comp-filter > prop-filter > param-filter >
+/// text-match); anything past this is not a shape this server reads.
+const MAX_XML_DEPTH : Int32 = 64
 
 ///|
 /// Append a character-data run to the element currently open, ignoring
@@ -261,4 +276,72 @@ fn find_descendant(element : XmlElement, local_name : String) -> XmlElement? {
 /// Whether this element has a direct child with this local name.
 fn has_child(element : XmlElement, local_name : String) -> Bool {
   element.children.any(child => child.name == local_name)
+}
+
+///|
+/// Decode the five predefined XML entities in character data. The
+/// tokenizer keeps text verbatim; the consumers that compare that text
+/// against calendar values (a text-match needle, a multiget href) must
+/// compare the decoded form, because a client's search for "R&D" arrives
+/// as "R&amp;D" on the wire. Numeric character references are left
+/// verbatim — the same leniency the shape parser shows everything else.
+fn decode_xml_entities(text : String) -> String {
+  let v = text.view()
+  if v.find("&".view()) is None {
+    return text
+  }
+  let n = v.length()
+  let out = StringBuilder()
+  let mut plain = 0
+  let mut i = 0
+  while i < n {
+    if v[i] != '&' {
+      i = i + 1
+      continue
+    }
+    // The ';' that would close a predefined entity sits within the
+    // longest name ("&quot;" is six characters); anything further away
+    // is not an entity and the '&' stays literal.
+    let mut j = i + 1
+    let mut semi : Int32? = None
+    while j < n && j - i <= 6 {
+      if v[j] == ';' {
+        semi = Some(j)
+        break
+      }
+      j = j + 1
+    }
+    let end = match semi {
+      None => {
+        i = i + 1
+        continue
+      }
+      Some(end) => end
+    }
+    let name = v[i + 1:end]
+    let decoded : Char? = if name.equal_to_string("amp") {
+      Some('&')
+    } else if name.equal_to_string("lt") {
+      Some('<')
+    } else if name.equal_to_string("gt") {
+      Some('>')
+    } else if name.equal_to_string("quot") {
+      Some('"')
+    } else if name.equal_to_string("apos") {
+      Some('\'')
+    } else {
+      None
+    }
+    match decoded {
+      None => i = i + 1
+      Some(c) => {
+        out.write_string(v[plain:i].to_owned())
+        out.write_char(c)
+        i = end + 1
+        plain = i
+      }
+    }
+  }
+  out.write_string(v[plain:].to_owned())
+  out.to_string()
 }
