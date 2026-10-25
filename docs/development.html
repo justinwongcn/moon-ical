@@ -73,9 +73,9 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   <h1>开发手册：iCal 解析库 + CalDAV 服务器</h1>
   <p class="sub">本手册是项目的单一事实来源（single source of truth）：定位、进度、架构、里程碑、工程约定都在这里。每完成一个里程碑提交时同步更新 §02 快照与 §04 状态。</p>
   <div class="meta">
-    <span>更新日期 <b>2026-09-08</b></span>
-    <span>进度 <b>S0–S1.5 完成</b>（S0: <span class="mono">0ab8978</span> · S1: <span class="mono">79752d9</span> · S1.5: <span class="mono">02b9e2a</span>）</span>
-    <span>工具链 <b>moon 0.1.20260827 / moonc v0.10.11</b>（<span class="mono">rr_moon_mod + rr_moon_pkg</span>）</span>
+    <span>更新日期 <b>2026-10-13</b></span>
+    <span>进度 <b>S0–S10 与 R1–R12 全部完成</b>（0.2.0 已发布，0.3.0 开发中）</span>
+    <span>工具链 <b>moon 0.1.20261012 / moonc v0.10.15</b>（<span class="mono">rr_moon_mod + rr_moon_pkg</span>；该版 <code>moon fmt</code> 会做 <code>Int→Int32</code> 迁移，勿裸跑）</span>
     <span>依赖 <b>moonbitlang/async@0.21.2 · moonbitlang/x@0.5.1</b></span>
     <span>状态 <b>moon check ✓ · moon test 73/73 ✓</b></span>
   </div>
@@ -92,6 +92,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   <li><a href="#s08">08 明确不做（边界）</a></li>
   <li><a href="#s09">09 风险与对策</a></li>
   <li><a href="#s10">10 提交与验收映射</a></li>
+  <li><a href="#s11">11 验收有效性（S10 复盘）</a></li>
 </ul>
 
 <!-- ============================================================ -->
@@ -121,13 +122,13 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
     <tr><td class="mono">ical/fetch</td><td>取件层：<code>fetch_ics(url)</code>（<code>@http.get</code> 薄层 + 状态检查，非 200 抛 <code>FetchError</code>）；demo 支持 URL 参数端到端</td><td class="c">35</td><td class="c">—</td><td><span class="chip done">已落地</span></td></tr>
     <tr><td class="mono">ical/rrule</td><td>完整日历级 RRULE 展开（S2/S3/S8）：四档 FREQ × INTERVAL/COUNT/UNTIL、序数 BYDAY、正负 BYMONTHDAY、BYMONTH、BYSETPOS、WKST；<code>expand_series</code> 合并 EXDATE、RECURRENCE-ID 改期/取消/THISANDFUTURE，ZoneTable 解析结果贯穿展开</td><td class="c">约 1200</td><td class="c">31 用例（graham 第一档 23 条 + 第二档 8 条 + 合并/时区）</td><td><span class="chip done">已落地</span></td></tr>
     <tr><td class="mono">ical/serialize</td><td>组件树 → .ics 文本（S4）：CRLF、75-octets 折行（多字节不劈开）、参数值按需重引号；<code>@text.escape_value</code> 与 unescape 对称；roundtrip 组件树相等且幂等</td><td class="c">172</td><td class="c">11 用例（roundtrip/折叠/引号/空值）</td><td><span class="chip done">已落地</span></td></tr>
-    <tr><td class="mono">ical/store</td><td>vdir 存储（S5）：每事件一个 .ics 文件；FNV-1a 内容寻址 ETag（同字节同 tag）；事件名白名单（字母数字._- 且非点开头）防路径逃逸；get 缺失是 None 不是错</td><td class="c">193</td><td class="c">5 用例（ETag/拒绝名/磁盘往返）</td><td><span class="chip done">已落地</span></td></tr>
+    <tr><td class="mono">ical/store</td><td>vdir 存储（S5/S10）：每事件一个 .ics 文件，每个日历集合一个子目录；FNV-1a 内容寻址 ETag（同字节同 tag）；名字白名单（字母数字._- 且非点开头）防路径逃逸；get 缺失是 None 不是错；集合能力 = <code>collections</code>/<code>create_collection</code>/<code>collection</code>/<code>remove_collection</code>，<code>list</code> 只返回事件</td><td class="c">312</td><td class="c">6 用例（ETag/拒绝名/磁盘往返/集合生命周期）</td><td><span class="chip done">已落地</span></td></tr>
     <tr><td class="mono">ical/httpd</td><td>HTTP/1.1 请求层（S5）：手解析请求行/头/Content-Length 体，方法是 token（WebDAV 方法天然可读）；chunked 拒收（411）；裸 socket 读写（ServerConnection 是帧化 reader 不适用）；S6 在此之上加 WebDAV/CalDAV 语义</td><td class="c">328</td><td class="c">10 用例（MemoryReader 驱动）</td><td><span class="chip done">请求层已落地</span></td></tr>
-    <tr><td class="mono">ical/caldav</td><td>WebDAV/CalDAV 语义（S6）：发现链、PROPFIND Depth 0/1、calendar-query/multiget、XML 安全转义、If-Match/If-None-Match；<code>cmd/serve</code> 接入 well-known、MKCALENDAR 与标准 201/204/207/412 状态</td><td class="c">292</td><td class="c">5 用例 + 11 项 curl 活体验收</td><td><span class="chip done">已落地</span></td></tr>
+    <tr><td class="mono">ical/caldav</td><td>WebDAV/CalDAV 语义（S6/S10）：发现链、PROPFIND Depth 0/1、calendar-multiget、XML 安全转义、If-Match/If-None-Match；<b>calendar-query 真正求值 <code>CALDAV:filter</code></b>（嵌套 comp-filter / is-not-defined / time-range 走 <code>expand_series</code> 判重叠 / prop-filter 的 text-match+param-filter / 两种 collation），filter 前置条件按 §7.8 回 403 valid-filter / supported-filter；最小 XML 形状解析器（<code>xml.mbt</code>）；<code>cmd/serve</code> 接入 well-known、MKCALENDAR 集合与标准 201/204/207/403/405/409/412 状态</td><td class="c">1374</td><td class="c">26 用例 + 23 项 curl 活体验收</td><td><span class="chip done">已落地</span></td></tr>
   </tbody>
 </table></div>
 
-<p><b>合计</b>：0.2.0 开发分支严格全目标测试为 wasm 150、wasm-gc 137、JavaScript 150、native 155；S5 21 项与 S6 11 项真实 curl 活体验收全绿。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
+<p><b>合计</b>：0.3.0 开发分支严格全目标测试为 wasm 170、wasm-gc 157、JavaScript 170、native 176；S5 21 项与 S6 23 项真实 curl 活体验收全绿。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
 
 <!-- ============================================================ -->
 <h2 id="s03"><span class="num">03</span>架构与数据流</h2>
@@ -175,7 +176,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
 <div class="note"><b>设计立场</b>：保真优先——未知组件/属性一律保留（竞品 mooncal 是固定字段清单）；时间四态显式建模；解析不了的输入带行号报错而不是静默吞掉。这三条是后续所有包必须继承的基线。</div>
 
 <!-- ============================================================ -->
-<h2 id="s04"><span class="num">04</span>里程碑阶梯 S0–S9</h2>
+<h2 id="s04"><span class="num">04</span>里程碑阶梯 S0–S10</h2>
 
 <p>哲学：<b>每步一个最小目标 → 代码 + 测试 → 验收 → 一次提交</b>。单步超过半天就拆。任何一步卡住，先砍范围再加班。</p>
 
@@ -199,6 +200,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
     <tr><td class="c">R4</td><td>通用 ICS 解析链 StringView 化：unfold、内容行、参数和 EXDATE 列表仅在所有权边界分配</td><td class="c">~120</td><td>1000 VEVENT 的 native release 基准由 25.83 ms 降至 15.10 ms；既有 Unicode 折行与全目标回归通过</td><td><span class="chip done">完成（约 1.71×）</span></td></tr>
     <tr><td class="c">R5</td><td>RRULE 预归一化：排序 BYMONTH/BYMONTHDAY，并缓存 28–31 天月份的实际候选日</td><td class="c">~80</td><td>密集月度规则 10000 occurrences 的 native release 基准由 5.83 ms 降至约 5.19 ms；闰年、负月日、原 Rule 不变的回归通过</td><td><span class="chip done">完成（约 11%）</span></td></tr>
     <tr><td class="c">R8–R11</td><td>赛后优化审计落地：测试盲区补齐（15 项）、AI 生成痕迹清理（净 -105 行）、StringView 残余迁移（R4 边界之后的全部值解析）、respond 缓冲 + ZoneTable Map 索引；<code>HttpRequest.meth</code> 经实测确认为避让保留字 <code>method</code>，不改名</td><td class="c">~-160</td><td>四目标 150/137/150/155 全绿；基准保持 R 系列基线（parse 15.6 ms、multiget 3.7 ms、series 1.68 ms、monthly 5.5 ms）；.mbti 仅 ZoneTable.entries 一处预期变更</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S10</td><td>验收缺陷修复：①<code>calendar-query</code> 真正求值 <code>CALDAV:filter</code>（RFC 4791 §9.7 全语法；time-range 走 <code>expand_series</code> 展开判重叠，§7.4/§9.9），filter 前置条件按 §7.8 回 403 valid-filter / supported-filter；②<code>MKCALENDAR</code> 在 <code>/cal/&lt;cal&gt;/</code> 真正建集合（已存在回 405，§5.3.1），集合可 PROPFIND / REPORT / 读写 / 删除，默认集合路径 <code>/cal/&lt;name&gt;.ics</code> 保持不变</td><td class="c">~1100</td><td>S6 活体验收由 11 项扩到 23 项并全绿（含区间内/外选择、无 filter 回 403、未知组件回 403、MKCALENDAR 201/405/发现/写入/集合内 REPORT 隔离/非空 409/删空 204）；全目标 170/157/170/176；S5 21/21 无回归</td><td><span class="chip done">完成</span></td></tr>
   </tbody>
 </table></div>
 
@@ -215,6 +217,8 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
 </ol>
 
 <div class="note"><b>规模红线</b>：单步新增代码超过计划规模 1.5 倍（如 S1 超过 ~220 行）即视为范围蔓延——停下来检查是不是把下一步的活提前做了，砍回去。</div>
+
+<div class="note"><b>验收有效性红线（S10 复盘，见 <a href="#s11">§11</a>）</b>：本循环第 1 条「至少一个断言测试」<b>不足以</b>构成验收。凡「接收输入并据此决定输出」的操作，必须额外满足 §11 的 R1–R7——尤其 <b>R1（一对只差输入的请求必须给出不同结果）</b> 与 <b>R2（选择类操作必须有空结果用例）</b>。只断言「预期的东西回来了」的用例<b>不算证据</b>：全量返回同样能通过它，S10 的两条缺陷就是这么漏过全部闸门的。</div>
 
 <!-- ============================================================ -->
 <h2 id="s06"><span class="num">06</span>MoonBit 工程约定与踩坑清单</h2>
@@ -271,6 +275,10 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
   <li><b>完整 IANA tzdb</b>——固定偏移 + VTIMEZONE，边界进 README（接缝 S2）。</li>
   <li><b>chunked 请求体</b>——回 <code>411 Length Required</code>（客户端 PUT 几乎不用 chunked）。</li>
   <li><b>超 大 .ics 流式解析</b>、sync-token 全量同步（getctag 基础版即可）。</li>
+  <li><b>PROPFIND/REPORT 的 <code>DAV:prop</code> 选择</b>——S10 让 <code>calendar-query</code> 求值了 filter，但请求的属性集合仍被忽略，响应固定返回 resourcetype / getcontenttype / getetag / calendar-data；按 prop 裁剪与「未知属性回 404 propstat」留后续。</li>
+  <li><b>MKCALENDAR 请求体属性</b>——S10 让 <code>MKCALENDAR</code> 真正建集合，但 body 里的 <code>displayname</code> / <code>calendar-color</code> 等属性不落盘；集合名即 displayname。</li>
+  <li><b><code>/cal/</code> 兼作家目录与默认集合</b>——S10 刻意的兼容取舍：首版已从 <code>/cal/</code> 直接服务事件且既有客户端按该路径配置，故新建集合并排放在其下（<code>/cal/&lt;cal&gt;/</code>），而不是把事件搬进 <code>/cal/default/</code>。</li>
+  <li><b>VALARM 的 time-range</b>——回 <code>403 supported-filter</code>，不解析相对 trigger。</li>
   <li>RRULE 第三档（BYWEEKNO/BYYEARDAY/BYHOUR 系/SECONDLY/MINUTELY）——<b>显式报错拒绝</b>，不静默吞。</li>
 </ul>
 
@@ -280,6 +288,7 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
 <div class="tw"><table>
   <thead><tr><th>风险</th><th class="c">等级</th><th>对策</th></tr></thead>
   <tbody>
+    <tr><td><b>验收断言不判别</b>——「预期的东西回来了」被当成证据，忽略输入的实现同样能通过，于是缺陷可以穿过全部闸门</td><td class="c"><span class="chip off">高</span></td><td><b>已发生（S10 两条缺陷）</b>。对策：§11 的 R1–R7 并入 DoD；改能力声明必须同步「能力 → 证据矩阵」；选择类操作强制「空结果」与「拒绝路径」用例</td></tr>
     <tr><td>手解析 HTTP 边界情况（keep-alive、多值头、Expect: 100-continue）</td><td class="c"><span class="chip risk">中</span></td><td>明确 411/501 拒绝并写进边界；S7 联调日志驱动补齐；Radicale 哲学「够用即止」</td></tr>
     <tr><td>真实客户端差异不可控（发现链/PROPFIND 形状各家不同）</td><td class="c"><span class="chip risk">中</span></td><td>S7 独立成步预留整天；优先 Thunderbird（最宽容、文档全），DAVx5 次之；问题→修复→复测记进互操作矩阵</td></tr>
     <tr><td>XML 命名空间（客户端前缀任意：D:/d:/默认 ns）</td><td class="c"><span class="chip risk">中</span></td><td>按 (namespace-uri, local-name) 匹配而非前缀；测试带前缀变体</td></tr>
@@ -306,6 +315,80 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
     <tr><td>AI 辅助合规</td><td>AI 生成内容可解释、可测试、来源明确；申报书如实声明 AI 参与</td></tr>
   </tbody>
 </table></div>
+
+<!-- ============================================================ -->
+<h2 id="s11"><span class="num">11</span>验收有效性：为什么缺陷能过验收（S10 复盘）</h2>
+
+<p>背景：0.2.0 发布、进入验收后被指出两条缺陷——<b>「calendar-query 忽略 filter，关键语义缺失」</b>与<b>「MKCALENDAR 不建集合」</b>。两条都属实，却在此前<b>所有闸门全绿</b>的情况下漏过：全目标测试、S5/S6 活体验收、Thunderbird 真实联调、96% 覆盖率，没有一项报警。本节记录根因，并把它固化成规则，避免再犯。</p>
+
+<div class="note"><b>一句话根因</b>：验收断言的是「<b>有没有回预期的东西</b>」，而不是「<b>输入有没有改变结果</b>」。在「忽略输入」与「遵守输入」两种实现下，前者同样能让断言通过——于是断言不具判别力，闸门形同虚设。</div>
+
+<h3>根因</h3>
+<div class="tw"><table>
+  <thead><tr><th class="c">#</th><th>根因</th><th>当时的证据</th></tr></thead>
+  <tbody>
+    <tr><td class="c">1</td><td><b>断言不判别（最直接原因）</b>：用例的请求体里根本不含被检验的输入</td><td>S6 的 calendar-query 请求体<b>没有 <code>&lt;C:filter&gt;</code></b>，断言是 <code>code == 207 and "UID:s6@moon-ical" in body</code>——只要「把已知存在的事件返回」就通过，<b>全量返回同样满足</b>。该用例在「正确实现」与「完全不实现」两种情况下都是绿的。</td></tr>
+    <tr><td class="c">2</td><td><b>能力声明先于证据</b></td><td>README Features 与 §02 把 <code>MKCALENDAR</code> 列为已支持，而全仓（单测 + S5 + S6）<b>零个</b> MKCALENDAR 用例。声明来自「路由里有个分支回 201」，不是来自任何被验证过的行为。</td></tr>
+    <tr><td class="c">3</td><td><b>验收按「协议动作清单」组织，而非「语义契约」</b></td><td>S6 的 11 项按 OPTIONS/PROPFIND/REPORT/PUT/DELETE 排列，每项只问「有没有回预期状态码」。一个回 207 的桩实现能通过状态码清单。</td></tr>
+    <tr><td class="c">4</td><td><b>全为正例，没有否定例与前置条件例</b></td><td>11 项里没有任何一项形如「这个输入必须<b>不</b>返回那个」；<code>403</code> 的 <code>valid-filter</code> / <code>supported-filter</code> 两条前置条件从未被触发过一次。</td></tr>
+    <tr><td class="c">5</td><td><b>客户端互操作被当成协议完整性</b></td><td>S7 的 Thunderbird 全绿，是因为它只用单一内建集合、也不依赖服务端时间范围过滤——<b>恰好绕开了这两条缺陷</b>。互操作只证明「该客户端走的那几条路」，不等于协议面完整。</td></tr>
+    <tr><td class="c">6</td><td><b>边界清单只有「有意不做」，没有「已声明但未验证」</b></td><td>§08 列的是刻意的省略（tzdb、scheduling、TLS…）。两条缺陷不在其中，于是被<b>隐式当成「已支持」</b>；没有任何机制强制「文档能力 ↔ 证据」的映射。</td></tr>
+    <tr><td class="c">7</td><td><b>「规范机械对拍」只在库层做了，协议层没做</b></td><td>RRULE 层从第一天就用 graham 语料<b>机械抽取</b> 40 条串对拍，这条纪律确实有效（第一/二档全部对拍通过）；CalDAV 层没有等价的「从 RFC 例子机械抽取请求体」，请求体全部手写，于是继承了实现者的盲区。</td></tr>
+  </tbody>
+</table></div>
+
+<h3>硬性规则（并入 §05 的 Definition of Done）</h3>
+<div class="tw"><table>
+  <thead><tr><th class="c">#</th><th>规则</th><th>判定方式</th></tr></thead>
+  <tbody>
+    <tr><td class="c">R1</td><td><b>判别性断言</b>：任何「接收输入并据此决定输出」的操作，验收必须包含<b>一对只差该输入的请求</b>，并断言两者结果<b>不同</b></td><td>calendar-query：同一集合上两个只有 <code>time-range</code> 不同的 query 必须返回<b>不同</b>的资源集合。<br><b>反例（禁止）</b>：只断言「已知事件出现在响应里」。</td></tr>
+    <tr><td class="c">R2</td><td><b>选择 / 过滤类操作必须有「空结果」用例</b></td><td>断言返回<b>空 multistatus</b>，而不是「返回了全部」。区间外、无匹配属性都必须有此例。</td></tr>
+    <tr><td class="c">R3</td><td><b>可拒绝的操作必须有拒绝用例</b>，并断言<b>具体状态码 + 具体错误元素</b></td><td>如 <code>403</code> + <code>&lt;C:valid-filter/&gt;</code>；不能只断言「不是 200」。每条新增的 403/405/409 路径都要有落点。</td></tr>
+    <tr><td class="c">R4</td><td><b>每条对外声明的能力必须有至少一个「因它缺失而失败」的检查</b></td><td>做不到就把它从 Features 移进 §08 边界。<b>落地载体 = 下文的「能力 → 证据矩阵」</b>：改能力声明必须同步改矩阵。</td></tr>
+    <tr><td class="c">R5</td><td><b>协议请求体从 RFC 例子机械抽取</b>，与 RRULE 层的 graham 语料同纪律</td><td>手写请求体只允许作为补充；抽取脚本或逐条抄录都要在用例注释里留下出处（RFC 章节号）。</td></tr>
+    <tr><td class="c">R6</td><td><b>互操作报告必须写明「该客户端未触及的协议面」</b></td><td>互操作通过<b>不得</b>用作协议完整性的证据；矩阵要有一列记「未覆盖」。</td></tr>
+    <tr><td class="c">R7</td><td><b>里程碑验收标准必须写成可判否形式</b></td><td>「REPORT 序列全绿」不合格；「同一集合上两个只有 <code>time-range</code> 不同的 query 返回不同集合」合格。</td></tr>
+  </tbody>
+</table></div>
+
+<h3>能力 → 证据矩阵（活文档，随能力声明同步）</h3>
+<p>规则 R4 的载体：<b>凡在 Features / §02 出现的对外能力，都必须能在此表定位到判别性证据</b>；定位不到的一律移入 §08「明确不做」。</p>
+<div class="tw"><table>
+  <thead><tr><th>能力</th><th class="c">单元测试</th><th class="c">活体验收</th><th>判别性证据（关键一条）</th></tr></thead>
+  <tbody>
+    <tr><td>折行展开 / 内容行 / 转义</td><td class="c">text 20 例</td><td class="c">—</td><td>带引号参数还原、多字节折行往返</td></tr>
+    <tr><td>组件树（未知组件保留）</td><td class="c">model 用例</td><td class="c">—</td><td>未知组件仍出现在序列化输出里</td></tr>
+    <tr><td><code>IcalDateTime</code> 四态 / <code>ZoneTable</code></td><td class="c">model 用例</td><td class="c">—</td><td>四态各一条；未知 <code>TZID</code> <b>报错</b>而非静默回落 UTC</td></tr>
+    <tr><td><code>Event</code> 类型化视图</td><td class="c">model 用例</td><td class="c">demo 实跑</td><td>畸形属性<b>报错</b> vs 属性缺失为 <code>None</code></td></tr>
+    <tr><td>RRULE 解析（三档）</td><td class="c">rrule 33 例</td><td class="c">—</td><td>graham 40 串机械抽取：界内 32 解析 / 界外 8 显式报错</td></tr>
+    <tr><td>RRULE 展开（第一 / 二档）</td><td class="c">expand/tier2/corpus</td><td class="c">—</td><td>与 graham 数字逐条对拍（第一档 23 + 第二档 8）</td></tr>
+    <tr><td><code>expand_series</code> 覆盖合并</td><td class="c">series 用例</td><td class="c">—</td><td>EXDATE 移除 / 改期 / 取消 / THISANDFUTURE 各一条</td></tr>
+    <tr><td>序列化折行与引号</td><td class="c">serialize 11 例</td><td class="c">—</td><td>roundtrip 相等 + 幂等 + 75 octets 字节边界</td></tr>
+    <tr><td>HTTP/1.1 请求层</td><td class="c">httpd 10 例</td><td class="c">S5</td><td>chunked → 411、畸形 → 400、Content-Length 按<b>字节</b></td></tr>
+    <tr><td>vdir 存储 / ETag</td><td class="c">store 用例</td><td class="c">S5</td><td>同字节同 tag、改一字节即变、非法名拒绝</td></tr>
+    <tr><td>集合创建 / 枚举 <span class="chip done">S10</span></td><td class="c">store + serve 用例</td><td class="c">S6</td><td>建两次第二次为 <code>false</code>；嵌套集合的事件不计入父集合</td></tr>
+    <tr><td>发现链 / well-known</td><td class="c">caldav 用例</td><td class="c">S6</td><td>301 且 <code>Location: /cal/</code></td></tr>
+    <tr><td>PROPFIND Depth 0/1</td><td class="c">caldav 用例</td><td class="c">S6</td><td>depth 0 <b>不含</b>事件、depth 1 含</td></tr>
+    <tr><td><b>calendar-query filter 求值</b> <span class="chip done">S10</span></td><td class="c">filter 16 例</td><td class="c">S6</td><td><b>区间内选中 vs 区间外空结果（R1+R2）</b>；<code>i;octet</code> 大小写敏感 vs 默认折叠</td></tr>
+    <tr><td>calendar-multiget</td><td class="c">caldav 用例</td><td class="c">S6</td><td>只返回被请求的 href</td></tr>
+    <tr><td>If-Match / If-None-Match</td><td class="c">caldav 用例</td><td class="c">S6</td><td>陈旧 tag → 412；<code>If-None-Match: *</code> 重复建 → 412</td></tr>
+    <tr><td><b>MKCALENDAR 建集合</b> <span class="chip done">S10</span></td><td class="c">store + serve 用例</td><td class="c">S6</td><td>建后 Depth 1 <b>能发现</b>它；重复建 → 405</td></tr>
+    <tr><td>Thunderbird CRUD</td><td class="c">—</td><td class="c">S7 人工会话</td><td>仅默认集合路径；<b>未覆盖</b> MKCALENDAR 与时间范围过滤（见 R6）</td></tr>
+  </tbody>
+</table></div>
+
+<h3>当前已知的未验证 / 未支持面（诚实清单）</h3>
+<ul>
+  <li><b><code>&lt;D:prop&gt;</code> 属性选择</b>：已知被忽略（见 §08），<b>无任何证据</b>；PROPFIND / REPORT 都返回固定属性集。</li>
+  <li><b><code>sync-collection</code> / CTag</b>：未支持，返回 400——有单测钉住「不支持」这一事实本身，但没有实现。</li>
+  <li><b>MKCALENDAR 请求体属性</b>（<code>displayname</code>、<code>calendar-color</code>）：不落盘（见 §08）。</li>
+  <li><b>VALARM 的 <code>time-range</code></b>：显式 <code>403 supported-filter</code>（有单测）。</li>
+  <li><b>并发写入 / 冲突解决</b>：无证据。</li>
+  <li><b>TLS / 认证 / ACL</b>：不做（见 §08）。</li>
+  <li><b>DAVx5 / Apple 日历</b>：未跑（README 互操作矩阵已标 Not run）。</li>
+</ul>
+
+<div class="note"><b>每次改能力声明时问三句</b>：①这条能力在「能力 → 证据矩阵」里定位得到判别性证据吗？②证据里有没有一对<b>只差输入</b>的请求？③新增的拒绝路径（4xx）有没有对应的拒绝用例？三句有任何一句答不上来，就先补证据再改声明。</div>
 
 <footer>
   证据来源：docs/spike-notes.md（M0 实测）· docs/upstream-seams.md（接缝登记）·

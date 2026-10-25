@@ -108,22 +108,26 @@ pub fn principal_propfind() -> String {
 }
 
 ///|
-/// A DAV multistatus body for `/cal/`. Depth 0 returns only the collection;
-/// depth 1 additionally returns every calendar object and its ETag.
+/// A DAV multistatus body for one calendar collection. Depth 0 returns only
+/// the collection itself; depth 1 additionally returns every nested calendar
+/// collection and every calendar object with its ETag.
+///
+/// `href` and `displayname` describe the collection being asked about, so the
+/// same builder answers for the calendar home and for a collection created by
+/// `MKCALENDAR` (RFC 4791 §5.3.1).
 pub fn collection_propfind(
   resources : Array[DavResource],
   depth : Int,
+  href~ : String = "/cal/",
+  displayname~ : String = "moon-ical",
+  children~ : Array[(String, String)] = [],
 ) -> String {
-  let entries : Array[String] = [
-    response(
-      "/cal/",
-      "<D:resourcetype><D:collection/><C:calendar/></D:resourcetype>" +
-      "<D:displayname>moon-ical</D:displayname>" +
-      "<C:supported-calendar-component-set><C:comp name=\"VEVENT\"/></C:supported-calendar-component-set>" +
-      "<D:current-user-principal><D:href>/principals/default/</D:href></D:current-user-principal>",
-    ),
-  ]
+  let entries : Array[String] = [collection_response(href, displayname)]
   if depth == 1 {
+    for child in children {
+      let (child_href, child_name) = child
+      entries.push(collection_response(child_href, child_name))
+    }
     for item in resources {
       entries.push(resource_response(item, false))
     }
@@ -132,10 +136,54 @@ pub fn collection_propfind(
 }
 
 ///|
-/// Build a `calendar-query` or `calendar-multiget` response. A multiget body
-/// selects the requested `<href>` values; a calendar-query returns all event
-/// resources. Unknown REPORT bodies produce no selected resources.
-pub fn report(body : String, resources : Array[DavResource]) -> String? {
+/// The `DAV:response` for one calendar collection.
+fn collection_response(href : String, displayname : String) -> String {
+  let name = if displayname.length() > 0 {
+    "<D:displayname>\{xml_escape(displayname)}</D:displayname>"
+  } else {
+    ""
+  }
+  response(
+    href,
+    "<D:resourcetype><D:collection/><C:calendar/></D:resourcetype>" +
+    name +
+    "<C:supported-calendar-component-set><C:comp name=\"VEVENT\"/></C:supported-calendar-component-set>" +
+    "<D:current-user-principal><D:href>/principals/default/</D:href></D:current-user-principal>",
+  )
+}
+
+///|
+/// What a `REPORT` request body produced.
+///
+/// The cases stay separate rather than folding into an optional body because
+/// the failures answer differently on the wire: an unknown report is `400`,
+/// while the two filter preconditions of RFC 4791 §7.8 are `403` with a
+/// `DAV:error` body naming the test that failed.
+pub(all) enum ReportOutcome {
+  /// A `DAV:multistatus` body listing the resources the report selected.
+  Report(body~ : String)
+  /// The body is a `REPORT` this server does not implement.
+  UnsupportedReport
+  /// A precondition failed; `body` is the `DAV:error` document to send.
+  PreconditionFailed(body~ : String)
+} derive(Debug, Eq)
+
+///|
+pub extend ReportOutcome with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ReportOutcome with Eq::{not_equal, equal}
+
+///|
+/// Build a `calendar-query` or `calendar-multiget` response.
+///
+/// A multiget body selects the requested `href` values. A calendar-query
+/// body is evaluated against each resource's calendar data and only the
+/// matching resources are returned — RFC 4791 §7.8 makes the filter the
+/// whole point of the report, so a body without one, or one this server
+/// cannot evaluate, is answered with the matching precondition failure
+/// instead of an unfiltered listing.
+pub fn report(body : String, resources : Array[DavResource]) -> ReportOutcome {
   let upper = String::to_upper(body)
   if upper.contains("CALENDAR-MULTIGET") {
     let hrefs = xml_text_values(body, "href")
@@ -149,12 +197,38 @@ pub fn report(body : String, resources : Array[DavResource]) -> String? {
         entries.push(resource_response(resource, true))
       }
     }
-    Some(multistatus(entries))
+    Report(body=multistatus(entries))
   } else if upper.contains("CALENDAR-QUERY") {
-    Some(multistatus(resources.map(item => resource_response(item, true))))
+    let filter = parse_filter(body) catch {
+      FilterError::InvalidFilter(_) =>
+        return PreconditionFailed(body=error_document("<C:valid-filter/>"))
+      FilterError::UnsupportedFilter(element~) =>
+        return PreconditionFailed(
+          body=error_document(
+            "<C:supported-filter>\{element}</C:supported-filter>",
+          ),
+        )
+    }
+    let entries : Array[String] = []
+    for resource in resources {
+      if filter.matches(resource.calendar_data) {
+        entries.push(resource_response(resource, true))
+      }
+    }
+    Report(body=multistatus(entries))
   } else {
-    None
+    UnsupportedReport
   }
+}
+
+///|
+/// The `DAV:error` body that carries a failed precondition, the shape
+/// RFC 4791 §7.8 specifies for the filter preconditions.
+fn error_document(inner : String) -> String {
+  "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+  "<D:error xmlns:D=\"DAV:\" xmlns:C=\"urn:ietf:params:xml:ns:caldav\">" +
+  inner +
+  "</D:error>"
 }
 
 ///|

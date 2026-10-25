@@ -1,6 +1,13 @@
 // Pure WebDAV/CalDAV response and request semantics. Filesystem and sockets
 // remain in cmd/serve, which makes this package testable on every backend.
+//
+// calendar-query evaluation needs the calendar model and the recurrence
+// expander to resolve a CALDAV:time-range against a recurring series
+// (RFC 4791 §7.4), so this package reads those two pure packages directly.
 import {
+  "justinwongcn/moon-ical/ical/model",
+  "justinwongcn/moon-ical/ical/rrule",
+  "justinwongcn/moon-ical/ical/text",
   "moonbitlang/core/debug",
 }
 

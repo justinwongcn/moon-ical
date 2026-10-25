@@ -8,6 +8,8 @@ import {
 // Values
 pub fn etag_of(String) -> String
 
+pub fn is_store_name(String) -> Bool
+
 // Errors
 pub(all) suberror StoreError {
   BadName(name~ : String)
@@ -31,11 +33,15 @@ pub fn VdirFile::to_repr(Self) -> @debug.Repr
 pub struct VdirStore {
   root : String
 }
+pub async fn VdirStore::collection(Self, String) -> Self?
+pub async fn VdirStore::collections(Self) -> Array[String]
+pub async fn VdirStore::create_collection(Self, String) -> Bool
 pub async fn VdirStore::delete(Self, String) -> Bool
 pub async fn VdirStore::get(Self, String) -> VdirFile?
 pub async fn VdirStore::list(Self) -> Array[String]
 pub fn VdirStore::new(String) -> Self
 pub async fn VdirStore::put(Self, String, String) -> String
+pub async fn VdirStore::remove_collection(Self, String) -> Bool
 
 // Type aliases
 

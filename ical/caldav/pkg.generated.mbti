@@ -8,19 +8,42 @@ import {
 // Values
 pub fn check_preconditions(String?, String?, String?) -> Precondition
 
-pub fn collection_propfind(Array[DavResource], Int) -> String
+pub fn collection_propfind(Array[DavResource], Int32, href? : String, displayname? : String, children? : Array[(String, String)]) -> String
+
+pub fn parse_filter(String) -> Filter raise FilterError
 
 pub fn principal_propfind() -> String
 
-pub fn report(String, Array[DavResource]) -> String?
+pub fn report(String, Array[DavResource]) -> ReportOutcome
 
 pub fn root_propfind() -> String
 
 pub fn xml_escape(String) -> String
 
 // Errors
+pub(all) suberror FilterError {
+  InvalidFilter(message~ : String)
+  UnsupportedFilter(element~ : String)
+} derive(Eq, @debug.Debug)
+pub fn FilterError::equal(Self, Self) -> Bool
+pub fn FilterError::not_equal(Self, Self) -> Bool
+pub fn FilterError::output(Self, &Logger) -> Unit
+pub fn FilterError::to_repr(Self) -> @debug.Repr
+pub fn FilterError::to_string(Self) -> String
+pub impl Show for FilterError
 
 // Types and methods
+pub(all) struct CompFilter {
+  name : String
+  is_not_defined : Bool
+  time_range : TimeRange?
+  comps : Array[CompFilter]
+  props : Array[PropFilter]
+} derive(Eq, @debug.Debug)
+pub fn CompFilter::equal(Self, Self) -> Bool
+pub fn CompFilter::not_equal(Self, Self) -> Bool
+pub fn CompFilter::to_repr(Self) -> @debug.Repr
+
 pub(all) struct DavResource {
   href : String
   etag : String
@@ -30,6 +53,23 @@ pub fn DavResource::equal(Self, Self) -> Bool
 pub fn DavResource::not_equal(Self, Self) -> Bool
 pub fn DavResource::to_repr(Self) -> @debug.Repr
 
+pub(all) struct Filter {
+  root : CompFilter
+} derive(Eq, @debug.Debug)
+pub fn Filter::equal(Self, Self) -> Bool
+pub fn Filter::matches(Self, String) -> Bool
+pub fn Filter::not_equal(Self, Self) -> Bool
+pub fn Filter::to_repr(Self) -> @debug.Repr
+
+pub(all) struct ParamFilter {
+  name : String
+  is_not_defined : Bool
+  text_match : TextMatch?
+} derive(Eq, @debug.Debug)
+pub fn ParamFilter::equal(Self, Self) -> Bool
+pub fn ParamFilter::not_equal(Self, Self) -> Bool
+pub fn ParamFilter::to_repr(Self) -> @debug.Repr
+
 pub(all) enum Precondition {
   Pass
   Failed
@@ -37,6 +77,43 @@ pub(all) enum Precondition {
 pub fn Precondition::equal(Self, Self) -> Bool
 pub fn Precondition::not_equal(Self, Self) -> Bool
 pub fn Precondition::to_repr(Self) -> @debug.Repr
+
+pub(all) struct PropFilter {
+  name : String
+  is_not_defined : Bool
+  time_range : TimeRange?
+  text_match : TextMatch?
+  params : Array[ParamFilter]
+} derive(Eq, @debug.Debug)
+pub fn PropFilter::equal(Self, Self) -> Bool
+pub fn PropFilter::not_equal(Self, Self) -> Bool
+pub fn PropFilter::to_repr(Self) -> @debug.Repr
+
+pub(all) enum ReportOutcome {
+  Report(body~ : String)
+  UnsupportedReport
+  PreconditionFailed(body~ : String)
+} derive(Eq, @debug.Debug)
+pub fn ReportOutcome::equal(Self, Self) -> Bool
+pub fn ReportOutcome::not_equal(Self, Self) -> Bool
+pub fn ReportOutcome::to_repr(Self) -> @debug.Repr
+
+pub(all) struct TextMatch {
+  text : String
+  negate : Bool
+  collation : String
+} derive(Eq, @debug.Debug)
+pub fn TextMatch::equal(Self, Self) -> Bool
+pub fn TextMatch::not_equal(Self, Self) -> Bool
+pub fn TextMatch::to_repr(Self) -> @debug.Repr
+
+pub(all) struct TimeRange {
+  start : Int64?
+  end : Int64?
+} derive(Eq, @debug.Debug)
+pub fn TimeRange::equal(Self, Self) -> Bool
+pub fn TimeRange::not_equal(Self, Self) -> Bool
+pub fn TimeRange::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

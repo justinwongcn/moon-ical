@@ -1,0 +1,264 @@
+///|
+/// A one-event calendar whose `VEVENT` carries the given properties.
+fn calendar(properties : String) -> String {
+  "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n" +
+  properties +
+  "END:VEVENT\r\nEND:VCALENDAR\r\n"
+}
+
+///|
+/// Whether this calendar matches this filter fragment, through the same
+/// parse-then-evaluate path the server uses.
+fn matches(filter : String, calendar_data : String) -> Bool raise {
+  let parsed = @caldav.parse_filter(
+    "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\">" +
+    "<C:filter>\{filter}</C:filter></C:calendar-query>",
+  )
+  parsed.matches(calendar_data)
+}
+
+///|
+/// A filter selecting `VEVENT`s, optionally narrowed by a time range.
+fn event_filter(inner : String) -> String {
+  "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">" +
+  inner +
+  "</C:comp-filter></C:comp-filter>"
+}
+
+///|
+test "time-range matches a recurring series through expansion" {
+  let data = calendar(
+    "UID:r\r\nDTSTART:20260105T090000Z\r\nRRULE:FREQ=WEEKLY;COUNT=10\r\n",
+  )
+  // Ten weekly instances from 2026-01-05 end on 2026-03-09.
+  assert_true(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20260201T000000Z\" end=\"20260301T000000Z\"/>",
+      ),
+      data,
+    ),
+  )
+  assert_false(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20260401T000000Z\" end=\"20260501T000000Z\"/>",
+      ),
+      data,
+    ),
+  )
+}
+
+///|
+test "time-range respects EXDATE" {
+  let data = calendar(
+    "UID:e\r\nDTSTART:20260105T090000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\n" +
+    "EXDATE:20260106T090000Z\r\n",
+  )
+  // The excluded second day is the only instance in this window.
+  assert_false(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20260106T000000Z\" end=\"20260107T000000Z\"/>",
+      ),
+      data,
+    ),
+  )
+  assert_true(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20260107T000000Z\" end=\"20260108T000000Z\"/>",
+      ),
+      data,
+    ),
+  )
+}
+
+///|
+test "time-range reaches past the first expansion window" {
+  // A daily series long enough that a match only appears after several
+  // doubling steps of the adaptive expansion.
+  let data = calendar(
+    "UID:long\r\nDTSTART:20260101T090000Z\r\nRRULE:FREQ=DAILY\r\n",
+  )
+  assert_true(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20261231T000000Z\" end=\"20270102T000000Z\"/>",
+      ),
+      data,
+    ),
+  )
+}
+
+///|
+test "all-day events occupy their whole day" {
+  let data = calendar("UID:d\r\nDTSTART;VALUE=DATE:20260110\r\n")
+  assert_true(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20260110T120000Z\" end=\"20260110T130000Z\"/>",
+      ),
+      data,
+    ),
+  )
+  assert_false(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20260111T000000Z\" end=\"20260112T000000Z\"/>",
+      ),
+      data,
+    ),
+  )
+}
+
+///|
+test "time-range on an interval uses an exclusive end" {
+  let data = calendar(
+    "UID:i\r\nDTSTART:20260110T090000Z\r\nDTEND:20260110T100000Z\r\n",
+  )
+  // A range that begins exactly at DTEND does not overlap the event.
+  assert_false(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20260110T100000Z\" end=\"20260110T110000Z\"/>",
+      ),
+      data,
+    ),
+  )
+  // A range that ends exactly at DTSTART does not overlap either.
+  assert_false(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20260110T080000Z\" end=\"20260110T090000Z\"/>",
+      ),
+      data,
+    ),
+  )
+}
+
+///|
+test "text-match is case-insensitive by default and exact under i;octet" {
+  let data = calendar("UID:t\r\nSUMMARY:Team Sync\r\n")
+  let folded = "<C:prop-filter name=\"SUMMARY\"><C:text-match>team</C:text-match></C:prop-filter>"
+  assert_true(matches(event_filter(folded), data))
+  let exact = "<C:prop-filter name=\"SUMMARY\"><C:text-match collation=\"i;octet\">team</C:text-match></C:prop-filter>"
+  assert_false(matches(event_filter(exact), data))
+  let exact_hit = "<C:prop-filter name=\"SUMMARY\"><C:text-match collation=\"i;octet\">Team</C:text-match></C:prop-filter>"
+  assert_true(matches(event_filter(exact_hit), data))
+}
+
+///|
+test "text-match negate-condition inverts the test" {
+  let data = calendar("UID:n\r\nSUMMARY:Team Sync\r\n")
+  let negated = "<C:prop-filter name=\"SUMMARY\"><C:text-match negate-condition=\"yes\">team</C:text-match></C:prop-filter>"
+  assert_false(matches(event_filter(negated), data))
+  let negated_hit = "<C:prop-filter name=\"SUMMARY\"><C:text-match negate-condition=\"yes\">lunch</C:text-match></C:prop-filter>"
+  assert_true(matches(event_filter(negated_hit), data))
+}
+
+///|
+test "text-match sees the unescaped property text" {
+  let data = calendar("UID:u\r\nSUMMARY:Lunch\\, then sync\r\n")
+  let filter = "<C:prop-filter name=\"SUMMARY\"><C:text-match>Lunch, then</C:text-match></C:prop-filter>"
+  assert_true(matches(event_filter(filter), data))
+}
+
+///|
+test "prop-filter is-not-defined requires the property to be absent" {
+  let data = calendar("UID:p\r\nSUMMARY:Sync\r\n")
+  let absent = "<C:prop-filter name=\"LOCATION\"><C:is-not-defined/></C:prop-filter>"
+  assert_true(matches(event_filter(absent), data))
+  let present = "<C:prop-filter name=\"SUMMARY\"><C:is-not-defined/></C:prop-filter>"
+  assert_false(matches(event_filter(present), data))
+}
+
+///|
+test "param-filter tests a parameter of the enclosing property" {
+  let data = calendar("UID:z\r\nDTSTART;TZID=Asia/Shanghai:20260110T090000\r\n")
+  let filter = "<C:prop-filter name=\"DTSTART\"><C:param-filter name=\"TZID\">" +
+    "<C:text-match>shanghai</C:text-match></C:param-filter></C:prop-filter>"
+  assert_true(matches(event_filter(filter), data))
+  let missing = "<C:prop-filter name=\"DTSTART\"><C:param-filter name=\"VALUE\">" +
+    "<C:is-not-defined/></C:param-filter></C:prop-filter>"
+  assert_true(matches(event_filter(missing), data))
+}
+
+///|
+test "comp-filter is-not-defined excludes a component type" {
+  let data = calendar("UID:c\r\nSUMMARY:Sync\r\n")
+  let no_todo = "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VTODO\">" +
+    "<C:is-not-defined/></C:comp-filter></C:comp-filter>"
+  assert_true(matches(no_todo, data))
+  let no_event = "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">" +
+    "<C:is-not-defined/></C:comp-filter></C:comp-filter>"
+  assert_false(matches(no_event, data))
+}
+
+///|
+test "a VTODO time-range is judged on its due date" {
+  let data = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:td\r\n" +
+    "DUE:20260110T170000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n"
+  let filter = "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VTODO\">" +
+    "<C:time-range start=\"20260110T160000Z\" end=\"20260110T180000Z\"/>" +
+    "</C:comp-filter></C:comp-filter>"
+  assert_true(matches(filter, data))
+}
+
+///|
+test "a VTODO is not selected by a VEVENT filter" {
+  let data = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:td\r\n" +
+    "DUE:20260110T170000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n"
+  assert_false(matches(event_filter(""), data))
+}
+
+///|
+test "an unreadable resource never matches" {
+  assert_false(matches(event_filter(""), "not an iCalendar document"))
+}
+
+///|
+test "an unsupported collation is reported as supported-filter" {
+  let body = "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\">" +
+    "<C:filter><C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">" +
+    "<C:prop-filter name=\"SUMMARY\">" +
+    "<C:text-match collation=\"i;unknown\">x</C:text-match>" +
+    "</C:prop-filter></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>"
+  try @caldav.parse_filter(body) catch {
+    @caldav.FilterError::UnsupportedFilter(element~) =>
+      assert_true(element.contains("i;unknown"))
+    @caldav.FilterError::InvalidFilter(message~) =>
+      fail("expected supported-filter, got invalid-filter: \{message}")
+  } noraise {
+    _ => fail("expected the filter to be refused")
+  }
+}
+
+///|
+test "a malformed filter is reported as invalid-filter" {
+  let cases = [
+    // No filter element at all.
+    "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\"/>",
+    // A filter with no comp-filter.
+    "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\">" +
+    "<C:filter/></C:calendar-query>",
+    // A time range with neither bound.
+    "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><C:filter>" +
+    "<C:comp-filter name=\"VCALENDAR\"><C:time-range/></C:comp-filter>" +
+    "</C:filter></C:calendar-query>",
+    // is-not-defined combined with another test.
+    "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><C:filter>" +
+    "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">" +
+    "<C:is-not-defined/><C:time-range start=\"20260101T000000Z\"/>" +
+    "</C:comp-filter></C:comp-filter></C:filter></C:calendar-query>",
+  ]
+  for body in cases {
+    try @caldav.parse_filter(body) catch {
+      @caldav.FilterError::InvalidFilter(_) => ()
+      @caldav.FilterError::UnsupportedFilter(element~) =>
+        fail("expected invalid-filter, got supported-filter: \{element}")
+    } noraise {
+      _ => fail("expected the filter to be refused: \{body}")
+    }
+  }
+}

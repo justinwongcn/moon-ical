@@ -13,6 +13,7 @@ EXE = ROOT / "_build" / "native" / "debug" / "build" / "cmd" / "serve" / "serve.
 PORT = 8438
 BASE = f"http://127.0.0.1:{PORT}"
 EVENT = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:s6@moon-ical\r\nDTSTART:20260915T090000Z\r\nSUMMARY:S6\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+WORK_EVENT = EVENT.replace("UID:s6@moon-ical", "UID:s6-work@moon-ical")
 failures = []
 
 
@@ -79,12 +80,54 @@ def main():
 
         code, _, body = request("PROPFIND", "/cal/", headers=["Depth: 1"])
         check("Depth 1 lists event and ETag", code == 207 and "/cal/s6.ics" in body and tag.strip('"') in body)
-        query = '<C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop xmlns:D="DAV:"><D:getetag/><C:calendar-data/></D:prop></C:calendar-query>'
+        # The filter is the defining part of a calendar-query (RFC 4791 §7.8),
+        # so the request carries a real one and the checks assert the selection
+        # it implies rather than merely that the event came back. The unfiltered
+        # server could not tell these two requests apart.
+        query = (
+            '<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+            '<D:prop><D:getetag/><C:calendar-data/></D:prop>'
+            '<C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">'
+            '<C:time-range start="20260901T000000Z" end="20261001T000000Z"/>'
+            '</C:comp-filter></C:comp-filter></C:filter>'
+            '</C:calendar-query>'
+        )
         code, _, body = request("REPORT", "/cal/", query, ["Content-Type: application/xml"])
-        check("calendar-query returns calendar-data", code == 207 and "UID:s6@moon-ical" in body)
+        check("calendar-query inside the range selects the event", code == 207 and "UID:s6@moon-ical" in body)
+        outside = query.replace("20260901T000000Z", "20300101T000000Z").replace("20261001T000000Z", "20300201T000000Z")
+        code, _, body = request("REPORT", "/cal/", outside, ["Content-Type: application/xml"])
+        check("calendar-query outside the range selects nothing", code == 207 and "UID:s6@moon-ical" not in body and "multistatus" in body)
+        no_filter = '<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/></D:prop></C:calendar-query>'
+        code, _, body = request("REPORT", "/cal/", no_filter, ["Content-Type: application/xml"])
+        check("calendar-query without a filter is refused", code == 403 and "valid-filter" in body)
+        unsupported = query.replace('name="VEVENT"', 'name="X-NOT-A-COMPONENT"')
+        code, _, body = request("REPORT", "/cal/", unsupported, ["Content-Type: application/xml"])
+        check("calendar-query on an unknown component is refused", code == 403 and "supported-filter" in body)
         multiget = '<C:calendar-multiget xmlns:C="urn:ietf:params:xml:ns:caldav"><D:href xmlns:D="DAV:">/cal/s6.ics</D:href></C:calendar-multiget>'
         code, _, body = request("REPORT", "/cal/", multiget, ["Content-Type: application/xml"])
         check("calendar-multiget returns selected event", code == 207 and "/cal/s6.ics" in body)
+
+        # MKCALENDAR has to produce a collection that is then usable, so this
+        # walks create, discover, write, query-scoped-to-it, and remove.
+        code, _, _ = request("MKCALENDAR", "/cal/work/")
+        check("MKCALENDAR creates a collection", code == 201)
+        code, _, _ = request("MKCALENDAR", "/cal/work/")
+        check("MKCALENDAR on an existing collection is 405", code == 405)
+        code, _, body = request("PROPFIND", "/cal/", headers=["Depth: 1"])
+        check("Depth 1 discovers the created collection", code == 207 and "/cal/work/" in body)
+        code, _, _ = request("PUT", "/cal/work/w.ics", WORK_EVENT, ["If-None-Match: *"])
+        check("PUT into the created collection succeeds", code == 201)
+        code, _, body = request("PROPFIND", "/cal/work/", headers=["Depth: 1"])
+        check("the created collection lists its own event", code == 207 and "/cal/work/w.ics" in body)
+        code, _, body = request("REPORT", "/cal/work/", query, ["Content-Type: application/xml"])
+        check("calendar-query is scoped to the collection", code == 207 and "UID:s6-work@moon-ical" in body and "UID:s6@moon-ical" not in body)
+        code, _, _ = request("DELETE", "/cal/work/")
+        check("deleting a non-empty collection is refused", code == 409)
+        code, _, _ = request("DELETE", "/cal/work/w.ics")
+        check("deleting the collection's event succeeds", code == 204)
+        code, _, _ = request("DELETE", "/cal/work/")
+        check("deleting the now-empty collection succeeds", code == 204)
+
         code, _, _ = request("DELETE", "/cal/s6.ics", headers=[f"If-Match: {tag}"])
         check("matching conditional delete succeeds", code == 204)
         print(f"\n{len(failures)} failure(s)" if failures else "\nall green")

@@ -66,12 +66,49 @@ Two non-negotiables:
   change does not bring the visible changes to the external package users, it is
   typically a safe refactoring.
 
-- In the last step, run `moon info && moon fmt` to update the interface and
-  format the code. Check the diffs of `.mbti` file to see if the changes are
-  expected.
+- In the last step, run `moon info` and check the `.mbti` diffs to see if the
+  changes are expected.
+
+- **Do not run a bare `moon fmt` on this repository with moonc ≥ v0.10.15.**
+  That formatter rewrites `Int` to `Int32` and turns optional parameters
+  (`limit? : Int = 200`) into labeled ones (`limit~ : Int32 = 200`) — a
+  public-API change. The committed tree already fails `moon fmt --check` under
+  it, so a repo-wide diff from `moon fmt` is noise, not progress. Keep new code
+  in the existing `Int` style by hand. `moon check` / `moon test` / `moon info`
+  are unaffected.
 
 - Run `moon test` to check tests pass. MoonBit supports snapshot testing; when
   changes affect outputs, run `moon test --update` to refresh snapshots.
+
+## Verification must discriminate
+
+S10 shipped two defects — `calendar-query` ignoring `CALDAV:filter`, and
+`MKCALENDAR` not creating a collection — that passed every gate: full-target
+tests, live curl acceptance, real-client interop, 96% coverage. The checks
+asserted "the thing I know is there came back", which a fully stubbed
+implementation satisfies just as well. Full post-mortem:
+`docs/development.html` §11.
+
+Rules for any new capability:
+
+- **A check must fail when the capability is absent.** "The expected item
+  appears in the response" is not evidence — returning everything passes it.
+- **R1 differential check.** For anything that takes input and decides output
+  from it, include a pair of requests differing *only* in that input, and
+  assert the two results differ.
+- **R2 empty result.** Every selecting or filtering operation needs a case that
+  must return an empty result set, not the whole set.
+- **R3 refusal.** Every operation that can be refused needs a case asserting the
+  specific status *and* the specific error element — never just "not 200".
+- **R4 capability implies evidence.** Every capability named in the README or
+  `docs/development.html` §02 must be locatable in §11's capability→evidence
+  matrix. If it cannot be, move it to §08 (out of scope) rather than claim it.
+- **R5 spec-derived bodies.** Transcribe protocol request bodies from the RFC
+  examples mechanically, the way the RRULE layer does with its corpus, and cite
+  the RFC section in the test comment. Hand-written bodies inherit the author's
+  blind spot.
+- **R6 interop is not protocol completeness.** A passing client session proves
+  only the paths that client walks. Record what it did *not* touch.
 
 ## Cross-session progress tracking
 

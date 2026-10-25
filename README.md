@@ -18,14 +18,21 @@ recurrence expansion to a DAV calendar that stock clients can discover.
   `RANGE=THISANDFUTURE`.
 - RFC-style CRLF serialization with UTF-8-safe 75-octet folding.
 - Native CalDAV server: vdir storage, content-addressed ETags, discovery,
-  `PROPFIND`, calendar-query/multiget `REPORT`, `MKCALENDAR`, and conditional
-  PUT/DELETE.
+  `PROPFIND`, `REPORT`, `MKCALENDAR`, and conditional PUT/DELETE.
+- `calendar-query` evaluates its `CALDAV:filter` — nested component filters,
+  `is-not-defined`, `time-range` resolved against recurrence, `text-match`, and
+  parameter filters — and reports the RFC 4791 §7.8 preconditions as `403`.
+- `MKCALENDAR` creates a calendar collection under `/cal/<name>/` that holds
+  its own events, is discoverable by `PROPFIND`, and can be deleted.
 
 ## Install
 
 ```bash
-moon add justinwongcn/moon-ical@0.1.0
+moon add justinwongcn/moon-ical@0.2.0
 ```
+
+The repository is now developing 0.3.0; 0.2.0 remains the published release
+until the new API and end-to-end checks are complete.
 
 ## Library usage
 
@@ -69,14 +76,20 @@ python tools/s5_acceptance.py
 python tools/s6_acceptance.py
 ```
 
-Current results: 150 wasm, 137 wasm-gc, 150 JavaScript, and 155 native tests;
-21 HTTP storage and 11 live CalDAV curl checks also pass.
+Current results: 170 wasm, 157 wasm-gc, 170 JavaScript, and 176 native tests;
+21 HTTP storage and 23 live CalDAV curl checks also pass.
+
+Checks are written to discriminate, not just to observe: for anything that
+takes input and decides its output from it, the suite contains a pair of
+requests differing only in that input and asserts they return different
+results. The rule and the capability→evidence matrix are in
+[docs/development.html](docs/development.html) §11.
 
 ## Client interoperability
 
 | Client or driver | Discovery | Read/list | Create/update/delete | Result |
 |---|---:|---:|---:|---|
-| Real curl over TCP | Yes | Yes | Yes | 32/32 live checks pass |
+| Real curl over TCP | Yes | Yes | Yes | 44/44 live checks pass |
 | Thunderbird 155.0.1 (Windows) | Yes | Yes | Yes | Passed against localhost: seed read, create, in-place update, and delete verified in vdir |
 | DAVx5 | Not run | Not run | Not run | Android device required |
 | Apple Calendar | Not run | Not run | Not run | macOS/iOS device required |
@@ -102,6 +115,17 @@ iCloud, Yahoo, and Outlook/Microsoft Graph is post-hackathon work.
 - Request bodies require `Content-Length`; chunked uploads receive `411`.
 - Sub-daily RRULE frequencies and `BYWEEKNO`, `BYYEARDAY`, `BYHOUR`,
   `BYMINUTE`, and `BYSECOND` are explicit parse errors.
+- `calendar-query` evaluates the filter, but `PROPFIND` and `REPORT` still
+  ignore the requested `DAV:prop` set and answer with a fixed property set.
+- `MKCALENDAR` creates the collection but does not store the properties in its
+  request body (`displayname`, `calendar-color`); the collection's name is its
+  display name.
+- `/cal/` is both the calendar home and the default collection. A collection
+  created by `MKCALENDAR` nests beside the existing events rather than moving
+  them, so a client already pointed at `/cal/` keeps working.
+- A `time-range` on `VALARM` is refused with `supported-filter` rather than
+  resolved against relative triggers.
+- `DURATION` is not parsed, so a component's end comes from `DTEND` or `DUE`.
 
 The architecture and milestone record are in
 [docs/development.html](docs/development.html); third-party corpus provenance

@@ -25,10 +25,19 @@ async test "store put/get/delete round-trip through the vdir" {
 }
 
 ///|
-test "event_name only recognises /cal/<name> paths" {
-  assert_eq(event_name("/cal/a.ics"), Some("a.ics"))
-  assert_eq(event_name("/cal/a"), Some("a"))
-  assert_eq(event_name("/cal/"), None)
-  assert_eq(event_name("/other/a.ics"), None)
-  assert_eq(event_name("/"), None)
+test "target_of classifies the calendar routes" {
+  assert_true(target_of("/cal/a.ics") is Event(collection=None, name="a.ics"))
+  assert_true(target_of("/cal/work/") is Collection(name="work"))
+  assert_true(
+    target_of("/cal/work/a.ics") is Event(collection=Some("work"), name="a.ics"),
+  )
+  // Without a trailing slash the path is still an event in the default
+  // collection, which is what the first release served.
+  assert_true(target_of("/cal/work") is Event(collection=None, name="work"))
+  assert_true(target_of("/cal/") is Home)
+  assert_true(target_of("/cal") is Home)
+  assert_true(target_of("/") is Root)
+  assert_true(target_of("/principals/default/") is Principal)
+  assert_true(target_of("/.well-known/caldav") is WellKnown)
+  assert_true(target_of("/other/a.ics") is Unknown)
 }

@@ -22,3 +22,6 @@ docs/research/
 
 # agent skill symlinks (derived from skills-lock.json)
 .claude/
+
+# local agent workspace data (session memory, not part of the project)
+.workbuddy-ai/

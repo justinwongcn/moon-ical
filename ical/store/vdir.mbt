@@ -88,7 +88,7 @@ pub async fn VdirStore::put(
 pub async fn VdirStore::get(self : VdirStore, name : String) -> VdirFile? {
   check_name(name)
   let path = path_of(self.root, name)
-  if @fs.exists(path) {
+  if @fs.exists(path) && !is_directory(path) {
     let data = @fs.read_file(path)
     let text = data.text()
     Some({ text, etag: etag_of(text), })
@@ -112,15 +112,109 @@ pub async fn VdirStore::delete(self : VdirStore, name : String) -> Bool {
 
 ///|
 /// Every event name in the collection, sorted — the listing a
-/// calendar-collection PROPFIND (S6) walks.
+/// calendar-collection PROPFIND (S6) walks. Nested calendar collections are
+/// directories rather than events, so they are excluded here and reported by
+/// [`VdirStore::collections`] instead.
 pub async fn VdirStore::list(self : VdirStore) -> Array[String] {
-  if @fs.exists(self.root) {
-    let names = @fs.readdir(self.root)
-    names.sort()
-    names
-  } else {
-    []
+  if !@fs.exists(self.root) {
+    return []
   }
+  let names : Array[String] = []
+  for name in @fs.readdir(self.root) {
+    if is_store_name(name) && !is_directory(path_of(self.root, name)) {
+      names.push(name)
+    }
+  }
+  names.sort()
+  names
+}
+
+///|
+/// The nested calendar collections of this one: its subdirectories, sorted.
+///
+/// A calendar collection created over HTTP (`MKCALENDAR`) is one of these,
+/// which is what makes it discoverable to the next `PROPFIND`.
+pub async fn VdirStore::collections(self : VdirStore) -> Array[String] {
+  if !@fs.exists(self.root) {
+    return []
+  }
+  let names : Array[String] = []
+  for name in @fs.readdir(self.root) {
+    if is_store_name(name) && is_directory(path_of(self.root, name)) {
+      names.push(name)
+    }
+  }
+  names.sort()
+  names
+}
+
+///|
+/// Create a nested calendar collection. `false` when one with this name is
+/// already there, which the CalDAV layer answers with `405` — the status
+/// RFC 4791 §5.3.1 gives `MKCALENDAR` on an existing collection.
+pub async fn VdirStore::create_collection(
+  self : VdirStore,
+  name : String,
+) -> Bool {
+  check_name(name)
+  let path = path_of(self.root, name)
+  if @fs.exists(path) {
+    return false
+  }
+  if !@fs.exists(self.root) {
+    @fs.mkdir(self.root, recursive=true)
+  }
+  @fs.mkdir(path)
+  true
+}
+
+///|
+/// The store of a nested calendar collection, or `None` when this name is not
+/// one. The nested store has the same shape — one `.ics` file per event — so
+/// every event operation works on it unchanged.
+pub async fn VdirStore::collection(
+  self : VdirStore,
+  name : String,
+) -> VdirStore? {
+  if !is_store_name(name) {
+    return None
+  }
+  let path = path_of(self.root, name)
+  if is_directory(path) {
+    Some({ root: path, })
+  } else {
+    None
+  }
+}
+
+///|
+/// Remove a nested calendar collection. `false` when there is no such
+/// collection, or when it still holds events — a collection is not deleted
+/// out from under its contents.
+pub async fn VdirStore::remove_collection(
+  self : VdirStore,
+  name : String,
+) -> Bool {
+  check_name(name)
+  let nested = path_of(self.root, name)
+  if !is_directory(nested) {
+    return false
+  }
+  if @fs.readdir(nested).length() > 0 {
+    return false
+  }
+  @fs.rmdir(nested)
+  true
+}
+
+///|
+/// Whether this path is an existing directory, guarded so a missing path is
+/// simply "not a directory" rather than a failure.
+async fn is_directory(path : String) -> Bool {
+  if !@fs.exists(path) {
+    return false
+  }
+  @fs.kind(path) == @fs.FileKind::Directory
 }
 
 ///|
@@ -191,17 +285,28 @@ fn path_of(root : String, name : String) -> String {
 /// Windows drive letters) from ever reaching the filesystem — the
 /// name that arrives over HTTP is data, not a path.
 fn check_name(name : String) -> Unit raise {
-  if name.length() == 0 || name[0] == '.' {
+  if !is_store_name(name) {
     raise StoreError::BadName(name~)
   }
+}
+
+///|
+/// Whether a name is one plain token a store accepts, without raising — the
+/// form the routing layer needs, where an unusable name is a 404 rather than
+/// an error.
+pub fn is_store_name(name : String) -> Bool {
+  if name.length() == 0 || name[0] == '.' {
+    return false
+  }
   for c in name {
-    if !(c is ('a'..='z') ||
-      c is ('A'..='Z') ||
-      c is ('0'..='9') ||
+    if !(c is ('a'..<='z') ||
+      c is ('A'..<='Z') ||
+      c is ('0'..<='9') ||
       c == '.' ||
       c == '_' ||
       c == '-') {
-      raise StoreError::BadName(name~)
+      return false
     }
   }
+  true
 }

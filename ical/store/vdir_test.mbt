@@ -29,6 +29,33 @@ async fn name_error(name : String) -> String {
 }
 
 ///|
+/// A collection created over HTTP is a real directory holding real events, so
+/// this walks the whole lifecycle the CalDAV layer drives.
+async test "a created collection holds its own events" {
+  let dir = @fs.tmpdir(prefix="moon-ical-vdir-")
+  let store = @store.VdirStore::new("\{dir}/cal")
+  assert_eq(store.collections(), [])
+  assert_true(store.collection("work") is None)
+  assert_eq(store.create_collection("work"), true)
+  // Creating it twice is refused, which the CalDAV layer answers with 405.
+  assert_eq(store.create_collection("work"), false)
+  assert_eq(store.collections(), ["work"])
+  let nested = store.collection("work").unwrap()
+  let _ = nested.put("a.ics", "BEGIN:VCALENDAR\r\nUID:a\r\nEND:VCALENDAR\r\n")
+  assert_eq(nested.list(), ["a.ics"])
+  // A nested collection's events are not the parent's.
+  assert_eq(store.list(), [])
+  // A collection still holding events is not removed out from under them.
+  assert_eq(store.remove_collection("work"), false)
+  assert_eq(nested.delete("a.ics"), true)
+  assert_eq(store.remove_collection("work"), true)
+  assert_eq(store.collections(), [])
+  assert_true(store.collection("work") is None)
+  assert_true(store.collection("a b") is None)
+  @fs.rmdir(dir, recursive=true)
+}
+
+///|
 async test "names that are not one plain token are refused" {
   assert_eq(name_error("../escape"), "refused store name: ../escape")
   assert_eq(name_error("/abs"), "refused store name: /abs")
