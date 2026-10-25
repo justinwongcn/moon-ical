@@ -32,10 +32,10 @@ clients can discover and edit it.
 ## Install
 
 ```bash
-moon add justinwongcn/moon-ical@0.3.0
+moon add justinwongcn/moon-ical@0.4.0
 ```
 
-0.3.0 is the version currently published on mooncakes. 0.4.0 is still in
+0.4.0 is the version currently published on mooncakes. 0.5.0 is still in
 development and will land once the new API and the end-to-end checks are
 done.
 
