@@ -19,7 +19,7 @@
 
 **`ZoneTable`**：内置常用时区的固定偏移表（`builtin_common`）+ feed 内嵌 `VTIMEZONE`（优先级更高）。内部是 `Map[String,Int]` 索引（R11 优化，覆盖写 = 后插入胜）。仓库没有完整 IANA tzdb——重复的墙上时间跨 DST 保持解析出的偏移，这是声明过的边界。
 
-**`Event` 类型化视图**：`parse_events` / `parse_calendar` 从组件树抽取 `Event { uid, summary, location, description, dtstart, dtend, recurrence_id, rrule, exdates }`。属性缺失是 `None` 不是错；畸形属性带行号报错。
+**`Event` 类型化视图**：`parse_events` / `parse_calendar` 从组件树抽取 `Event { uid, summary, location, description, dtstart, dtend, recurrence_id, rrule, exdates }`。属性缺失是 `None` 不是错；畸形属性带行号报错。S29 起 `DURATION` 按 RFC 5545 §3.3.6 严格解析为**替代结束**：无 `DTEND` 的事件以其结束，两者并存是响亮的规范违例，occurrence 继承时长，`VTODO`/`VFREEBUSY` 的 time-range 同样认它；日/周分量按精确秒计（在项目已声明的固定偏移时区下，名义时长与精确时长重合）。剩余声明边界：`RDATE` 与 `VALUE=PERIOD` 不解析。
 
 ## RRULE 分档语义（`ical/rrule`）
 

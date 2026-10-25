@@ -39,7 +39,7 @@
 
 - **每事件一个 `.ics` 文件，每个集合一个子目录**——vdir 是跨工具互认的存储约定，可以直接用文件管理器检查 `caldata` 目录。
 - **ETag 是 FNV-1a 内容寻址**（`etag_of`）：同字节同 tag，改一字节即变；不是时间戳。
-- **名字白名单**（`is_store_name`：字母数字 `._-` 且非点开头）拒绝非法名，防路径逃逸，错误是 `StoreError::BadName`。
+- **名字白名单**（`is_store_name`：字母数字 `._-` 且非点开头）拒绝非法名，防路径逃逸，错误是 `StoreError::BadName`；S31 起还全平台拒绝 Windows 保留设备名（`CON`/`PRN`/`AUX`/`NUL`/`COM1-9`/`LPT1-9`，带不带扩展名都算）——否则 vdir 拷到 Windows 机器就不可读，路由对这类名回普通 404。
 - 集合 API：`collections` / `create_collection` / `collection` / `remove_collection`；`list` 只返回事件。
 
 ## 运行与操作
@@ -65,9 +65,9 @@ moon run cmd/serve --target native -- ./caldata 8437
 ## 服务端已知边界速查
 
 - `PROPFIND`/`REPORT` 忽略 `DAV:prop` 选择，固定属性集；
-- `MKCALENDAR` body 属性不落盘；
+- `MKCALENDAR` body 属性已类型化解析（caldav 的 `parse_mkcalendar`，S30），但服务端仍不落盘——是否持久化是嵌入方的部署决策；
 - `sync-collection` / CTag 不支持（400）；
-- `DURATION` 不解析，组件结束只认 `DTEND`/`DUE`；
+- `DURATION` 已解析为替代结束（S29，见 [domain.md](domain.md)）；`RDATE`/`VALUE=PERIOD` 不解析，额外的重复实例被忽略；
 - `VALARM` 的 time-range 回 `403 supported-filter`；
 - 请求体必须带 `Content-Length`。
 
