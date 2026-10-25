@@ -50,11 +50,21 @@ pub fn Component::properties_named(
 }
 
 ///|
+/// How deep components may nest. Real trees are three or four levels
+/// (`VCALENDAR` > `VEVENT` > `VALARM`); anything near this bound is a
+/// hostile feed, and the consumers of a tree — the serializer, the
+/// CalDAV filter walks — recurse per level, so an unbounded depth turns
+/// a feed into a stack overflow. The XML request parser caps its depth
+/// for the same reason (`MAX_XML_DEPTH` in `ical/caldav`).
+const MAX_COMPONENT_DEPTH : Int32 = 64
+
+///|
 /// Build a component tree from already-unfolded logical lines.
 ///
 /// Unknown components are preserved rather than dropped, so an unusual feed
-/// loses no data. Unbalanced `BEGIN`/`END`, a mismatched `END` name, and a
-/// property outside any component all raise [`@text.ParseError`] carrying the
+/// loses no data. Unbalanced `BEGIN`/`END`, a mismatched `END` name, a
+/// property outside any component, and nesting deeper than
+/// [`MAX_COMPONENT_DEPTH`] all raise [`@text.ParseError`] carrying the
 /// offending line number.
 ///
 /// # Example
@@ -76,6 +86,13 @@ pub fn parse_components(lines : Array[String]) -> Array[Component] raise {
     let line_no = i + 1
     let line = @text.parse_content_line(raw, line_no)
     if line.name == "BEGIN" {
+      if open.length() >= MAX_COMPONENT_DEPTH {
+        raise @text.ParseError::BadLine(
+          line_no~,
+          line=raw,
+          message="component nesting deeper than \{MAX_COMPONENT_DEPTH} levels",
+        )
+      }
       open.push({ kind: line.value.to_upper(), properties: [], children: [], })
     } else if line.name == "END" {
       match open.pop() {

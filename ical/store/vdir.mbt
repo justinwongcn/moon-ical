@@ -99,9 +99,15 @@ pub async fn VdirStore::get(self : VdirStore, name : String) -> VdirFile? {
 
 ///|
 /// Remove one event. `false` when there was nothing under that name.
+/// A directory under the name is a nested calendar collection, not an
+/// event: `fs.remove` maps to `rmdir(2)` on POSIX and would silently
+/// delete an empty collection — refuse it instead.
 pub async fn VdirStore::delete(self : VdirStore, name : String) -> Bool {
   check_name(name)
   let path = path_of(self.root, name)
+  if is_directory(path) {
+    return false
+  }
   if @fs.exists(path) {
     @fs.remove(path)
     true

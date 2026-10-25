@@ -211,3 +211,24 @@ async test "more header lines than the cap is refused" {
     "malformed request: too many header lines (over 100)",
   )
 }
+
+///|
+async test "a well-formed huge Content-Length is a size refusal, not malformed" {
+  // Before S22 the parser capped digits at nine to fit Int32, so the
+  // ten-digit 10000000000 landed in the "not a plain integer" 400 bucket;
+  // RFC 7230 section 3.3.2 keeps that status for unparseable values, and
+  // a parseable-but-huge one is 413 territory. The nine-digit over-cap
+  // length pins the pre-existing half of the split.
+  assert_eq(
+    request_error_of(
+      "PUT /cal/a.ics HTTP/1.1\r\nContent-Length: 10000000000\r\n\r\n",
+    ),
+    "request body exceeds 10485760 bytes",
+  )
+  assert_eq(
+    request_error_of(
+      "PUT /cal/a.ics HTTP/1.1\r\nContent-Length: 999999999\r\n\r\n",
+    ),
+    "request body exceeds 10485760 bytes",
+  )
+}

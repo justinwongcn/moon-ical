@@ -60,3 +60,18 @@ test "a query string never changes the routed path" {
     is Event(collection=Some("work"), name="w.ics"),
   )
 }
+
+///|
+async test "store delete refuses a directory: a collection is not an event" {
+  // fs.remove maps to rmdir(2) on POSIX, so before S22 a delete aimed at
+  // a name that happened to be a directory silently removed an empty
+  // collection and answered 204; the store now refuses directories.
+  let dir = @fs.tmpdir(prefix="moon-ical-serve-del-")
+  let store = @store.VdirStore::new("\{dir}/cal")
+  assert_true(store.create_collection("nested"))
+  assert_false(store.delete("nested"))
+  assert_true(store.get("nested") is None)
+  @fs.rmdir("\{dir}/cal/nested")
+  @fs.rmdir("\{dir}/cal")
+  @fs.rmdir(dir, recursive=true)
+}

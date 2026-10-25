@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0
+
+- Close the four confirmed P3 findings from the second review round: a
+  well-formed ten-digit `Content-Length` is a size refusal (413) instead
+  of "not a plain integer" (400) — the parser saturates an `Int64`
+  accumulator instead of rejecting long digit strings; `escape_value`
+  normalizes a carriage return to the `\n` escape (RFC 5545 TEXT values
+  carry no CR, and a raw one would split the property when unfolded);
+  `VdirStore::delete` refuses a directory instead of letting POSIX
+  `rmdir(2)` silently remove an empty collection and answer 204; and
+  `parse_components` bounds nesting at 64 levels — the cap the XML
+  request parser already enforces — so a hostile feed cannot reach the
+  recursive serializer and filter walks as a stack overflow.
+
 ## 0.3.0
 
 - Evaluate the `CALDAV:filter` of a `calendar-query` instead of answering with

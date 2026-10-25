@@ -165,7 +165,11 @@ pub fn unescape_value(value : String) -> String {
 /// Escape text for use as a property value, the inverse of
 /// [`unescape_value`]: a newline becomes `\n`, and a literal comma,
 /// semicolon, or backslash gains its backslash. Characters that need no
-/// escape pass through untouched.
+/// escape pass through untouched — with one normalization: a carriage
+/// return cannot survive the round trip (RFC 5545 TEXT values carry no
+/// CR, and [`unfold`] reads a bare CR as a line terminator, so writing
+/// one back would split the property on reparse), so both line breaks
+/// escape as `\n`.
 ///
 /// Parsed values keep their escaped wire form, so a round trip through
 /// parse and serialize never calls this — it is for *building* content
@@ -183,7 +187,7 @@ pub fn unescape_value(value : String) -> String {
 pub fn escape_value(text : String) -> String {
   let out : Array[Char] = []
   for c in text {
-    if c == '\n' {
+    if c == '\n' || c == '\r' {
       out.push('\\')
       out.push('n')
     } else if c == ',' || c == ';' || c == '\\' {

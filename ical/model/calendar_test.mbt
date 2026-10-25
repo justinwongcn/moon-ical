@@ -91,3 +91,32 @@ test "an unclosed component is reported at the end of the stream" {
 test "an empty stream yields no components" {
   assert_eq(@model.parse_components([]), [])
 }
+
+///|
+test "component nesting is bounded" {
+  // The serializer and the CalDAV filter walks recurse per level, so a
+  // pathologically nested feed is a stack overflow waiting to happen —
+  // the same shape the XML request parser caps at 64. Sixty levels
+  // parse; one hundred are refused whole with the offending line.
+  fn nested(depth : Int32) -> Array[String] {
+    let lines : Array[String] = []
+    for _ in 0..<depth {
+      lines.push("BEGIN:X-COMPONENT")
+    }
+    for _ in 0..<depth {
+      lines.push("END:X-COMPONENT")
+    }
+    lines
+  }
+  let ok = @model.parse_components(nested(60))
+  assert_eq(ok.length(), 1)
+  let error = try {
+    let _ = @model.parse_components(nested(100))
+    "no-error"
+  } catch {
+    err => err.to_string()
+  }
+  assert_eq(
+    error, "line 65: component nesting deeper than 64 levels (in `BEGIN:X-COMPONENT`)",
+  )
+}

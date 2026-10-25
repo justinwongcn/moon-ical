@@ -117,3 +117,13 @@ test "escape_value is the inverse of unescape_value" {
   )
   assert_eq(@text.escape_value("plain"), "plain")
 }
+
+///|
+test "a carriage return escapes as a newline, keeping the value one line" {
+  // RFC 5545 TEXT values carry no CR, and unfold reads a bare CR as a
+  // line terminator: writing one back would split the property on
+  // reparse. Both line breaks escape as the \n form.
+  assert_eq(@text.escape_value("a\rb"), "a\\nb")
+  assert_eq(@text.escape_value("a\r\nb"), "a\\n\\nb")
+  assert_eq(@text.unescape_value("a\\nb"), "a\nb")
+}

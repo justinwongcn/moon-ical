@@ -28,10 +28,10 @@ recurrence expansion to a DAV calendar that stock clients can discover.
 ## Install
 
 ```bash
-moon add justinwongcn/moon-ical@0.2.0
+moon add justinwongcn/moon-ical@0.3.0
 ```
 
-The repository is now developing 0.3.0; 0.2.0 remains the published release
+The repository is now developing 0.4.0; 0.3.0 is the published release
 until the new API and end-to-end checks are complete.
 
 ## Library usage
@@ -76,7 +76,7 @@ python tools/s5_acceptance.py
 python tools/s6_acceptance.py
 ```
 
-Current results: 189 wasm, 174 wasm-gc, 189 JavaScript, and 197 native tests;
+Current results: 192 wasm, 176 wasm-gc, 192 JavaScript, and 201 native tests;
 23 HTTP storage and 36 live CalDAV curl checks also pass.
 
 Checks are written to discriminate, not just to observe: for anything that

@@ -332,17 +332,21 @@ async fn[R : @io.Reader] read_body(
   match request.header("Content-Length") {
     None => request
     Some(text) => {
-      let length = parse_int(text)
-      if length < 0 {
-        // An unparseable length is a malformed header (RFC 7230 §3.3.2),
-        // not a size problem: answer 400, not 413.
-        raise HttpParseError::Malformed(
-          message="Content-Length is not a plain integer: \{text}",
-        )
+      // A length that is not a plain integer is a malformed header
+      // (RFC 7230 §3.3.2, 400); a well-formed but huge one is a size
+      // refusal (413). Before S22 the parser capped digits at nine to
+      // fit Int32, so a ten-digit length fell into the 400 bucket.
+      let length = match parse_int(text) {
+        None =>
+          raise HttpParseError::Malformed(
+            message="Content-Length is not a plain integer: \{text}",
+          )
+        Some(len) => len
       }
-      if length > MAX_BODY {
+      if length > MAX_BODY.to_int64() {
         raise HttpParseError::BodyTooLarge(limit=MAX_BODY)
       }
+      let length = Int64::to_int(length)
       // The body's first bytes may already sit in the line reader's
       // buffer, having arrived in the same chunk as the head; drain
       // those before asking the reader for the rest.
@@ -391,21 +395,27 @@ fn[R] LineInput::take_bytes(
 
 ///|
 /// Decimal digits only; anything else is refused rather than guessed.
-fn parse_int(text : String) -> Int32 {
+/// The accumulator saturates near the Int64 ceiling so a well-formed but
+/// absurd length stays "a number, a huge one" (the 413 bucket) instead
+/// of wrapping or being rejected as malformed.
+fn parse_int(text : String) -> Int64? {
   let v = text.view()
   let n = v.length()
-  if n == 0 || n > 9 {
-    return -1
+  if n == 0 {
+    return None
   }
-  let mut acc = 0
+  let mut acc : Int64 = 0
   for i in 0..<n {
     let c = v[i]
     if !(c is ('0'..<='9')) {
-      return -1
+      return None
     }
-    acc = acc * 10 + (c.to_int() - '0'.to_int())
+    if acc > 922_337_203_685_477_580 {
+      return Some(9_223_372_036_854_775_807)
+    }
+    acc = acc * 10 + (c.to_int() - '0'.to_int()).to_int64()
   }
-  acc
+  Some(acc)
 }
 
 ///|

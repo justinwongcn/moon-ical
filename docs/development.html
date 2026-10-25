@@ -128,7 +128,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   </tbody>
 </table></div>
 
-<p><b>合计</b>：0.3.0 开发分支严格全目标测试为 wasm 189、wasm-gc 174、JavaScript 189、native 197；S5 23 项与 S6 36 项真实 curl 活体验收全绿。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
+<p><b>合计</b>：0.4.0 开发分支严格全目标测试为 wasm 192、wasm-gc 176、JavaScript 192、native 201；S5 23 项与 S6 36 项真实 curl 活体验收全绿。0.3.0 已发布到 mooncakes。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
 
 <!-- ============================================================ -->
 <h2 id="s03"><span class="num">03</span>架构与数据流</h2>
@@ -210,6 +210,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
     <tr><td class="c">S19</td><td>复审修复第二波（K5e，jev 裁决的决策落地）：家目录裸形式 <code>/cal</code> 301 到规范 URL <code>/cal/</code>（RFC 4918 §5.2），与 S13 给嵌套集合立的规则统一——此前家目录单独双写法直接服务，且无任何决策记录（S5 以来的未审视继承行为）；发现链发出的 href 全部带斜杠，存量客户端不受影响</td><td class="c">~+25</td><td>serve wbtest 断言更新（<code>/cal</code> 与 <code>/cal?x</code> 归 HomeBare）；S6 活体 +2（裸形式 301+Location、带斜杠形式 200 差分对）；S5 23/23、S6 36/36 全绿</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S20</td><td>复审修复第二波（小项批 K3/K4/K5g）：①<code>ResourceView</code> 携带 feed 时区表并贯穿 VTODO/VJOURNAL 区间与 prop-filter 的 time-range（此前只认内置表，feed 私有 TZID 假阴性）；②<code>parse_utc_offset</code> 补小时 ≤23 上界（<code>+9900</code> 曾被静默接受为 99h）；③<code>fetch_ics</code> 以 <code>with_timeout</code> 兜底超时（上游 async 客户端与 socket 层无任何超时，挂起服务器原先永久阻塞调用方），<code>timeout_seconds?=30</code>、到点抛 <code>FetchError::TimedOut</code></td><td class="c">~+80</td><td>K3 差分（feed 声明 TZID 的 VTODO 选中 / 撤销声明不选中）；K4 差分（+9900 拒绝、+2359 仍合法）；K5g 超时单测（本地「接受但永不响应」监听器 + 1s 界，断言恰为 TimedOut——纯本地、进 CI）；S5 23/23、S6 36/36；全目标 189/174/189/197；fetch .mbti 预期两处 diff（新参数 + 新变体）</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S21</td><td>依赖升级（发布前窗口，排期经 jev 裁决）：<code>async</code> 0.21.2→0.22.4、<code>x</code> 0.5.1→0.5.5（<code>moon add --upgrade</code>）；K5g 的前提在新版 async 复核（HTTP 客户端与 socket 层仍无任何超时，§11 声明补注两版均核）</td><td class="c">~0（仅 moon.mod 与文档）</td><td>升级后全门闸 + 活体复跑：check/test all deny-warn 189/174/189/197、fmt、info 零 diff（.mbti 不变）、S5 23/23、S6 36/36</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S22</td><td>0.3.0 发布后的 P3 收口批（复审确认未修的四条，0.4.0 首个提交）：①10 位合法大 <code>Content-Length</code> 从 400 归位 413（<code>parse_int</code> 改 Int64 饱和累加，不再按位数拒收）；②<code>escape_value</code> 把 CR 归一为 <code>\n</code> 转义（TEXT 值不得携带 CR，裸 CR 会在 unfold 处劈行）；③<code>VdirStore::delete</code> 拒绝目录（POSIX 上 fs.remove 即 rmdir，此前可静默删掉空集合回 204）；④<code>parse_components</code> 嵌套深度上限 64（与 XML 侧 <code>MAX_XML_DEPTH</code> 同款防线，保护递归的序列化与 filter 遍历）。同提交把版本推进 0.4.0</td><td class="c">~+60</td><td>K5a 差分（10 位与 9 位超限 CL 都 413、非数字仍 400）；K5c 断言 <code>a\rb → a\nb</code> 转义形态；K5d wbtest（delete 目录回 false、集合幸存）；K5f 差分（60 层解析成功、100 层整棵拒绝带行号）；全目标 192/176/192/201、S5 23/23、S6 36/36；.mbti 零变化</td><td><span class="chip done">完成</span></td></tr>
   </tbody>
 </table></div>
 
