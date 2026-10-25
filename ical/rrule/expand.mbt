@@ -199,8 +199,8 @@ fn candidates_for(
 ) -> Array[@time.PlainDate] raise {
   let rule = normalized.rule
   let all = match rule.freq {
-    Daily => daily_candidates(rule, start, period)
-    Weekly => weekly_candidates(rule, start, period)
+    Daily => daily_candidates(normalized, start, period)
+    Weekly => weekly_candidates(normalized, start, period)
     Monthly => monthly_candidates(normalized, start, period)
     Yearly => yearly_candidates(normalized, start, period)
   }
@@ -238,12 +238,12 @@ fn apply_setpos(
 /// `DAILY`: one date per period, the interval step from `DTSTART`, kept
 /// only if it survives every present `BY*` filter.
 fn daily_candidates(
-  rule : Rule,
+  normalized : NormalizedRule,
   start : @time.PlainDate,
   period : Int32,
 ) -> Array[@time.PlainDate] raise {
-  let day = start.add_days((period * rule.interval).to_int64())
-  if passes_filters(rule, day) {
+  let day = start.add_days((period * normalized.rule.interval).to_int64())
+  if passes_filters(normalized, day) {
     [day]
   } else {
     []
@@ -257,10 +257,11 @@ fn daily_candidates(
 /// `WKST` decides which week a date belongs to, which is why it changes
 /// the result near a week boundary.
 fn weekly_candidates(
-  rule : Rule,
+  normalized : NormalizedRule,
   start : @time.PlainDate,
   period : Int32,
 ) -> Array[@time.PlainDate] raise {
+  let rule = normalized.rule
   let into_week = (weekday_num(start.weekday()) - weekday_num(rule.wkst) + 7) %
     7
   let week0 = start.add_days(-into_week.to_int64())
@@ -273,7 +274,7 @@ fn weekly_candidates(
     } else {
       day.weekday() == start.weekday()
     }
-    if wanted && passes_filters(rule, day) {
+    if wanted && passes_filters(normalized, day) {
       out.push(day)
     }
   }
@@ -394,19 +395,25 @@ fn month_days(
 ///|
 /// Whether a `DAILY`/`WEEKLY` candidate survives every present `BY*`
 /// filter. Frequencies below monthly cannot generate from `BYMONTHDAY`,
-/// so it limits here instead.
-fn passes_filters(rule : Rule, day : @time.PlainDate) -> Bool {
+/// so it limits here instead — and a negative `BYMONTHDAY` counts from the
+/// end of the candidate's *own* month, so the test runs against the same
+/// realized day numbers [`month_days`] generates from, never the raw
+/// negative clause (which can never equal a 1..31 day number).
+fn passes_filters(normalized : NormalizedRule, day : @time.PlainDate) -> Bool {
+  let rule = normalized.rule
   if rule.bymonth.length() > 0 && !int_selected(rule.bymonth, day.month()) {
-    false
-  } else if rule.bymonthday.length() > 0 &&
-    !int_selected(rule.bymonthday, day.day()) {
-    false
-  } else if rule.byday.length() > 0 &&
-    !weekday_selected(rule.byday, day.weekday()) {
-    false
-  } else {
-    true
+    return false
   }
+  if rule.bymonthday.length() > 0 {
+    let dim = day.days_in_month()
+    if !int_selected(normalized.monthdays_by_length[dim - 28], day.day()) {
+      return false
+    }
+  }
+  if rule.byday.length() > 0 && !weekday_selected(rule.byday, day.weekday()) {
+    return false
+  }
+  true
 }
 
 ///|

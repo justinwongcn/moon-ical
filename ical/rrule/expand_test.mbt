@@ -223,3 +223,62 @@ test "WKST defaults to Monday and only matters near a week boundary" {
     "1997-08-24T09:00:00-05:00",
   ])
 }
+
+///|
+test "DAILY with a negative BYMONTHDAY matches each month's last day" {
+  // R1 differential (docs/development.html §11): the same clause realizes
+  // month-end days on the DAILY path too. Before S11 the raw negative list
+  // was tested against day-of-month and matched nothing at all.
+  let dtstart = @model.parse_single_date_time(
+    "20260115T000000Z",
+    @model.ZoneTable::empty(),
+  )
+  let out = @rrule.expand(
+    @rrule.parse_rule("FREQ=DAILY;BYMONTHDAY=-1"),
+    dtstart,
+    limit=12,
+  )
+  assert_eq(out.length(), 12)
+  assert_eq(out[0].to_string(), "2026-01-31T00:00:00Z")
+  assert_eq(out[1].to_string(), "2026-02-28T00:00:00Z")
+  assert_eq(out[2].to_string(), "2026-03-31T00:00:00Z")
+}
+
+///|
+test "DAILY with mixed-sign BYMONTHDAY realizes both entries" {
+  // Both clause entries must contribute: after 2026-01-15 the matches are
+  // the month ends and the firsts, interleaved chronologically.
+  let dtstart = @model.parse_single_date_time(
+    "20260115T000000Z",
+    @model.ZoneTable::empty(),
+  )
+  let out = @rrule.expand(
+    @rrule.parse_rule("FREQ=DAILY;BYMONTHDAY=1,-1"),
+    dtstart,
+    limit=4,
+  )
+  assert_eq(out.length(), 4)
+  assert_eq(out[0].to_string(), "2026-01-31T00:00:00Z")
+  assert_eq(out[1].to_string(), "2026-02-01T00:00:00Z")
+  assert_eq(out[2].to_string(), "2026-02-28T00:00:00Z")
+  assert_eq(out[3].to_string(), "2026-03-01T00:00:00Z")
+}
+
+///|
+test "WEEKLY with a negative BYMONTHDAY keeps only month-end weekdays" {
+  // From a Thursday DTSTART, the Thursdays that are also their month's
+  // last day in 2026 are 2026-04-30 and 2026-12-31 (every other month
+  // ends on a different weekday).
+  let dtstart = @model.parse_single_date_time(
+    "20260115T000000Z",
+    @model.ZoneTable::empty(),
+  )
+  let out = @rrule.expand(
+    @rrule.parse_rule("FREQ=WEEKLY;BYMONTHDAY=-1"),
+    dtstart,
+    limit=2,
+  )
+  assert_eq(out.length(), 2)
+  assert_eq(out[0].to_string(), "2026-04-30T00:00:00Z")
+  assert_eq(out[1].to_string(), "2026-12-31T00:00:00Z")
+}
