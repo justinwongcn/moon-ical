@@ -34,6 +34,7 @@
 - **不存在的日子跳过不钳位**：`MONTHLY;BYMONTHDAY=31` 在 2 月不产出 Feb 30。
 - **错误契约**：`COUNT`+`UNTIL` 互斥、`UNTIL` 与 DTSTART 值类型不一致 → `ExpandError::Invalid`。
 - **数值安全**（S12）：展开步进全 `Int64` 化；越出 year 9999 视为序列自然终结，不再回绕出"有效但错误"的日期。
+- **预算耗尽即报错**（S27）：无界规则走完 10000 周期预算仍不终止时抛 `ExpandError::Invalid`，不再静默返回"看似完整"的前缀；子句永不匹配的空走仍返回空，`COUNT`/`UNTIL` 有界与填满 `limit` 的走查照常结束。CalDAV 的 time-range 求值捕获该错误并回退到 master 区间。
 - **负 `BYMONTHDAY`**（S11）：DAILY/WEEKLY 路径按候选日所在月长度归一化判定——曾静默零匹配，现已用差分测试钉死。
 
 **对拍纪律**：期望值不是自造的。`expand_corpus_test.mbt` 由 `tools/gen_s3_corpus_test.py` 从 [graham/rrule](https://github.com/graham/rrule) 测试套件**机械抽取**生成（第一档 23 条 + 第二档 8 条；语料出处登记在 THIRD-PARTY-NOTICES.md）。改展开逻辑前先跑它。
@@ -47,6 +48,8 @@
 - `RECURRENCE-ID` + `STATUS:CANCELLED`：取消单个实例；
 - `RANGE=THISANDFUTURE`：从覆盖点起重定向整个后缀。
 
+S26 收紧的语义（各有差分钉住）：系列 master 取自**组自身 UID**——uid=a 的 override 先于无关的 uid=b master 到达时，不再误用 b 的系列展开 a 的组；override 无自身 `DTEND` 时继承 master 的时长（此前改期的一小时会议会变成"无结束"）。两条行为已文档化为边界而非意外：裸顶层 `VEVENT`（无 VCALENDAR 包裹）可解析但不产出事件；作用于同槽 override 的 `EXDATE` 即移除该实例。
+
 性能关键路径（R1）：同 UID 的 overrides/EXDATE **一次索引**，按序游标应用 THISANDFUTURE——2000 occurrences + 500 overrides 的基准从 20.27ms 降到 1.64ms。改 `series.mbt` 时保住这个结构，别退回逐条扫描。
 
 ## CalDAV filter 求值（`ical/caldav/filter.mbt`）
@@ -59,7 +62,7 @@
 - `prop-filter` 的 `text-match`（两种 collation：默认 `i;ascii-casemap` 折叠大小写、`i;octet` 字节敏感）与 `param-filter`；
 - 求值入口 `Filter::matches(calendar_data)`，对序列化后的 `.ics` 文本判定。
 
-**前置条件**按 RFC 4791 §7.8 回 `403` + `DAV:error`：无 filter 或非法 filter → `valid-filter`；不可支持的过滤（如对 `VALARM` 的 time-range，不解析相对 trigger）→ `supported-filter`。XML 本身的嵌套深度上限 64，越界整文档拒绝（S13：曾可栈溢出杀死进程）。
+**前置条件**按 RFC 4791 §7.8 回 `403` + `DAV:error`：无 filter 或非法 filter → `valid-filter`；起点 ≥ 终点的 time-range 同样回 `valid-filter`（S23——它不可能与任何事重叠，静默匹配空会被读成"区间内无事件"）；不可支持的过滤（如对 `VALARM` 的 time-range，不解析相对 trigger）→ `supported-filter`。XML 本身的嵌套深度上限 64，越界整文档拒绝（S13：曾可栈溢出杀死进程）；text-match 针与 multiget href 解码五个命名实体及 BMP 内的数值字符引用（`&#38;`、`&#x26;`，S13/S28——astral 平面引用保持原样，不匹配而非错配）。
 
 ## 错误契约总览
 

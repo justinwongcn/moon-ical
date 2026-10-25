@@ -20,7 +20,7 @@
 ## 方法与条件写入
 
 - `PROPFIND`：Depth 0 只回自身、Depth 1 加子项；**忽略请求的 `DAV:prop` 集**，固定返回 resourcetype / getcontenttype / getetag / calendar-data（声明过的边界）。
-- `REPORT`：`calendar-query`（filter 求值，见 [domain.md](domain.md)）与 `calendar-multiget`（只回被请求的 href，未知 href 回空 multistatus）；未知报告类型 400。
+- `REPORT`：按**根元素**判定报告类型（S23 起——此前对整个 body 做大写子串嗅探，text-match 针或 href 里含另一报告名会误路由到 multiget）；`calendar-query`（filter 求值，见 [domain.md](domain.md)）与 `calendar-multiget`（只回被请求的 href；缺失的 href 回各自的 404 response 元素——RFC 4791 示例的逐 href 形状，S26 前是静默跳过）；未知报告类型 400。
 - `MKCALENDAR`：在 `/cal/<cal>/` 创建集合，201；已存在 405；**请求体属性（displayname、calendar-color）不落盘**，集合名即 displayname。
 - 条件写入：`If-Match` 陈旧 → 412（PUT 与 DELETE 双路径），`If-None-Match: *` 重复创建 → 412。
 - `PUT /cal/` → 405 + `Allow`（S15 补上的方法缺失路径）。
@@ -30,7 +30,7 @@
 手解析请求行/头/体（不走 `@async` 的 `read_request`，因其 `RequestMethod` 是封闭枚举），自带缓冲的有界读取（S14 的 `LineInput`）：
 
 - chunked 请求体 → `411 Length Required`；
-- 单头行 > 64KB 或头 > 100 行 → `400`；超限请求体 → `413`（拒绝前先排空连接，否则客户端未读上传的关闭 RST 会吞掉 413 响应——S17，有原始 socket 活体检查钉住）；
+- 单头行 > 64KB 或头 > 100 行 → `400`；超限请求体 → `413`（拒绝前先排空连接，否则客户端未读上传的关闭 RST 会吞掉 413 响应——S17，有原始 socket 活体检查钉住；排空上限 10MB，仍在续传的更大上传会失去该拒绝响应——S28 文档化边界）；
 - 非数字 `Content-Length` → `400`（不是 413）；
 - 方法只是 token，PROPFIND/REPORT/MKCALENDAR 天然可读；
 - 响应复用 `@async` 的 `send_response`，内容经 StringBuilder 缓冲（R11 修掉 O(n²) 拼接）。
@@ -49,6 +49,7 @@ moon run cmd/serve --target native -- ./caldata 8437
 ```
 
 - 日历家 `http://127.0.0.1:8437/cal/`；客户端发现从 `/.well-known/caldav` 进。
+- 每个已响应请求记一行 `METHOD path -> status` 访问日志；请求层以下的失败在 500 前把错误打到 stderr（S24——此前 500 无任何痕迹）。刻意就这两路输出：无级别、无配置。
 - **无 TLS、无认证、无 ACL**——这是明确范围：暴露到不可信网络前必须放在带 TLS 和认证的反代后面（README 边界一节）。
 - 服务器只用 native 目标（`@async/fs` 在 js 目标是空壳）。
 

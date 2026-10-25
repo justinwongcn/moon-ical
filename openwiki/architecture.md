@@ -45,7 +45,7 @@ moon-ical 是两条栈：一条**库管线**把 `.ics` 文本变成类型化事�
 
 ## 依赖与上游接缝
 
-`moon.mod` 只依赖 `moonbitlang/async@0.21.2` 与 `moonbitlang/x@0.5.1`。围绕上游能力缺口定下的策略（完整登记在 [docs/upstream-seams.md](../docs/upstream-seams.md)）：
+`moon.mod` 只依赖 `moonbitlang/async@0.22.4` 与 `moonbitlang/x@0.5.5`。围绕上游能力缺口定下的策略（完整登记在 [docs/upstream-seams.md](../docs/upstream-seams.md)）：
 
 - **无 IANA tzdb**：`ZoneTable` = 固定偏移表 + feed 内嵌 `VTIMEZONE`；重复的墙上时间跨 DST 保持解析出的偏移。边界写进了 README。
 - **`@async` 的 `RequestMethod` 是封闭枚举**，没有 PROPFIND/REPORT/MKCALENDAR：所以 `httpd` 手解析请求行（方法只是 token）。上游扩展后可一行切回 `read_request`。
