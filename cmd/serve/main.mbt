@@ -165,6 +165,13 @@ priv enum Target {
 /// `/cal/work/` names a calendar while `/cal/work` names an event in the
 /// default collection — the shape the event routes already had.
 fn target_of(path : String) -> Target {
+  // Routing is by path alone: a request target may carry a query string,
+  // and nothing this server serves has one (RFC 3986 splits them at the
+  // first '?'). Before S14 any query string made the whole target 404.
+  let path = match path.view().find("?".view()) {
+    Some(q) => path.view()[0:q].to_owned()
+    None => path
+  }
   if path == "/.well-known/caldav" {
     return WellKnown
   }

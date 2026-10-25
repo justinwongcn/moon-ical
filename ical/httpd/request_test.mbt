@@ -101,13 +101,15 @@ async test "malformed request lines and headers are refused" {
 
 ///|
 async test "a Content-Length that is not a plain integer is refused" {
-  // The unparseable length becomes -1, which reads as too large: a body
-  // size the server will not guess at.
+  // An unparseable length is a malformed header (RFC 7230 section 3.3.2),
+  // not a size problem: 400 territory, distinct from a genuinely
+  // oversized body's 413. Before S14 the unparseable length was folded
+  // into the too-large refusal.
   assert_eq(
     request_error_of(
       "PUT /cal/a.ics HTTP/1.1\r\nContent-Length: 4x\r\n\r\nabcd",
     ),
-    "request body exceeds 10485760 bytes",
+    "malformed request: Content-Length is not a plain integer: 4x",
   )
 }
 
@@ -166,5 +168,46 @@ async test "respond writes a byte-accurate Content-Length for multibyte bodies" 
   assert_eq(
     sink.parts.join(""),
     "HTTP/1.1 200 OK\r\nContent-Length: 12\r\n\r\n中文日历",
+  )
+}
+
+///|
+async test "a request-head line past the cap is refused" {
+  // The read-side twin of the body cap: a client that never sends its
+  // newline must not buffer memory line by line (review round S6:
+  // a 2 MB single header line was accepted and served).
+  let long_header = StringBuilder()
+  long_header.write_string("GET / HTTP/1.1\r\nX-Big: ")
+  for _ in 0..<70_000 {
+    long_header.write_char('a')
+  }
+  long_header.write_string("\r\n\r\n")
+  assert_eq(
+    request_error_of(long_header.to_string()),
+    "malformed request: line too long (over 65536 bytes)",
+  )
+  let long_request_line = StringBuilder()
+  long_request_line.write_string("GET /")
+  for _ in 0..<70_000 {
+    long_request_line.write_char('a')
+  }
+  long_request_line.write_string(" HTTP/1.1\r\n\r\n")
+  assert_eq(
+    request_error_of(long_request_line.to_string()),
+    "malformed request: line too long (over 65536 bytes)",
+  )
+}
+
+///|
+async test "more header lines than the cap is refused" {
+  let many = StringBuilder()
+  many.write_string("GET / HTTP/1.1\r\n")
+  for i in 0..<101 {
+    many.write_string("X-H\{i}: v\r\n")
+  }
+  many.write_string("\r\n")
+  assert_eq(
+    request_error_of(many.to_string()),
+    "malformed request: too many header lines (over 100)",
   )
 }

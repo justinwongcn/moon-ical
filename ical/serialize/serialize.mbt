@@ -160,11 +160,20 @@ fn utf8_len(c : Char) -> Int32 {
 ///|
 /// Whether a parameter value needs surrounding double quotes when
 /// written: any of the structural characters `,` `;` `:` or `"` would
-/// otherwise be read back as structure rather than data.
+/// otherwise be read back as structure rather than data — and so would
+/// whitespace at either edge, because parsing an unquoted value trims
+/// it off (a quoted leading or trailing space survives; an unquoted one
+/// is gone after the round trip).
 fn param_needs_quotes(value : String) -> Bool {
+  let chars = value.to_array()
+  let n = chars.length()
   let mut needed = false
-  for c in value.to_array() {
+  for i in 0..<n {
+    let c = chars[i]
     if c == ',' || c == ';' || c == ':' || c == '"' {
+      needed = true
+    }
+    if (i == 0 || i == n - 1) && (c == ' ' || c == '\t') {
       needed = true
     }
   }

@@ -5,6 +5,16 @@
 const MAX_BODY : Int32 = 10 * 1024 * 1024
 
 ///|
+/// Caps on one physical line of the request head (request line or header
+/// line) and on how many header lines one request may carry — the
+/// read-side twin of [`MAX_BODY`]. Without them a client that never
+/// sends its newline buffers memory without bound, line by line.
+const MAX_LINE_BYTES : Int32 = 64 * 1024
+
+///|
+const MAX_HEADERS : Int32 = 100
+
+///|
 /// One hand-parsed HTTP/1.1 request (RFC 7230 §3, the subset CalDAV
 /// needs).
 ///
@@ -121,11 +131,12 @@ pub fn HttpRequest::header(self : HttpRequest, name : String) -> String? {
 /// }
 /// ```
 pub async fn[R : @io.Reader] read_request(reader : R) -> HttpRequest? {
+  let input : LineInput[R] = { reader, buf: [], }
   // Leading blank lines before a request line are tolerated (RFC 7230
   // §3.5); a clean EOF anywhere in this loop is a disconnect.
-  let mut first = read_line(reader)
+  let mut first = input.read_line()
   while first is Some("") {
-    first = read_line(reader)
+    first = input.read_line()
   }
   let request_line = match first {
     Some(line) => line
@@ -138,12 +149,19 @@ pub async fn[R : @io.Reader] read_request(reader : R) -> HttpRequest? {
   let headers : Array[HttpHeader] = []
   let mut blank = false
   while !blank {
-    match read_line(reader) {
+    match input.read_line() {
       None => raise HttpParseError::Malformed(message="EOF in headers")
       Some("") => blank = true
       Some(h) =>
         match parse_header(h) {
-          Some(parsed) => headers.push(parsed)
+          Some(parsed) => {
+            if headers.length() >= MAX_HEADERS {
+              raise HttpParseError::Malformed(
+                message="too many header lines (over \{MAX_HEADERS})",
+              )
+            }
+            headers.push(parsed)
+          }
           None => raise HttpParseError::Malformed(message="bad header: \{h}")
         }
     }
@@ -158,24 +176,86 @@ pub async fn[R : @io.Reader] read_request(reader : R) -> HttpRequest? {
   if is_chunked(request) {
     raise HttpParseError::ChunkedBody
   }
-  Some(read_body(reader, request))
+  Some(read_body(input, request))
+}
+
+///|
+/// A byte-level line reader over any reader, holding the bytes that
+/// arrived past the last newline. `@io.Reader::read_until` buffers a
+/// never-ending line without bound, which is exactly the memory hole
+/// [`MAX_LINE_BYTES`] exists to close, so the request head is read
+/// through this owned buffer instead.
+priv struct LineInput[R] {
+  reader : R
+  mut buf : Array[Byte]
 }
 
 ///|
 /// Read one line: up to the next LF, with a trailing CR stripped, so
-/// both CRLF and bare LF terminators parse. `None` is a clean EOF.
-async fn[R : @io.Reader] read_line(reader : R) -> String? {
-  match reader.read_until("\n") {
-    Some(line) => {
-      let v = line.view()
-      let n = v.length()
-      if n > 0 && v[n - 1] == '\r' {
-        Some(v[:n - 1].to_owned())
-      } else {
-        Some(line)
+/// both CRLF and bare LF terminators parse. `None` on a clean EOF before
+/// any byte — a keep-alive disconnect; a partial line at EOF is handed
+/// up for the caller's parse to judge. Raises [`HttpParseError`] when
+/// the line would pass [`MAX_LINE_BYTES`] or is not UTF-8.
+async fn[R : @io.Reader] LineInput::read_line(self : LineInput[R]) -> String? {
+  for ;; {
+    let mut newline : Int32? = None
+    let buf = self.buf
+    for i in 0..<buf.length() {
+      if buf[i].to_int() == '\n'.to_int() {
+        newline = Some(i)
+        break
       }
     }
-    None => None
+    match newline {
+      Some(lf) => {
+        let line_bytes : Array[Byte] = []
+        for i in 0..<lf {
+          line_bytes.push(buf[i])
+        }
+        let rest : Array[Byte] = []
+        for i in (lf + 1)..<buf.length() {
+          rest.push(buf[i])
+        }
+        self.buf = rest
+        return Some(finish_line(line_bytes))
+      }
+      None =>
+        if self.buf.length() > MAX_LINE_BYTES {
+          raise HttpParseError::Malformed(
+            message="line too long (over \{MAX_LINE_BYTES} bytes)",
+          )
+        } else {
+          match self.reader.read_some(max_len=4096) {
+            None =>
+              if self.buf.length() == 0 {
+                return None
+              } else {
+                let line_bytes = self.buf
+                self.buf = []
+                return Some(finish_line(line_bytes))
+              }
+            Some(chunk) =>
+              for i in 0..<chunk.length() {
+                self.buf.push(chunk[i])
+              }
+          }
+        }
+    }
+  }
+}
+
+///|
+/// Decode one line's bytes as UTF-8 and strip a trailing CR.
+fn finish_line(bytes : Array[Byte]) -> String raise {
+  let text = @utf8.decode(Bytes::from_array(bytes.exact_view())) catch {
+    _ => raise HttpParseError::Malformed(message="line is not valid UTF-8")
+  }
+  let v = text.view()
+  let n = v.length()
+  if n > 0 && v[n - 1] == '\r' {
+    v[:n - 1].to_owned()
+  } else {
+    text
   }
 }
 
@@ -246,21 +326,37 @@ fn is_chunked(request : HttpRequest) -> Bool {
 /// body must be delimited by one of the two mechanisms this layer
 /// handles, and chunked was already refused.
 async fn[R : @io.Reader] read_body(
-  reader : R,
+  input : LineInput[R],
   request : HttpRequest,
 ) -> HttpRequest {
   match request.header("Content-Length") {
     None => request
     Some(text) => {
       let length = parse_int(text)
-      if length < 0 || length > MAX_BODY {
+      if length < 0 {
+        // An unparseable length is a malformed header (RFC 7230 §3.3.2),
+        // not a size problem: answer 400, not 413.
+        raise HttpParseError::Malformed(
+          message="Content-Length is not a plain integer: \{text}",
+        )
+      }
+      if length > MAX_BODY {
         raise HttpParseError::BodyTooLarge(limit=MAX_BODY)
       }
-      let bytes = reader.read_exactly(length) catch {
-        _ =>
-          raise HttpParseError::Malformed(
-            message="truncated body: expected \{length} bytes",
-          )
+      // The body's first bytes may already sit in the line reader's
+      // buffer, having arrived in the same chunk as the head; drain
+      // those before asking the reader for the rest.
+      let (head, taken) = input.take_bytes(length)
+      let bytes = if taken < length {
+        let tail = input.reader.read_exactly(length - taken) catch {
+          _ =>
+            raise HttpParseError::Malformed(
+              message="truncated body: expected \{length} bytes",
+            )
+        }
+        head.add(tail)
+      } else {
+        head
       }
       let body = @utf8.decode(bytes) catch {
         _ => raise HttpParseError::Malformed(message="body is not valid UTF-8")
@@ -268,6 +364,29 @@ async fn[R : @io.Reader] read_body(
       { ..request, body, }
     }
   }
+}
+
+///|
+/// Take up to `want` bytes the line reader has already buffered — the
+/// front of its buffer is exactly the next byte the connection owes —
+/// returning them with how many were taken. A pipelined request's first
+/// bytes stay behind in the buffer.
+fn[R] LineInput::take_bytes(
+  self : LineInput[R],
+  want : Int32,
+) -> (Bytes, Int32) {
+  let take = if self.buf.length() > want { want } else { self.buf.length() }
+  let head : Array[Byte] = []
+  let rest : Array[Byte] = []
+  for i in 0..<self.buf.length() {
+    if i < take {
+      head.push(self.buf[i])
+    } else {
+      rest.push(self.buf[i])
+    }
+  }
+  self.buf = rest
+  (Bytes::from_array(head.exact_view()), take)
 }
 
 ///|

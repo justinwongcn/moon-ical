@@ -87,6 +87,13 @@ pub fn expand(
   limit~ : Int32 = 200,
 ) -> Array[@model.IcalDateTime] raise {
   check_expandable(rule, dtstart)
+  if limit <= 0 {
+    // A cap of zero or less caps everything. The semantic checks above
+    // still ran, so an invalid rule is reported rather than silently
+    // empty — only the count is clamped. (Before S14 the first candidate
+    // was pushed before the limit was consulted and limit=0 returned it.)
+    return []
+  }
   let normalized = NormalizedRule::new(rule)
   let rule = normalized.rule
   let start = plain_date_of(dtstart.wall)

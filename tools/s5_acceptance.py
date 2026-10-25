@@ -145,6 +145,12 @@ def main() -> int:
         code, _, body = request("GET", "/cal/")
         check("collection listing -> 200", code == 200, f"got {code}")
         check("listing contains test.ics", b"test.ics" in body)
+        # 8b. A query string never changes the routed path: the same GET
+        # with ?v=2 attached must serve the same bytes (before S14 any
+        # query string turned the whole target into a 404).
+        _, _, ebody = request("GET", "/cal/test.ics")
+        code, _, qbody = request("GET", "/cal/test.ics?v=2")
+        check("GET with a query string -> same 200", code == 200 and qbody == ebody, f"got {code}")
 
         # 9. DELETE removes it (204), then reports nothing left (404).
         code, _, _ = request("DELETE", "/cal/test.ics")

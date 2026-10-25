@@ -314,3 +314,21 @@ test "expansion ends at the representable calendar instead of raising" {
   )
   assert_eq(daily.length(), 1)
 }
+
+///|
+test "a limit of zero or less yields an empty series, not one occurrence" {
+  // R3 of the review round: before S14 the push ran before the limit
+  // check, so limit=0 answered with the first occurrence.
+  let dtstart = @model.parse_single_date_time(
+    "20260115T000000Z",
+    @model.ZoneTable::empty(),
+  )
+  let rule = @rrule.parse_rule("FREQ=DAILY;COUNT=3")
+  assert_eq(@rrule.expand(rule, dtstart, limit=0).length(), 0)
+  assert_eq(@rrule.expand(rule, dtstart, limit=-1).length(), 0)
+  // The semantic checks still fire before the clamp.
+  assert_eq(
+    expand_error_of("FREQ=DAILY;COUNT=3;UNTIL=19971224T000000Z", dtstart),
+    "invalid recurrence rule: COUNT and UNTIL are mutually exclusive",
+  )
+}

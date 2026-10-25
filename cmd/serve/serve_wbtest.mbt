@@ -41,3 +41,18 @@ test "target_of classifies the calendar routes" {
   assert_true(target_of("/.well-known/caldav") is WellKnown)
   assert_true(target_of("/other/a.ics") is Unknown)
 }
+
+///|
+test "a query string never changes the routed path" {
+  // Before S14 the target kept its query string and every request
+  // carrying one 404'd; routing is by path alone (RFC 3986).
+  assert_true(
+    target_of("/cal/a.ics?x=1") is Event(collection=None, name="a.ics"),
+  )
+  assert_true(target_of("/cal/?x=1") is Home)
+  assert_true(target_of("/cal/work/?edit") is Collection(name="work"))
+  assert_true(
+    target_of("/cal/work/w.ics?v=2")
+    is Event(collection=Some("work"), name="w.ics"),
+  )
+}

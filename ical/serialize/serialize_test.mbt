@@ -209,3 +209,17 @@ test "serialize_content_line folds and terminates a single line" {
     assert_true(byte_len(line2) <= 75)
   }
 }
+
+///|
+test "quoted parameter whitespace survives a serialize round trip" {
+  // M3 of the review round: parsing keeps the spaces inside the quotes,
+  // but the serializer wrote the value back unquoted and the re-parse
+  // trimmed it — " John " came back as "John".
+  let line = @text.parse_content_line("X-A;CN=\" John \":v", 1)
+  assert_eq(line.params[0].value, " John ")
+  let wire = @serialize.serialize_content_line(line)
+  assert_true(wire.contains("CN=\" John \""))
+  let stripped = wire.view()[0:wire.length() - 2].to_owned()
+  let back = @text.parse_content_line(stripped, 1)
+  assert_eq(back.params[0].value, " John ")
+}
