@@ -51,6 +51,10 @@
 - Document the three public definitions that carried no doc comment
   (`IcalDateTime::is_utc`, `IcalDateTime::is_floating`, `xml_escape`), found by
   enabling the new `missing_doc` lint.
+- Post-review verification round, second wave (S16-S20): end a `WEEKLY`
+  series at the calendar horizon when its final week runs past year 9999
+  (S12 guarded the step to the week's first day, but the days within the
+  week still escaped as x/time's untyped Failure).
 
 ## 0.2.0
 

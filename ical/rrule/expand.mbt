@@ -316,14 +316,27 @@ fn weekly_candidates(
     Some(base) => {
       let out : Array[@time.PlainDate] = []
       for i in 0..<7 {
-        let day = base.add_days(i.to_int64())
-        let wanted = if rule.byday.length() > 0 {
-          weekday_selected(rule.byday, day.weekday())
-        } else {
-          day.weekday() == start.weekday()
+        // `base` is a valid date, but the week it opens can run past the
+        // representable calendar: with base in year 9999's final week the
+        // later days of that week do not exist. S12 guarded the step to
+        // `base` but not the days within the week, so the walk escaped as
+        // x/time's untyped Failure; a day past the horizon ends this week
+        // (everything after it is further out) rather than failing it.
+        let day : @time.PlainDate? = Some(base.add_days(i.to_int64())) catch {
+          _ => None
         }
-        if wanted && passes_filters(normalized, day) {
-          out.push(day)
+        match day {
+          None => break
+          Some(day) => {
+            let wanted = if rule.byday.length() > 0 {
+              weekday_selected(rule.byday, day.weekday())
+            } else {
+              day.weekday() == start.weekday()
+            }
+            if wanted && passes_filters(normalized, day) {
+              out.push(day)
+            }
+          }
         }
       }
       Some(out)

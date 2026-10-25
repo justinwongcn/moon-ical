@@ -332,3 +332,41 @@ test "a limit of zero or less yields an empty series, not one occurrence" {
     "invalid recurrence rule: COUNT and UNTIL are mutually exclusive",
   )
 }
+
+///|
+test "a WEEKLY series at year 9999's final week ends, not raises" {
+  // The step to the week's first day was guarded by S12, but the days
+  // within the week were not: with DTSTART 9999-12-30 (Thursday) the walk
+  // escaped as x/time's untyped Failure from add_days on the Saturday of
+  // that week. The week is cut at the horizon exactly as the other
+  // frequencies end there. 9999-12-27..31 is Monday..Friday, so the plain
+  // weekly rule keeps only DTSTART's Thursday and the next week overflows.
+  let dtstart = @model.parse_single_date_time(
+    "99991230T000000Z",
+    @model.ZoneTable::empty(),
+  )
+  let out = @rrule.expand(@rrule.parse_rule("FREQ=WEEKLY"), dtstart, limit=50)
+  assert_eq(out.length(), 1)
+  assert_eq(out[0].to_string(), "9999-12-30T00:00:00Z")
+}
+
+///|
+test "every weekday of 9999's final week is offered up to the horizon" {
+  // BYDAY over the whole week walks the loop past the last representable
+  // day mid-week: the days that exist and are not before DTSTART (Tue
+  // 12-28 .. Fri 12-31; Monday 12-27 predates DTSTART and is skipped as
+  // in any other week) are returned and the walk ends, rather than dying
+  // on the Saturday of 10000.
+  let dtstart = @model.parse_single_date_time(
+    "99991228T000000Z",
+    @model.ZoneTable::empty(),
+  )
+  let out = @rrule.expand(
+    @rrule.parse_rule("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU"),
+    dtstart,
+    limit=50,
+  )
+  assert_eq(out.length(), 4)
+  assert_eq(out[0].to_string(), "9999-12-28T00:00:00Z")
+  assert_eq(out[3].to_string(), "9999-12-31T00:00:00Z")
+}
