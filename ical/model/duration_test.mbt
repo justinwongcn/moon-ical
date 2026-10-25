@@ -57,7 +57,9 @@ test "the duration grammar is strict about order and combination" {
     // No designator where P belongs.
     ("1D", "err:line 1: malformed duration, expected P: 1D (in `1D`)"),
     ("P", "err:line 1: malformed duration, no components: P (in `P`)"),
-    ("PT", "err:line 1: malformed duration, no components after T: PT (in `PT`)"),
+    (
+      "PT", "err:line 1: malformed duration, no components after T: PT (in `PT`)",
+    ),
     ("PW", "err:line 1: malformed duration, expected a number: PW (in `PW`)"),
     ("PD", "err:line 1: malformed duration, expected a number: PD (in `PD`)"),
     ("PX", "err:line 1: malformed duration, expected a number: PX (in `PX`)"),
