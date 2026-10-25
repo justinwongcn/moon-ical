@@ -449,3 +449,22 @@ test "a numeric character reference in a needle decodes like a named one" {
   // something else.
   assert_false(matches(base.replace(old="R&amp;D", new="R&#1114111;D"), ics))
 }
+
+///|
+test "a VTODO's DURATION forms its interval when DUE is absent" {
+  // The non-VEVENT interval path gains the same DURATION alternative
+  // RFC 5545 3.8.5.3 offers the VEVENT path: the todo runs 10:00-10:45
+  // UTC, inside the range.
+  let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" +
+    "BEGIN:VTODO\r\nUID:t\r\nDTSTART:20260115T100000Z\r\nDURATION:PT45M\r\nEND:VTODO\r\n" +
+    "END:VCALENDAR\r\n"
+  let range = "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VTODO\">" +
+    "<C:time-range start=\"20260115T000000Z\" end=\"20260116T000000Z\"/>" +
+    "</C:comp-filter></C:comp-filter>"
+  assert_true(matches(range, ics))
+  // The differential: a todo whose whole duration (23:30 plus 45
+  // minutes) sits past the range reads as no overlap, which the no-end
+  // parse could not have judged.
+  let late = ics.replace(old="20260115T100000Z", new="20260117T230000Z")
+  assert_false(matches(range, late))
+}

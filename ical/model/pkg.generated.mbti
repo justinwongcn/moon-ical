@@ -18,6 +18,8 @@ pub fn parse_date_time(@text.ContentLine, ZoneTable, line_no? : Int32) -> IcalDa
 
 pub fn parse_date_time_value(String, ZoneTable, tzid? : String?, value_is_date? : Bool, line_no? : Int32) -> IcalDateTime raise
 
+pub fn parse_duration(String, line_no~ : Int32, raw~ : String) -> Int64 raise
+
 pub fn parse_events(String) -> Array[Event] raise
 
 pub fn parse_single_date_time(String, ZoneTable, line_no? : Int32) -> IcalDateTime raise

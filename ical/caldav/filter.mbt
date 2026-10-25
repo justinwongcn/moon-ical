@@ -640,6 +640,17 @@ fn component_interval(
     .bind(line => try_date(line, zones))
   let dtend = component.property("DTEND").bind(line => try_date(line, zones))
   let due = component.property("DUE").bind(line => try_date(line, zones))
+  // A DURATION instead of an explicit end: the same alternative RFC
+  // 5545 §3.8.5.3 offers the VEVENT path. A malformed duration reads as
+  // "no end" here — the search stays lenient where the event view is
+  // loud.
+  let duration : Int64? = component
+    .property("DURATION")
+    .bind(line => {
+      Some(@model.parse_duration(line.value, line_no=0, raw=line.value)) catch {
+        _ => None
+      }
+    })
   match dtstart {
     Some(start) =>
       Some({
@@ -649,7 +660,11 @@ fn component_interval(
           None =>
             match due {
               Some(end) => Some(end.instant_seconds())
-              None => None
+              None =>
+                match duration {
+                  Some(seconds) => Some(start.instant_seconds() + seconds)
+                  None => None
+                }
             }
         },
         all_day: start.all_day,

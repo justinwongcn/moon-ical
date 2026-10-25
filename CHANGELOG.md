@@ -2,6 +2,12 @@
 
 ## 0.4.0
 
+- Parse the `DURATION` property (RFC 5545 §3.3.6): an event stating no
+  `DTEND` ends where its `DURATION` says (both present is the loud
+  spec violation), occurrences inherit the length, and the VTODO /
+  VFREEBUSY time-range path honors it too. Day and week components
+  count as exact seconds, which coincides with the nominal reading
+  under the fixed-offset zones.
 - Decode numeric character references (`&#38;`, `&#x26;`) in comparison
   text alongside the five named entities: the numeric spelling of the
   S13 fix's own example searched for a literal `&#38;` and silently

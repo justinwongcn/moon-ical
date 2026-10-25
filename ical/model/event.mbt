@@ -7,10 +7,11 @@
 /// a property that is *present but malformed* raises [`@text.ParseError`]
 /// instead of being silently skipped, so a broken feed is loud rather than
 /// subtly wrong. A property that is simply absent is `None` — absence is not
-/// breakage.
+/// breakage. An event that states no `DTEND` ends where its `DURATION`
+/// says it does (RFC 5545 §3.8.5.3 offers `DURATION` as the alternative
+/// end); carrying both is the spec violation it names and raises.
 ///
-/// Not interpreted yet: `DURATION` as the alternative end to `DTEND` (needs
-/// ISO 8601 duration parsing, planned with the recurrence work), and merging
+/// Not interpreted yet: merging
 /// override events into an expanded series (S8). `RECURRENCE-ID` is parsed
 /// and kept so a moved or cancelled single instance is already visible.
 pub struct Event {
@@ -126,9 +127,29 @@ fn event_from_component(
   let dtstart = component
     .property("DTSTART")
     .map(line => parse_date_time(line, zones))
-  let dtend = component
-    .property("DTEND")
-    .map(line => parse_date_time(line, zones))
+  // The end: DTEND as stated, or DTSTART plus DURATION when the event
+  // spells its length instead. RFC 5545 §3.8.5.3 forbids carrying both —
+  // which end applies would be a guess, so the violation is loud.
+  let dtend_line = component.property("DTEND")
+  let duration_line = component.property("DURATION")
+  if dtend_line is Some(_) && duration_line is Some(_) {
+    raise @text.ParseError::BadLine(
+      line_no=0,
+      line=duration_line.unwrap().value,
+      message="VEVENT carries both DTEND and DURATION",
+    )
+  }
+  let dtend = match dtend_line {
+    Some(line) => Some(parse_date_time(line, zones))
+    None =>
+      match (duration_line, dtstart) {
+        (Some(line), Some(start)) => {
+          let seconds = parse_duration(line.value, line_no=0, raw=line.value)
+          Some(start.shift_seconds(seconds))
+        }
+        _ => None
+      }
+  }
   let recurrence_id = component
     .property("RECURRENCE-ID")
     .map(line => parse_date_time(line, zones))

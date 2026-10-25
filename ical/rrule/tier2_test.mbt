@@ -247,3 +247,22 @@ test "a group expands the series of its own UID, not any master" {
   let merged = @rrule.expand_series(events)
   assert_eq(merged.length(), 0)
 }
+
+///|
+test "a series defined by DURATION gives every occurrence an end" {
+  // The master spells its length with DURATION instead of DTEND
+  // (RFC 5545 3.8.5.3); expansion materializes the end per occurrence,
+  // and a moved override without its own DTEND inherits the same length.
+  let merged = @rrule.expand_series(
+    @model.parse_events(
+      "BEGIN:VCALENDAR\r\n" +
+      "BEGIN:VEVENT\r\nUID:series\r\nDTSTART:20260901T090000Z\r\nDURATION:PT45M\r\n" +
+      "RRULE:FREQ=DAILY;COUNT=2\r\nEND:VEVENT\r\n" +
+      "BEGIN:VEVENT\r\nUID:series\r\nRECURRENCE-ID:20260902T090000Z\r\n" +
+      "DTSTART:20260902T130000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+  )
+  assert_eq(merged.length(), 2)
+  assert_eq(merged[0].end.unwrap().to_string(), "2026-09-01T09:45:00Z")
+  assert_eq(merged[1].end.unwrap().to_string(), "2026-09-02T13:45:00Z")
+}

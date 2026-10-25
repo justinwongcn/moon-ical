@@ -148,7 +148,7 @@ iCloud, Yahoo, and Outlook/Microsoft Graph is post-hackathon work.
   them, so a client already pointed at `/cal/` keeps working.
 - A `time-range` on `VALARM` is refused with `supported-filter`; relative
   triggers are not resolved.
-- `DURATION` is not parsed, so a component's end comes from `DTEND` or `DUE`.
+- `DURATION` is parsed as the alternative end (exact seconds; day and week components count nominally, which coincides under the fixed-offset zones). `RDATE` and `VALUE=PERIOD` are not parsed, so additional recurring instances are ignored.
 
 Architecture notes and the milestone record are in
 [docs/development.html](docs/development.html); third-party corpus sources
