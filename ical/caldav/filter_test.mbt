@@ -442,6 +442,10 @@ test "a numeric character reference in a needle decodes like a named one" {
   assert_false(matches(base.replace(old="R&amp;D", new="R&#xD800;D"), ics))
   assert_false(matches(base.replace(old="R&amp;D", new="R&#0;D"), ics))
   assert_false(matches(base.replace(old="R&amp;D", new="R&#zz;D"), ics))
+  // Digit-run bounds: an over-long decimal and an empty hex body stay
+  // verbatim (S32 coverage audit).
+  assert_false(matches(base.replace(old="R&amp;D", new="R&#12345678;D"), ics))
+  assert_false(matches(base.replace(old="R&amp;D", new="R&#x;D"), ics))
   // The reference window reaches ten characters, but an astral-plane
   // reference (U+10000 and up, the ceiling included) stays verbatim: a
   // Char is one UTF-16 code unit, so BMP is the decode range and an
@@ -467,4 +471,21 @@ test "a VTODO's DURATION forms its interval when DUE is absent" {
   // parse could not have judged.
   let late = ics.replace(old="20260115T100000Z", new="20260117T230000Z")
   assert_false(matches(range, late))
+}
+
+///|
+test "the shape parser skips declarations and keeps the first root" {
+  // The README boundary in test form (S32 coverage audit): a body with
+  // an XML declaration, a comment, a DOCTYPE, and two top-level
+  // elements still parses — the first root wins, its filter is found,
+  // and the trailing second root is ignored.
+  let body = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+    "<!-- selection start -->" +
+    "<!DOCTYPE C:calendar-query>" +
+    "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\">" +
+    "<C:filter><C:comp-filter name=\"VCALENDAR\"/></C:filter>" +
+    "</C:calendar-query>" +
+    "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><C:filter/></C:calendar-query>"
+  let parsed = @caldav.parse_filter(body)
+  assert_eq(parsed.root.name, "VCALENDAR")
 }

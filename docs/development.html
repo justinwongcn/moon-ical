@@ -128,7 +128,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   </tbody>
 </table></div>
 
-<p><b>合计</b>：0.4.0 开发分支严格全目标测试为 wasm 211、wasm-gc 194、JavaScript 211、native 221；S5 23 项与 S6 39 项真实 curl 活体验收全绿。0.3.0 已发布到 mooncakes。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
+<p><b>合计</b>：0.4.0 开发分支严格全目标测试为 wasm 212、wasm-gc 195、JavaScript 212、native 222；S5 23 项与 S6 39 项真实 curl 活体验收全绿。0.3.0 已发布到 mooncakes。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
 
 <!-- ============================================================ -->
 <h2 id="s03"><span class="num">03</span>架构与数据流</h2>
@@ -399,6 +399,7 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
     <tr><td class="c">S29</td><td>0.5.0 批次第一项（身份定界的「值得实现」清单）：解析 <code>DURATION</code>（RFC 5545 §3.3.6，阶段机严格校验组件顺序与组合：W 单用、S 必经 M、组件不重复、T 后必有组件）——VEVENT 无 DTEND 时以其定结束（双置为响亮的 spec violation），occurrence 继承时长，VTODO/VFREEBUSY time-range 路径同样兜底；README 边界行改写（DURATION 不再是边界，RDATE/VALUE=PERIOD 成为新声明的边界）</td><td class="c">~+150</td><td>语法全形态差分（10 合法形态 + 12 拒绝形态含乱序/重复/裸 T/无组件）；VEVENT/series/VTODO 三层接线各一差分（override 继承 DURATION 时长）；全目标 208/191/208/217；model .mbti 预期 +parse_duration</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S30</td><td>0.5.0 批次第二项（身份定界改写后的 MKCALENDAR 任务）：新增 <code>parse_mkcalendar</code>——MKCALENDAR 请求体的类型化解析（<code>displayname</code>/<code>calendar-description</code>/<code>calendar-color</code>，实体解码，浅者胜），**仅解析不持久化**（jev 身份定界 0.02：存储格式是嵌入方的部署决策，库不替嵌入方定默认）；服务端行为不变（集合名即 displayname 的边界声明保持）</td><td class="c">~+90</td><td>R5 机械转写 RFC 4791 §5.3.1 示例体 + set-prop 拼写/实体解码 + 空/非 XML 体三种差分；全目标计数见行；caldav .mbti 预期 +parse_mkcalendar +MkCalendarProps</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S31</td><td>0.5.0 批次第三项（身份定界 0.86 健壮性项）：存储层名字白名单拒绝 Windows 保留设备名（<code>CON</code>/<code>PRN</code>/<code>AUX</code>/<code>NUL</code>/<code>COM1-9</code>/<code>LPT1-9</code>，带不带扩展名都算——Windows 保留的是基名）；<b>全平台拒绝</b>而非仅运行平台——vdir 的存在理由是跨工具可移植，Windows 读不了的文件会在拷贝/同步时破坏它；路由层以 404 作答（与非法名同路径）</td><td class="c">~+40</td><td>11 形态差分（4 基名 + 2 带扩展 + 2 COM/LPT + 3 普通名不受影响）；s5 活体 +1（PUT /cal/CON → 404）；全目标 211/194/211/221、S5 24/24、S6 39/39</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S32</td><td>0.5.0 批次第四项（身份定界 0.95 卫生项）：覆盖率审计（caret 模式绕过 coverage 解析器对 xml.mbt 的诊断）——抓到<b>文档与实现不一致</b>：README 声明双顶层「第一根胜」，实现实为最后一根覆盖第一根（追加第二根可伪装 REPORT 判型）；对齐为第一根胜（root 已设即不覆盖，两处赋值点加守卫）；补三个判别测试（声明/注释/DOCTYPE/双顶层整体行为、超长十进制与空十六进制引用）</td><td class="c">~+45</td><td>差分：双顶层第一根胜（修复前该测试红——审计即判别）；全目标 212/195/212/222、S5 24/24、S6 39/39；.mbti 零变化</td><td><span class="chip done">完成</span></td></tr>
   </tbody>
 </table></div>
 

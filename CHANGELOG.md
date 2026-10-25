@@ -2,6 +2,10 @@
 
 ## 0.4.0
 
+- Keep the first root of a request body with two top-level elements:
+  the coverage audit caught the documented "first root wins" shape
+  actually being last-root-wins, which let a trailing root override
+  what the request already said.
 - Refuse Windows reserved device names (`CON`, `PRN`, `AUX`, `NUL`,
   `COM1`-`COM9`, `LPT1`-`LPT9`, with or without an extension) as store
   names on every platform: a vdir Windows cannot read breaks the

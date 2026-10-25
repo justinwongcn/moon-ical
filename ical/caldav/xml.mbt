@@ -69,8 +69,14 @@ fn parse_xml_element(input : String) -> XmlElement? {
         Some(gt) => {
           // The closing tag's own name is not re-checked: nesting is already
           // established by the open tags, and a CalDAV body is machine-written.
+          // A body with two top-level elements keeps its first root (the
+          // documented shape): a trailing second root must not override
+          // what the request already said.
           match stack.pop() {
-            Some(done) => if stack.length() == 0 { root = Some(done) }
+            Some(done) =>
+              if stack.length() == 0 && root is None {
+                root = Some(done)
+              }
             None => ()
           }
           i = gt + 1
@@ -87,7 +93,7 @@ fn parse_xml_element(input : String) -> XmlElement? {
             text: "",
           }
           if tag.self_closing {
-            if stack.length() == 0 {
+            if stack.length() == 0 && root is None {
               root = Some(element)
             } else {
               let last = stack.length() - 1
