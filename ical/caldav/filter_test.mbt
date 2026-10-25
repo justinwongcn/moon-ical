@@ -421,3 +421,31 @@ test "an inverted time-range is an invalid filter, with equal bounds too" {
   }
   assert_eq(error2, "invalid filter: time-range start must be before end")
 }
+
+///|
+test "a numeric character reference in a needle decodes like a named one" {
+  // &#38; and &amp; spell the same character on the wire; the S13
+  // decode covered only the named form, so a client using the numeric
+  // spelling searched for a literal "&#38;" and silently missed — the
+  // same defect shape, one escape form later.
+  let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:r\r\nSUMMARY:R&D\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+  let base = "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">" +
+    "<C:prop-filter name=\"SUMMARY\"><C:text-match>R&amp;D</C:text-match></C:prop-filter>" +
+    "</C:comp-filter></C:comp-filter>"
+  assert_true(matches(base, ics))
+  assert_true(matches(base.replace(old="R&amp;D", new="R&#38;D"), ics))
+  assert_true(matches(base.replace(old="R&amp;D", new="R&#x26;D"), ics))
+  // A reference that names no character stays verbatim and simply does
+  // not match: past the Unicode ceiling, a surrogate half, zero, and a
+  // non-number are all left as written.
+  assert_false(matches(base.replace(old="R&amp;D", new="R&#x110000;D"), ics))
+  assert_false(matches(base.replace(old="R&amp;D", new="R&#xD800;D"), ics))
+  assert_false(matches(base.replace(old="R&amp;D", new="R&#0;D"), ics))
+  assert_false(matches(base.replace(old="R&amp;D", new="R&#zz;D"), ics))
+  // The reference window reaches ten characters, but an astral-plane
+  // reference (U+10000 and up, the ceiling included) stays verbatim: a
+  // Char is one UTF-16 code unit, so BMP is the decode range and an
+  // out-of-range reference simply does not match rather than matching
+  // something else.
+  assert_false(matches(base.replace(old="R&amp;D", new="R&#1114111;D"), ics))
+}

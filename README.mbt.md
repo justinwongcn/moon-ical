@@ -1,29 +1,33 @@
 # moon-ical
 
-A pure MoonBit [iCalendar (RFC 5545)](https://www.rfc-editor.org/rfc/rfc5545)
-library and minimal [CalDAV (RFC 4791)](https://www.rfc-editor.org/rfc/rfc4791)
-server. It covers the full path from `.ics` input through typed events and
-recurrence expansion to a DAV calendar that stock clients can discover.
+An [iCalendar (RFC 5545)](https://www.rfc-editor.org/rfc/rfc5545) library and
+a minimal [CalDAV (RFC 4791)](https://www.rfc-editor.org/rfc/rfc4791) server,
+written in pure MoonBit. It parses `.ics` input into typed events, expands
+recurring series, and serves the result over CalDAV so ordinary calendar
+clients can discover and edit it.
 
 ## Features
 
-- iCalendar unfolding, quoted parameters, TEXT escaping, nested components,
-  and preservation of unknown properties.
-- UTC, floating, `TZID`, and all-day values; feed-embedded `VTIMEZONE` takes
-  precedence over the documented common fixed-offset table.
-- `DAILY`, `WEEKLY`, `MONTHLY`, and `YEARLY` recurrence with `INTERVAL`,
-  `COUNT`, `UNTIL`, ordinal `BYDAY`, positive/negative `BYMONTHDAY`,
+- Parses the messy corners of iCalendar: line unfolding, quoted parameters,
+  TEXT escaping, nested components. Unknown properties round-trip untouched.
+- Handles UTC, floating, `TZID`, and all-day values. A `VTIMEZONE` embedded
+  in the feed wins; otherwise zones fall back to a documented table of
+  common fixed offsets.
+- Expands `DAILY`, `WEEKLY`, `MONTHLY`, and `YEARLY` recurrence, with
+  `INTERVAL`, `COUNT`, `UNTIL`, ordinal `BYDAY`, signed `BYMONTHDAY`,
   `BYMONTH`, `BYSETPOS`, and `WKST`.
-- Effective-series merging for `EXDATE`, moved/cancelled `RECURRENCE-ID`, and
-  `RANGE=THISANDFUTURE`.
-- RFC-style CRLF serialization with UTF-8-safe 75-octet folding.
-- Native CalDAV server: vdir storage, content-addressed ETags, discovery,
+- Merges series-level exceptions: `EXDATE`, `RECURRENCE-ID` overrides that
+  move or cancel an instance, and `RANGE=THISANDFUTURE`.
+- Writes .ics back out with CRLF line endings, folded at 75 octets without
+  cutting a UTF-8 sequence in half.
+- A native CalDAV server: vdir storage, content-addressed ETags, discovery,
   `PROPFIND`, `REPORT`, `MKCALENDAR`, and conditional PUT/DELETE.
-- `calendar-query` evaluates its `CALDAV:filter` — nested component filters,
-  `is-not-defined`, `time-range` resolved against recurrence, `text-match`, and
-  parameter filters — and reports the RFC 4791 §7.8 preconditions as `403`.
-- `MKCALENDAR` creates a calendar collection under `/cal/<name>/` that holds
-  its own events, is discoverable by `PROPFIND`, and can be deleted.
+- `calendar-query` really evaluates its `CALDAV:filter`, including nested
+  component filters, `is-not-defined`, `text-match`, parameter filters, and
+  `time-range` resolved against recurrence. Failed preconditions come back
+  as `403` per RFC 4791 §7.8.
+- `MKCALENDAR` creates a collection under `/cal/<name>/` that holds its own
+  events, shows up in `PROPFIND`, and can be deleted.
 
 ## Install
 
@@ -31,8 +35,9 @@ recurrence expansion to a DAV calendar that stock clients can discover.
 moon add justinwongcn/moon-ical@0.3.0
 ```
 
-The repository is now developing 0.4.0; 0.3.0 is the published release
-until the new API and end-to-end checks are complete.
+0.3.0 is the version currently published on mooncakes. 0.4.0 is still in
+development and will land once the new API and the end-to-end checks are
+done.
 
 ## Library usage
 
@@ -50,16 +55,16 @@ test {
 }
 ```
 
-Focused subpackages remain available under `ical/text`, `ical/model`,
+The library is also split into focused subpackages: `ical/text`, `ical/model`,
 `ical/rrule`, `ical/serialize`, and `ical/caldav`. The root package re-exports
-the complete parse, recurrence, and serialization workflows; lower-level text,
-date-time, XML, HTTP-precondition, and CalDAV response primitives stay in their
-own subpackages.
+the complete parse, recurrence, and serialization workflows. Lower-level
+primitives (text, date-time, XML, HTTP preconditions, CalDAV response
+helpers) stay in their own subpackages.
 
-For 0.2.0, the root facade intentionally drops low-level re-exports from
-0.1.0. Existing advanced code can import `ical/text`, `ical/model`,
-`ical/serialize`, or `ical/caldav` directly; complete workflows continue to
-use the root package.
+Since 0.2.0 the root facade no longer re-exports the low-level API that
+0.1.0 exposed. Code that needs it can import `ical/text`, `ical/model`,
+`ical/serialize`, or `ical/caldav` directly; complete workflows can keep
+using the root package.
 
 ## Run
 
@@ -69,9 +74,10 @@ moon run demo --target native -- https://example.com/calendar.ics
 moon run cmd/serve --target native -- ./caldata 8437
 ```
 
-The calendar home is `http://127.0.0.1:8437/cal/`; discovery starts at
-`/.well-known/caldav`. The first release is local/plain HTTP. Put TLS and
-authentication in a reverse proxy before exposing it outside a trusted host.
+The calendar home is `http://127.0.0.1:8437/cal/`, and discovery starts at
+`/.well-known/caldav`. The server speaks plain HTTP only, with no TLS or
+authentication of its own. Put a reverse proxy that provides both in front
+of it before exposing it beyond a trusted host.
 
 ## Verification
 
@@ -84,13 +90,13 @@ python tools/s5_acceptance.py
 python tools/s6_acceptance.py
 ```
 
-Current results: 201 wasm, 184 wasm-gc, 201 JavaScript, and 210 native tests;
-23 HTTP storage and 39 live CalDAV curl checks also pass.
+Right now that's 201 wasm, 184 wasm-gc, 201 JavaScript, and 210 native
+tests, plus 23 HTTP storage checks and 39 live CalDAV checks driven by curl.
 
-Checks are written to discriminate, not just to observe: for anything that
-takes input and decides its output from it, the suite contains a pair of
-requests differing only in that input and asserts they return different
-results. The rule and the capability→evidence matrix are in
+The suite is written to fail when a capability is missing: every
+input-driven behavior has a pair of requests that differ in exactly that
+input and must produce different answers. The rule and the
+capability→evidence matrix are in
 [docs/development.html](docs/development.html) §11.
 
 ## Client interoperability
@@ -102,45 +108,57 @@ results. The rule and the capability→evidence matrix are in
 | DAVx5 | Not run | Not run | Not run | Android device required |
 | Apple Calendar | Not run | Not run | Not run | macOS/iOS device required |
 
-Rows are marked passed only after an actual client session; curl coverage is
-not presented as client-interoperability evidence.
+A row only counts as passed after a real session with that client. The curl
+numbers are protocol smoke tests and do not stand in for client
+interoperability.
 
 ## 0.1.0 release scope (frozen)
 
-The hackathon release is feature-frozen at the reusable iCalendar library,
-minimal CalDAV server, live curl acceptance suites, and verified Thunderbird
-CRUD interoperability. DAVx5 and Apple Calendar remain evidence candidates,
-not release requirements. Cloud-account synchronization for Google Calendar,
+The hackathon release (0.1.0) is feature-frozen at the reusable iCalendar
+library, the minimal CalDAV server, the live curl acceptance suites, and the
+verified Thunderbird CRUD interop. DAVx5 and Apple Calendar would be nice to
+add but aren't release requirements. Cloud-account sync for Google Calendar,
 iCloud, Yahoo, and Outlook/Microsoft Graph is post-hackathon work.
 
 ## Boundaries
 
-- No complete IANA tzdb. Named zones use feed `VTIMEZONE` then a common
-  fixed-offset table; recurring wall time keeps the resolved offset across DST.
-- No CalDAV scheduling (iTIP/iMIP), ACL system, built-in TLS, or CalDAV client.
+- No full IANA tzdb. Named zones come from the feed's `VTIMEZONE` first, then
+  a common fixed-offset table; recurring wall times keep their resolved
+  offset across DST.
+- No CalDAV scheduling (iTIP/iMIP), ACL system, built-in TLS, or CalDAV
+  client.
 - No provider adapters or cloud-account synchronization for Google Calendar,
   iCloud, Yahoo, or Outlook/Microsoft Graph.
-- Request bodies require `Content-Length`; chunked uploads receive `411`.
+- Request bodies need a `Content-Length`; chunked uploads get `411`.
 - Sub-daily RRULE frequencies and `BYWEEKNO`, `BYYEARDAY`, `BYHOUR`,
-  `BYMINUTE`, and `BYSECOND` are explicit parse errors.
+  `BYMINUTE`, and `BYSECOND` are rejected as parse errors.
 - `calendar-query` evaluates the filter, but `PROPFIND` and `REPORT` still
   ignore the requested `DAV:prop` set and answer with a fixed property set.
-- `MKCALENDAR` creates the collection but does not store the properties in its
-  request body (`displayname`, `calendar-color`); the collection's name is its
-  display name.
-- A bare top-level `VEVENT` (no `VCALENDAR` wrapper) parses into a
-  component tree but `parse_events` yields no events for it; the tree is
+- `MKCALENDAR` creates the collection but ignores the properties in its
+  request body (`displayname`, `calendar-color`); the collection's name is
+  its display name.
+- A bare top-level `VEVENT` with no `VCALENDAR` wrapper parses into a
+  component tree, but `parse_events` yields no events from it. The tree is
   still inspectable via `parse_components`.
-- An `EXDATE` at the same instant as a `RECURRENCE-ID` override removes
-  that instance; the override does not resurrect it.
+- An `EXDATE` at the same instant as a `RECURRENCE-ID` override removes that
+  instance; the override doesn't resurrect it.
+- The request XML parser is a shape parser: a DOCTYPE is skipped to its
+  first `>`, and given two top-level elements only the first is read.
+  Numeric character references decode up to the BMP (`&#38;` equals
+  `&amp;`); astral-plane references stay verbatim.
+- The server accepts an unbounded number of concurrent connections; it
+  binds `127.0.0.1` unless you change the listen address.
+- After refusing an oversized or chunked body the server drains up to
+  10 MB before closing; an upload still running past that loses the
+  refusal response to the close-time reset.
 - `/cal/` is both the calendar home and the default collection. A collection
-  created by `MKCALENDAR` nests beside the existing events rather than moving
+  created by `MKCALENDAR` sits beside the existing events instead of moving
   them, so a client already pointed at `/cal/` keeps working.
-- A `time-range` on `VALARM` is refused with `supported-filter` rather than
-  resolved against relative triggers.
+- A `time-range` on `VALARM` is refused with `supported-filter`; relative
+  triggers are not resolved.
 - `DURATION` is not parsed, so a component's end comes from `DTEND` or `DUE`.
 
-The architecture and milestone record are in
-[docs/development.html](docs/development.html); third-party corpus provenance
-is recorded in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). This is an
+Architecture notes and the milestone record are in
+[docs/development.html](docs/development.html); third-party corpus sources
+are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). This is an
 independent MoonBit implementation, licensed under Apache-2.0.

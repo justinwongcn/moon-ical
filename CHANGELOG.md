@@ -2,6 +2,11 @@
 
 ## 0.4.0
 
+- Decode numeric character references (`&#38;`, `&#x26;`) in comparison
+  text alongside the five named entities: the numeric spelling of the
+  S13 fix's own example searched for a literal `&#38;` and silently
+  missed. References naming no single UTF-16 code unit (astral planes,
+  surrogates, zero) stay verbatim and simply do not match.
 - Fix an Int64 overflow in the Content-Length parser found by the third
   review round: a length of `Int64::MAX/10` times ten plus a digit above
   seven wrapped negative and read as "no size problem", swallowing the

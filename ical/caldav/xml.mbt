@@ -279,12 +279,13 @@ fn has_child(element : XmlElement, local_name : String) -> Bool {
 }
 
 ///|
-/// Decode the five predefined XML entities in character data. The
-/// tokenizer keeps text verbatim; the consumers that compare that text
-/// against calendar values (a text-match needle, a multiget href) must
-/// compare the decoded form, because a client's search for "R&D" arrives
-/// as "R&amp;D" on the wire. Numeric character references are left
-/// verbatim — the same leniency the shape parser shows everything else.
+/// Decode the five predefined XML entities and numeric character
+/// references in character data. The tokenizer keeps text verbatim; the
+/// consumers that compare that text against calendar values (a
+/// text-match needle, a multiget href) must compare the decoded form,
+/// because a client's search for "R&D" arrives as "R&amp;D" on the wire —
+/// and just as well as `&#38;`, its numeric spelling: both decode
+/// before the comparison.
 fn decode_xml_entities(text : String) -> String {
   let v = text.view()
   if v.find("&".view()) is None {
@@ -299,12 +300,13 @@ fn decode_xml_entities(text : String) -> String {
       i = i + 1
       continue
     }
-    // The ';' that would close a predefined entity sits within the
-    // longest name ("&quot;" is six characters); anything further away
-    // is not an entity and the '&' stays literal.
+    // The ';' that would close a reference sits within the longest
+    // spelled form ("&quot;" is six characters, "&#1114111;" ten);
+    // anything further away is not a reference and the '&' stays
+    // literal.
     let mut j = i + 1
     let mut semi : Int32? = None
-    while j < n && j - i <= 6 {
+    while j < n && j - i <= 10 {
       if v[j] == ';' {
         semi = Some(j)
         break
@@ -330,7 +332,7 @@ fn decode_xml_entities(text : String) -> String {
     } else if name.equal_to_string("apos") {
       Some('\'')
     } else {
-      None
+      decode_numeric_reference(name)
     }
     match decoded {
       None => i = i + 1
@@ -344,4 +346,48 @@ fn decode_xml_entities(text : String) -> String {
   }
   out.write_string(v[plain:].to_owned())
   out.to_string()
+}
+
+///|
+/// The character of a numeric reference body — the `#38` of `&#38;`
+/// (decimal) or the `#x26` of `&#x26;` (hex). `None` for anything that
+/// is not a well-formed number or does not name a single UTF-16 code
+/// unit (zero, surrogates, the astral planes past U+FFFF — a Char is
+/// one code unit), which leaves the reference verbatim: an astral
+/// needle does not match rather than matching something else.
+fn decode_numeric_reference(body : StringView) -> Char? {
+  guard body.length() >= 2 && body[0] == '#' else { return None }
+  let digits = body[1:]
+  let mut value = 0
+  if digits.length() > 0 && (digits[0] == 'x' || digits[0] == 'X') {
+    let hex = digits[1:]
+    if hex.length() == 0 || hex.length() > 6 {
+      return None
+    }
+    for k in 0..<hex.length() {
+      let c = hex[k]
+      let d = if c is ('0'..<='9') {
+        c.to_int() - '0'.to_int()
+      } else if c is ('a'..<='f') {
+        c.to_int() - 'a'.to_int() + 10
+      } else if c is ('A'..<='F') {
+        c.to_int() - 'A'.to_int() + 10
+      } else {
+        return None
+      }
+      value = value * 16 + d
+    }
+  } else {
+    if digits.length() > 7 {
+      return None
+    }
+    for k in 0..<digits.length() {
+      let c = digits[k]
+      if !(c is ('0'..<='9')) {
+        return None
+      }
+      value = value * 10 + (c.to_int() - '0'.to_int())
+    }
+  }
+  value.to_char()
 }
