@@ -370,3 +370,35 @@ test "every weekday of 9999's final week is offered up to the horizon" {
   assert_eq(out[0].to_string(), "9999-12-28T00:00:00Z")
   assert_eq(out[3].to_string(), "9999-12-31T00:00:00Z")
 }
+
+///|
+test "an unbounded walk past the period budget is an error, not a quiet prefix" {
+  // A weekly rule filtered to month-end weekdays produces ~2300 instances
+  // inside MAX_PERIODS=10000 weeks (~192 years) and would keep going:
+  // with a limit past that yield, before S27 the walk silently ended at
+  // the budget and the caller got a truncated prefix that read as
+  // complete. The four-way differential:
+  // 1) unbounded + yield short of the limit -> the error,
+  // 2) bounded by COUNT -> ends honestly at the count,
+  // 3) limit reached inside the budget -> ends at the limit,
+  // 4) a rule whose clauses never match -> empty, the whole truth.
+  fn result_of(rule : String, limit : Int32) -> String raise {
+    let dtstart = @model.parse_single_date_time(
+      "20260228T000000Z",
+      @model.ZoneTable::empty(),
+    )
+    try {
+      let out = @rrule.expand(@rrule.parse_rule(rule), dtstart, limit~)
+      "ok:\{out.length()}"
+    } catch {
+      err => "err:\{err.to_string()}"
+    }
+  }
+  assert_eq(
+    result_of("FREQ=WEEKLY;BYMONTHDAY=-1", 5000),
+    "err:invalid recurrence rule: recurrence expansion exceeded 10000 periods without ending",
+  )
+  assert_eq(result_of("FREQ=WEEKLY;BYMONTHDAY=-1;COUNT=7", 5000), "ok:7")
+  assert_eq(result_of("FREQ=WEEKLY;BYMONTHDAY=-1", 50), "ok:50")
+  assert_eq(result_of("FREQ=MONTHLY;BYMONTHDAY=30;BYMONTH=2", 50), "ok:0")
+}

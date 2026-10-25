@@ -150,6 +150,24 @@ pub fn expand(
     }
     period = period + 1
   }
+  // Walking the whole period budget without ending means the rule never
+  // stopped and the cap cut it off. For a rule that has already produced
+  // instances without reaching the caller's limit, that result is a
+  // truncated lie — a sparse series (a leap-day rule, say) silently
+  // missing most of its instances — so it answers with the error the
+  // package already has. A walk that produced nothing answers empty:
+  // "no instances in budget" is the whole truth for a rule whose clauses
+  // never match, and one bounded by COUNT or UNTIL, or one that filled
+  // the limit, ended honestly above.
+  if !done &&
+    out.length() > 0 &&
+    out.length() < limit &&
+    rule.count is None &&
+    rule.until is None {
+    raise ExpandError::Invalid(
+      message="recurrence expansion exceeded \{MAX_PERIODS} periods without ending",
+    )
+  }
   out
 }
 

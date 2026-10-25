@@ -128,7 +128,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   </tbody>
 </table></div>
 
-<p><b>合计</b>：0.4.0 开发分支严格全目标测试为 wasm 199、wasm-gc 183、JavaScript 199、native 208；S5 23 项与 S6 39 项真实 curl 活体验收全绿。0.3.0 已发布到 mooncakes。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
+<p><b>合计</b>：0.4.0 开发分支严格全目标测试为 wasm 200、wasm-gc 184、JavaScript 200、native 209；S5 23 项与 S6 39 项真实 curl 活体验收全绿。0.3.0 已发布到 mooncakes。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
 
 <!-- ============================================================ -->
 <h2 id="s03"><span class="num">03</span>架构与数据流</h2>
@@ -393,6 +393,7 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
     <tr><td class="c">S24</td><td>0.4.0 克制批次第二项（B，可观测性）：一行式访问日志 <code>METHOD path -&gt; status</code> + handler 错误落 stderr（此前 500 完全无痕）——刻意无级别无配置；输出走 <code>@stdio</code> 直写 fd（实测 core <code>println</code> 在 native 重定向下块缓冲、永不退出的服务器永远刷不出，此为本项实测发现）</td><td class="c">~+90</td><td>活体验证：200/404/301/500 各出一行且状态准确；嵌套集合内 PUT 到目录 → 500 + stderr 带具体 OSError；S5 23/23、S6 38/38 复跑无回归</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S25</td><td>0.4.0 克制批次第三项（F，健壮性）：unfold 折行拼接去平方——每逻辑行独立缓冲，折叠只追加本物理行文本；定性依据 = 服务器 10MB body 上限内单条巨折行会触发二次型放大（PUT 落盘后每次 calendar-query 的 filter 求值都要 unfold 一遍）</td><td class="c">~+35</td><td>新增常驻基准 <code>bench unfold one folded line folds=10000</code>（native release）：修复前 1.68s/次 → 修复后 6.58ms（255×；stash 往返对照）；既有 unfold 用例全绿；S5 23/23、S6 38/38</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S26</td><td>0.4.0 克制批次第四项（E'，语义收口）：①<code>find_master</code> 按组自身 UID 取 master（异 UID 的 master 不再被错展开）；②override 无 DTEND 继承 master 时长（改期的一小时会面不再变开放结尾）；③multiget 缺失 href 回 per-href 404（RFC 4791 示例形态，静默丢弃使客户端无法区分「不存在」与「已删除」）；④<code>VALUE=DATE</code> 配 datetime 值改为 BadLine（refuse-rather-than-guess，同 S12）；README Boundaries +2（裸顶层 VEVENT / EXDATE 压同槽 override 文档化）</td><td class="c">~+90</td><td>四条各带差分（异 UID 组空序列 / override 端点 = 起点+master 时长 / 混合 multiget 200+404 并存 / 半读值拒绝 + 正常 DATE 保持）；S6 活体 +1（mixed multiget）；全目标 199/183/199/208、S5 23/23、S6 39/39</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S27</td><td>0.4.0 克制批次第五项（G'，strict_raise）：展开周期 budget 触达且未到调用方 limit 且规则无界时抛既有 <code>ExpandError::Invalid</code>——稀疏无界序列（月末周规则 budget 内约 2300 实例）原先静默截断成「看起来完整」的前缀；**分辨点**：永不匹配的规则返回空仍是完整答案（不报错），COUNT/UNTIL 有界与 limit 填满照旧诚实终结；caldav time-range 的 catch-all 照旧兜底（与旧行为等价）</td><td class="c">~+45</td><td>四向差分：WEEKLY;BYMONTHDAY=-1 limit=5000 → err（真截断场景实证）/ COUNT=7 → ok:7 / limit=50 → ok:50 / BYMONTH=2;BYMONTHDAY=30 → ok:0（空不报错）；全目标 200/184/200/209、S5 23/23、S6 39/39；.mbti 零变化</td><td><span class="chip done">完成</span></td></tr>
   </tbody>
 </table></div>
 

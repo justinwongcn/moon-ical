@@ -2,6 +2,15 @@
 
 ## 0.4.0
 
+- Raise the existing typed `ExpandError::Invalid` when a rule has
+  produced instances but the expansion's period budget cuts it off short
+  of the caller's limit: a sparse unbounded series (a month-end weekly,
+  say) used to answer with a silently truncated prefix that read as
+  complete. An empty answer stays empty (a rule whose clauses never
+  match), and COUNT/UNTIL-bounded rules and limit-filling walks end
+  honestly as before; CalDAV time-range evaluation catches the error and
+  falls back to the master interval as it already did for other
+  failures.
 - Tighten four series and response semantics: `expand_series` picks the
   series master by the group's own UID (a foreign master no longer gets
   expanded for a group it does not belong to) and an override without
