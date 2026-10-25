@@ -2,8 +2,8 @@
 
 moon-ical（`justinwongcn/moon-ical`）是一个纯 MoonBit 的 [iCalendar (RFC 5545)](https://www.rfc-editor.org/rfc/rfc5545) 解析 / 重复事件展开库，外加一个最小化的 [CalDAV (RFC 4791)](https://www.rfc-editor.org/rfc/rfc4791) 服务器。它覆盖从 `.ics` 输入到类型化事件、重复展开、再到真实日历客户端可直连的 DAV 日历的完整路径。
 
-- **当前状态**：0.2.0 已发布到 mooncakes；0.3.0 开发中（本仓库 HEAD 所在分支）。0.3.0 的主题是 `calendar-query` 真正求值 `CALDAV:filter` 与 `MKCALENDAR` 真正创建集合，以及 S11–S20 两轮复审修复波。
-- **测试规模**：全目标严格闸门全绿 —— wasm 189、wasm-gc 174、JavaScript 189、native 197；另有 23 项 S5 HTTP 存储与 36 项 S6 活体 CalDAV curl 验收。
+- **当前状态**：0.3.0 已发布到 mooncakes；0.4.0 开发中（本仓库 HEAD 所在分支）。0.3.0 的主题是 `calendar-query` 真正求值 `CALDAV:filter` 与 `MKCALENDAR` 真正创建集合，以及 S11–S21 两轮复审修复波与依赖升级；0.4.0 从 S22（P3 收口批）起步。
+- **测试规模**：全目标严格闸门全绿 —— wasm 192、wasm-gc 176、JavaScript 192、native 201；另有 23 项 S5 HTTP 存储与 36 项 S6 活体 CalDAV curl 验收。
 - **互操作**：Thunderbird 155.0.1（Windows）已完成发现、读取、创建、修改、删除的真实联调；DAVx5 / Apple Calendar 是候选，未跑。
 
 ## 为什么有这个项目
