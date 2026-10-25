@@ -76,8 +76,8 @@ python tools/s5_acceptance.py
 python tools/s6_acceptance.py
 ```
 
-Current results: 170 wasm, 157 wasm-gc, 170 JavaScript, and 176 native tests;
-21 HTTP storage and 23 live CalDAV curl checks also pass.
+Current results: 185 wasm, 170 wasm-gc, 185 JavaScript, and 192 native tests;
+22 HTTP storage and 31 live CalDAV curl checks also pass.
 
 Checks are written to discriminate, not just to observe: for anything that
 takes input and decides its output from it, the suite contains a pair of

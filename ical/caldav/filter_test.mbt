@@ -314,3 +314,27 @@ test "a body nested past the depth cap is refused, not walked" {
     "invalid filter: report body is not an XML element",
   )
 }
+
+///|
+test "a time-range on VALARM is declined with supported-filter" {
+  // The §11 capability-evidence matrix has claimed this refusal carries
+  // a unit test since S10; review round T2 found the claim preceded the
+  // test. This is the test: RFC 4791 §9.9 defines a VALARM's overlap in
+  // terms of its parent's trigger, which this server does not resolve,
+  // so the whole comp-filter is declined rather than guessed at.
+  let body = "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\">" +
+    "<C:filter><C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">" +
+    "<C:comp-filter name=\"VALARM\">" +
+    "<C:time-range start=\"20260101T000000Z\"/>" +
+    "</C:comp-filter></C:comp-filter></C:comp-filter></C:filter>" +
+    "</C:calendar-query>"
+  let error = try {
+    let _ = @caldav.parse_filter(body)
+    "no-error"
+  } catch {
+    err => err.to_string()
+  }
+  assert_eq(
+    error, "unsupported filter element: <C:comp-filter name=\"VALARM\"><C:time-range/></C:comp-filter>",
+  )
+}

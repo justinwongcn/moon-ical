@@ -80,6 +80,13 @@ def main():
 
         code, _, body = request("PROPFIND", "/cal/", headers=["Depth: 1"])
         check("Depth 1 lists event and ETag", code == 207 and "/cal/s6.ics" in body and tag.strip('"') in body)
+        # Depth is an input the routing reads from the header, so a stub
+        # hardcoding depth 1 must fail here: depth 0 and an unparseable
+        # depth both answer the collection alone.
+        code, _, body = request("PROPFIND", "/cal/", headers=["Depth: 0"])
+        check("Depth 0 omits the events", code == 207 and "/cal/s6.ics" not in body)
+        code, _, body = request("PROPFIND", "/cal/", headers=["Depth: infinity"])
+        check("an unparseable Depth reads as 0", code == 207 and "/cal/s6.ics" not in body)
         # The filter is the defining part of a calendar-query (RFC 4791 §7.8),
         # so the request carries a real one and the checks assert the selection
         # it implies rather than merely that the event came back. The unfiltered
@@ -106,6 +113,12 @@ def main():
         multiget = '<C:calendar-multiget xmlns:C="urn:ietf:params:xml:ns:caldav"><D:href xmlns:D="DAV:">/cal/s6.ics</D:href></C:calendar-multiget>'
         code, _, body = request("REPORT", "/cal/", multiget, ["Content-Type: application/xml"])
         check("calendar-multiget returns selected event", code == 207 and "/cal/s6.ics" in body)
+        miss = multiget.replace("/cal/s6.ics", "/cal/nothere.ics")
+        code, _, body = request("REPORT", "/cal/", miss, ["Content-Type: application/xml"])
+        check("multiget for a missing href selects nothing", code == 207 and "/cal/s6.ics" not in body and "multistatus" in body)
+        # A write on the collection itself is a method miss, not a write.
+        code, hdrs, _ = request("PUT", "/cal/", "x")
+        check("PUT on the home collection is 405 with Allow", code == 405 and "PROPFIND" in hdrs.get("allow", ""))
 
         # MKCALENDAR has to produce a collection that is then usable, so this
         # walks create, discover, write, query-scoped-to-it, and remove.
@@ -138,6 +151,14 @@ def main():
 
         code, _, _ = request("DELETE", "/cal/s6.ics", headers=[f"If-Match: {tag}"])
         check("matching conditional delete succeeds", code == 204)
+        # The DELETE precondition must be evaluated, not assumed: a stale
+        # tag refuses where the matching tag above removed the event.
+        code, _, _ = request("PUT", "/cal/s6.ics", EVENT, ["If-None-Match: *"])
+        check("re-create for the stale-tag delete", code == 201)
+        code, _, _ = request("DELETE", "/cal/s6.ics", headers=['If-Match: "stale"'])
+        check("DELETE with a stale If-Match is refused", code == 412)
+        code, _, _ = request("DELETE", "/cal/s6.ics")
+        check("cleanup of the re-created event", code == 204)
         print(f"\n{len(failures)} failure(s)" if failures else "\nall green")
         return 1 if failures else 0
     finally:

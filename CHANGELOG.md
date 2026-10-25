@@ -29,6 +29,21 @@
   one observable difference is that those parameters can no longer be passed
   positionally, and every call site already passed them by name. `moon fmt
   --check` passes again, so the CI formatting gate is green.
+- Post-review verification round (S11-S15): realize negative `BYMONTHDAY`
+  on the DAILY/WEEKLY expansion paths (it silently matched nothing); keep
+  expansion past year 9999 and huge-interval arithmetic inside the typed
+  error contract (64-bit stepping, the horizon ends the series); report
+  out-of-range date-time components and malformed UTC offsets as line
+  errors instead of leaking x/time's untyped Failure or half-reading the
+  offset; redirect bare collection URLs to their canonical slashed form;
+  cap XML nesting depth (a deeply nested REPORT body used to kill the
+  process with a stack overflow); decode the predefined XML entities in
+  text-match needles and multiget hrefs; bound the request head (64 KB
+  per line, 100 header lines) and answer a non-numeric Content-Length
+  with 400 instead of 413; make `expand(limit<=0)` return an empty
+  series; quote edge-whitespace parameter values on serialization; strip
+  the query string before routing. Live acceptance grows to S5 22/22 and
+  S6 31/31, including Depth-0 and stale-If-Match-DELETE differentials.
 - Re-render the six generated `.mbti` interfaces with moonc v0.10.17, which
   now renders the type as `Int32` directly instead of folding it back to
   `Int` (24 lines, render-only; the types are identical, so no API change).
