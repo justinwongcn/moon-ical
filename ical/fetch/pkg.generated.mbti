@@ -6,11 +6,12 @@ import {
 }
 
 // Values
-pub async fn fetch_ics(String) -> String
+pub async fn fetch_ics(String, timeout_seconds? : Int32) -> String
 
 // Errors
 pub(all) suberror FetchError {
-  BadStatus(status~ : Int, url~ : String)
+  BadStatus(status~ : Int32, url~ : String)
+  TimedOut(seconds~ : Int32, url~ : String)
 } derive(Eq, @debug.Debug)
 pub fn FetchError::equal(Self, Self) -> Bool
 pub fn FetchError::not_equal(Self, Self) -> Bool

@@ -372,3 +372,24 @@ test "a comp-filter's tests must pass on one event instance" {
     ),
   )
 }
+
+///|
+test "a VTODO time-range resolves the feed's own VTIMEZONE" {
+  // The non-VEVENT time-range paths used to parse dates with the built-in
+  // zone table alone, so a feed-private TZID never resolved and the todo
+  // silently matched nothing. The feed's own declaration (+0900) puts
+  // this DTSTART at 2026-01-15 01:00 UTC, inside the range.
+  let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" +
+    "BEGIN:VTIMEZONE\r\nTZID:My-Zone\r\nBEGIN:STANDARD\r\nTZOFFSETTO:+0900\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n" +
+    "BEGIN:VTODO\r\nUID:t\r\nDTSTART;TZID=My-Zone:20260115T100000\r\nDUE;TZID=My-Zone:20260115T110000\r\nEND:VTODO\r\n" +
+    "END:VCALENDAR\r\n"
+  let vtodo_range = "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VTODO\">" +
+    "<C:time-range start=\"20260115T000000Z\" end=\"20260116T000000Z\"/>" +
+    "</C:comp-filter></C:comp-filter>"
+  assert_true(matches(vtodo_range, ics))
+  // The differential: with the zone no longer declared by the feed, the
+  // same todo cannot be judged and matches nothing.
+  assert_false(
+    matches(vtodo_range, ics.replace(old="TZID:My-Zone", new="TZID:Gone")),
+  )
+}

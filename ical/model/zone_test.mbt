@@ -138,7 +138,18 @@ test "malformed UTC offsets are refused whole, not half-read" {
   )
   assert_eq(
     offset_error("+0899"),
-    "line 1: UTC offset minute or second out of range: +0899 (in `+0899`)",
+    "line 1: UTC offset component out of range: +0899 (in `+0899`)",
+  )
+  // RFC 5545 §3.3.14 bounds the hour at 23 too: a 99-hour offset was
+  // silently accepted before K4. The bound itself stays reachable — 23:59
+  // is a legal offset shape, real zones never need more than ±14.
+  assert_eq(
+    offset_error("+9900"),
+    "line 1: UTC offset component out of range: +9900 (in `+9900`)",
+  )
+  assert_eq(
+    @model.parse_utc_offset("+2359", line_no=1, raw="+2359"),
+    23 * 3600 + 59 * 60,
   )
 }
 

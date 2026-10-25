@@ -157,11 +157,14 @@ pub fn parse_utc_offset(
   let seconds = if n == 7 { digits(v, 5, 2) } else { Some(0) }
   match (hours, minutes, seconds) {
     (Some(h), Some(m), Some(s)) =>
-      if m > 59 || s > 59 {
+      // RFC 5545 §3.3.14 bounds every component: hour at 23, minute and
+      // second at 59. An hour past 23 is not an offset any zone declares;
+      // accepting it would shift a whole calendar by imaginary hours.
+      if h > 23 || m > 59 || s > 59 {
         raise @text.ParseError::BadLine(
           line_no~,
           line=raw,
-          message="UTC offset minute or second out of range: \{text}",
+          message="UTC offset component out of range: \{text}",
         )
       } else {
         sign * (h * 3600 + m * 60 + s)

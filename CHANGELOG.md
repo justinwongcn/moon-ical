@@ -66,7 +66,14 @@
   redirect the home collection's bare URL `/cal` to its canonical slashed
   form, the rule the nested collections already followed (the discovery
   chain only ever emits slashed hrefs, so configured clients are
-  unaffected).
+  unaffected); resolve a feed's own `VTIMEZONE` on the VTODO/VJOURNAL and
+  prop-filter time-range paths too, so a feed-private `TZID` no longer
+  silently matches nothing; bound `parse_utc_offset`'s hour at 23 per RFC
+  5545 §3.3.14 (`+9900` used to be silently accepted as 99 hours); give
+  `fetch_ics` a timeout of its own (`timeout_seconds? = 30`), because
+  upstream's HTTP client and socket layer have none — a server that
+  accepts and never answers used to hang the caller forever, and the
+  bound now raises the new `FetchError::TimedOut`.
 
 ## 0.2.0
 

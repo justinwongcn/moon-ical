@@ -1,6 +1,12 @@
 import {
+  "moonbitlang/async",
   "moonbitlang/async/http",
   "moonbitlang/core/debug",
 }
+
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/socket",
+} for "test"
 
 supported_targets = "+native"

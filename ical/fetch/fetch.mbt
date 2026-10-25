@@ -1,12 +1,23 @@
 ///|
-/// A fetch failure: the server answered, but not with a usable calendar.
+/// How many seconds a fetch may wait on the network before giving up.
+/// Upstream's HTTP client has no timeout of its own — neither the client
+/// nor the socket layer reads a clock (verified against
+/// moonbitlang/async 0.21.2) — so without this bound a server that
+/// accepts and never answers hangs the caller forever.
+const FETCH_TIMEOUT_SECONDS : Int32 = 30
+
+///|
+/// A fetch failure.
 ///
-/// Network-level failures (DNS, TLS, timeout) surface as `@http`'s own
-/// errors; this covers the "got a response we cannot use" case, so callers
-/// see the status code and the URL instead of a misleading parse error that
-/// would come from feeding an HTML error page into the parser.
+/// `BadStatus` is the server answering with something unusable;
+/// `TimedOut` is the bound of [`fetch_ics`] firing while the request was
+/// still in flight. Network-level failures (DNS, TLS, refused
+/// connections) surface as `@http`'s own errors; `BadStatus` exists so
+/// callers see the status code and the URL instead of a misleading parse
+/// error that would come from feeding an HTML error page into the parser.
 pub(all) suberror FetchError {
   BadStatus(status~ : Int32, url~ : String)
+  TimedOut(seconds~ : Int32, url~ : String)
 } derive(Debug, Eq)
 
 ///|
@@ -20,6 +31,8 @@ pub impl Show for FetchError with fn output(self, logger) {
   match self {
     BadStatus(status~, url~) =>
       logger.write_string("fetch \{url}: unexpected status \{status}")
+    TimedOut(seconds~, url~) =>
+      logger.write_string("fetch \{url}: timed out after \{seconds}s")
   }
 }
 
@@ -32,13 +45,25 @@ pub extend FetchError with Show::{to_string, output}
 /// Thin on purpose: `@http.get` plus a status check, returning the body
 /// verbatim. Every parsing concern belongs to `ical/text` / `ical/model`,
 /// and this layer never guesses. Redirects, auth and retries are upstream
-/// `@async/http` concerns (seam S3 in docs/upstream-seams.md). Network tests
+/// `@async/http` concerns (seam S3 in docs/upstream-seams.md); the
+/// timeout is ours, because upstream has none to lean on — a bound of
+/// `timeout_seconds` (30 by default) ends a hung fetch with
+/// [`FetchError::TimedOut`] instead of an eternal wait. Network tests
 /// stay out of CI by policy — feeds are flaky, fixtures are not; the live
 /// acceptance for this layer is the demo's URL mode.
-pub async fn fetch_ics(url : String) -> String {
-  let (response, body) = @http.get(url)
-  if response.code != 200 {
-    raise FetchError::BadStatus(status=response.code, url~)
-  }
-  body.text()
+pub async fn fetch_ics(
+  url : String,
+  timeout_seconds~ : Int32 = FETCH_TIMEOUT_SECONDS,
+) -> String {
+  @async.with_timeout(
+    timeout_seconds,
+    () => {
+      let (response, body) = @http.get(url)
+      if response.code != 200 {
+        raise FetchError::BadStatus(status=response.code, url~)
+      }
+      body.text()
+    },
+    error=FetchError::TimedOut(seconds=timeout_seconds, url~),
+  )
 }

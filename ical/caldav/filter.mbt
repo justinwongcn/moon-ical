@@ -367,10 +367,15 @@ const SERIES_INITIAL_LIMIT : Int32 = 32
 const SERIES_LIMIT_CAP : Int32 = 4096
 
 ///|
-/// The component tree and typed events of one calendar object resource.
+/// The component tree, typed events, and resolved zones of one calendar
+/// object resource. The zones are the feed's own `VTIMEZONE` over the
+/// built-in guesses — the same table `parse_events` builds — because a
+/// `TZID` the feed declares privately must resolve on every path that
+/// judges this resource, not only on the VEVENT one.
 priv struct ResourceView {
   roots : Array[@model.Component]
   events : Array[@model.Event]
+  zones : @model.ZoneTable
 }
 
 ///|
@@ -411,7 +416,7 @@ fn resource_view(calendar_data : String) -> ResourceView {
       None => ()
     }
   }
-  { roots, events, }
+  { roots, events, zones, }
 }
 
 ///|
@@ -456,7 +461,7 @@ fn comp_tests_pass(
     }
   }
   for prop in filter.props {
-    if !prop_matches(prop, component) {
+    if !prop_matches(prop, component, view.zones) {
       return false
     }
   }
@@ -486,7 +491,7 @@ fn component_overlaps(
     })
     return events_overlap(series, range)
   }
-  match component_interval(component) {
+  match component_interval(component, view.zones) {
     Some(interval) =>
       interval_overlaps(
         interval.start,
@@ -615,8 +620,12 @@ fn master_interval(events : Array[@model.Event]) -> Interval? {
 ///|
 /// The `DTSTART` / `DTEND` / `DUE` interval of a component this build does
 /// not expand. A `VTODO` with only a `DUE` is judged at its due instant.
-fn component_interval(component : @model.Component) -> Interval? {
-  let zones = @model.ZoneTable::builtin_common()
+/// `zones` is the resource's own resolved table, so a feed-declared
+/// `TZID` resolves here exactly as it does on the VEVENT path.
+fn component_interval(
+  component : @model.Component,
+  zones : @model.ZoneTable,
+) -> Interval? {
   let dtstart = component
     .property("DTSTART")
     .bind(line => try_date(line, zones))
@@ -653,7 +662,11 @@ fn component_interval(component : @model.Component) -> Interval? {
 /// Whether one property matches a prop-filter: every test it carries must
 /// hold, and the filter matches when at least one occurrence of the property
 /// satisfies them (RFC 4791 §9.7.2 allows a repeated property).
-fn prop_matches(filter : PropFilter, component : @model.Component) -> Bool {
+fn prop_matches(
+  filter : PropFilter,
+  component : @model.Component,
+  zones : @model.ZoneTable,
+) -> Bool {
   let lines = component.properties_named(filter.name)
   if filter.is_not_defined {
     return lines.length() == 0
@@ -662,7 +675,7 @@ fn prop_matches(filter : PropFilter, component : @model.Component) -> Bool {
     return false
   }
   for line in lines {
-    if prop_line_matches(filter, line) {
+    if prop_line_matches(filter, line, zones) {
       return true
     }
   }
@@ -670,10 +683,13 @@ fn prop_matches(filter : PropFilter, component : @model.Component) -> Bool {
 }
 
 ///|
-fn prop_line_matches(filter : PropFilter, line : @text.ContentLine) -> Bool {
+fn prop_line_matches(
+  filter : PropFilter,
+  line : @text.ContentLine,
+  zones : @model.ZoneTable,
+) -> Bool {
   match filter.time_range {
-    Some(range) => {
-      let zones = @model.ZoneTable::builtin_common()
+    Some(range) =>
       match try_date(line, zones) {
         Some(value) =>
           if !interval_overlaps(
@@ -686,7 +702,6 @@ fn prop_line_matches(filter : PropFilter, line : @text.ContentLine) -> Bool {
           }
         None => return false
       }
-    }
     None => ()
   }
   match filter.text_match {
