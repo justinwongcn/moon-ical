@@ -113,6 +113,12 @@ async fn handle_connection(
           headers=[("Connection", "close")],
           body="body over \{k} bytes refused",
         )
+        // Same shape as the 411 branch: the client is still sending the
+        // oversized body when the refusal goes out. Closing with that
+        // unread data kills the response with an RST — measured 6/6
+        // losses (burst and concurrent readers alike) against the drained
+        // 411 branch's reliable delivery — so drain before closing.
+        drain(conn)
         Stop
       }
       @httpd.HttpParseError::Malformed(message=m) => {

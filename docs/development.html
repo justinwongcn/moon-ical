@@ -128,7 +128,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   </tbody>
 </table></div>
 
-<p><b>合计</b>：0.3.0 开发分支严格全目标测试为 wasm 187、wasm-gc 172、JavaScript 187、native 194；S5 22 项与 S6 31 项真实 curl 活体验收全绿。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
+<p><b>合计</b>：0.3.0 开发分支严格全目标测试为 wasm 187、wasm-gc 172、JavaScript 187、native 194；S5 23 项与 S6 31 项真实 curl 活体验收全绿。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
 
 <!-- ============================================================ -->
 <h2 id="s03"><span class="num">03</span>架构与数据流</h2>
@@ -205,6 +205,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
     <tr><td class="c">S13–S14</td><td>复审修复（服务层）：集合 URL 无斜杠改 301 规范形式（RFC 4918 §5.2，替代 Windows 500 / POSIX 静默 rmdir）；XML 嵌套深度上限 64（替代栈溢出进程死亡，复核实测 5 万层 0xC00000FD）；text-match 与 multiget href 解码 XML 实体；请求头改自带缓冲的有界读取（64KB/行、100 头）；非数字 <code>Content-Length</code> 回 400；<code>limit≤0</code> 回空；参数值边缘空白序列化加引号；路由剥 query string</td><td class="c">~+300</td><td>S6 活体 +4（301 差分对）；S5 +1（query 同字节差分）；httpd 单测 10→15（头行/头数封顶、400/413 分流）</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S15</td><td>审计缺口收口：VALARM time-range 拒绝的单测补齐（§11 矩阵「有单测」声明成真）；S6 活体 +6（Depth 0/不可解析 Depth 差分、multiget 未知 href 空结果、PUT /cal/ 405、DELETE 陈旧 If-Match 412）；§11 矩阵补 <code>ical/fetch</code> 行（已声明、仅人工验证、网络测试不进 CI 为 S1.5 决策）</td><td class="c">~+70</td><td>S6 31/31、S5 22/22 全绿；全目标 185/170/185/192；README×2 与 §02 计数同步</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S16</td><td>复审修复第二波（K1）：WEEKLY 展开在 9999 年最后一周的天循环补上越界 catch——S12 只守住了「步进到周首」这一步，周内 <code>base+i</code> 越过 year 9999 仍泄漏 x/time 未类型化 Failure；越界日终结该周，与 DAILY/MONTHLY/YEARLY 的地平线语义一致</td><td class="c">~+30</td><td>差分测试 ×2（DTSTART 9999-12-30 纯 WEEKLY 恰 1 实例不抛；BYDAY 全周走到 12-31 后自然终结）；全目标 187/172/187/194</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S17</td><td>复审修复第二波（K5b）：413 拒绝分支补上与 411 相同的 <code>drain</code>——客户端还在上传超大 body 时，带未读数据关闭连接的 RST 会吞掉 413 响应（Windows 实测突发/并发两型 6/6 全丢，对照组 411 两型 2/2 可靠送达）</td><td class="c">~+40</td><td>S5 活体 +1：原始 socket 声明 20MB 只发 256KB 的上传中途客户端必须收到 413（修复前该检查失败）；S5 23/23、S6 31/31 复跑全绿</td><td><span class="chip done">完成</span></td></tr>
   </tbody>
 </table></div>
 

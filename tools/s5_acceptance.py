@@ -136,6 +136,37 @@ def main() -> int:
         )
         check("chunked body -> 411", code == 411, f"got {code}")
 
+        # 6b. The 413 refusal must reach a client that is still uploading
+        # the oversized body. The server answers from the head alone and
+        # closes; without draining first, the close-time RST kills the
+        # response (measured 6/6 losses before the drain, against the
+        # drained 411 branch's reliable delivery).
+        s = socket.create_connection(("127.0.0.1", PORT), timeout=5)
+        s.sendall(
+            b"PUT /cal/big.ics HTTP/1.1\r\nHost: x\r\n"
+            b"Content-Length: 20000000\r\n\r\n"
+        )
+        s.sendall(b"x" * 262144)
+        time.sleep(0.8)
+        s.settimeout(5)
+        got = b""
+        try:
+            while True:
+                part = s.recv(65536)
+                if not part:
+                    break
+                got += part
+                if b"\r\n\r\n" in got:
+                    break
+        except OSError:
+            pass
+        s.close()
+        check(
+            "oversized 413 reaches a mid-upload client",
+            got.startswith(b"HTTP/1.1 413"),
+            f"got {got[:40]!r}",
+        )
+
         # 7. Unknown methods get 405 with an Allow header.
         code, hdrs, _ = request("BREW", "/cal/test.ics")
         check("unknown method -> 405", code == 405, f"got {code}")

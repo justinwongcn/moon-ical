@@ -54,7 +54,11 @@
 - Post-review verification round, second wave (S16-S20): end a `WEEKLY`
   series at the calendar horizon when its final week runs past year 9999
   (S12 guarded the step to the week's first day, but the days within the
-  week still escaped as x/time's untyped Failure).
+  week still escaped as x/time's untyped Failure); drain the connection
+  after refusing an oversized body, so the 413 actually reaches a client
+  that is still uploading instead of dying to the close-time RST (the
+  411 branch already drained; measured 6/6 losses before, reliable
+  delivery after — now pinned by a raw-socket live check).
 
 ## 0.2.0
 
