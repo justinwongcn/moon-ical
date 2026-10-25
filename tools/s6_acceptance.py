@@ -65,6 +65,13 @@ def main():
         check("OPTIONS advertises calendar-access", code == 200 and "calendar-access" in headers.get("dav", ""))
         code, headers, _ = request("GET", "/.well-known/caldav")
         check("well-known redirects to /cal/", code == 301 and headers.get("location") == "/cal/")
+        # The home collection follows the same canonical-URL rule as the
+        # nested collections (RFC 4918 5.2): its bare form redirects, the
+        # slashed form serves. Before S19 the home alone answered both.
+        code, headers, _ = request("GET", "/cal")
+        check("home URL without the slash redirects", code == 301 and headers.get("location") == "/cal/")
+        code, _, _ = request("GET", "/cal/")
+        check("home URL with the slash serves", code == 200)
         code, _, body = request("PROPFIND", "/", headers=["Depth: 0"])
         check("root discovers current principal", code == 207 and "/principals/default/" in body)
         code, _, body = request("PROPFIND", "/principals/default/", headers=["Depth: 0"])

@@ -35,7 +35,10 @@ test "target_of classifies the calendar routes" {
   // collection, which is what the first release served.
   assert_true(target_of("/cal/work") is Event(collection=None, name="work"))
   assert_true(target_of("/cal/") is Home)
-  assert_true(target_of("/cal") is Home)
+  // The home's own bare form redirects to the canonical slashed URL, the
+  // same rule the nested collections follow (RFC 4918 §5.2); before S19
+  // the home alone served both spellings directly.
+  assert_true(target_of("/cal") is HomeBare)
   assert_true(target_of("/") is Root)
   assert_true(target_of("/principals/default/") is Principal)
   assert_true(target_of("/.well-known/caldav") is WellKnown)
@@ -50,6 +53,7 @@ test "a query string never changes the routed path" {
     target_of("/cal/a.ics?x=1") is Event(collection=None, name="a.ics"),
   )
   assert_true(target_of("/cal/?x=1") is Home)
+  assert_true(target_of("/cal?x=1") is HomeBare)
   assert_true(target_of("/cal/work/?edit") is Collection(name="work"))
   assert_true(
     target_of("/cal/work/w.ics?v=2")

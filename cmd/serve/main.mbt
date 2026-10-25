@@ -159,6 +159,11 @@ priv enum Target {
   Principal
   /// `/cal/` — the calendar home, which is also the default collection.
   Home
+  /// `/cal` — the home collection's URL without its trailing slash. The
+  /// canonical form carries the slash (RFC 4918 §5.2), and the nested
+  /// collections already redirect theirs (S13), so the home answers its
+  /// bare form the same way instead of serving two spellings.
+  HomeBare
   /// `/cal/<name>/` — a nested calendar collection.
   Collection(name~ : String)
   /// `/cal/<name>.ics`, or `/cal/<cal>/<name>.ics` inside a nested collection.
@@ -187,8 +192,11 @@ fn target_of(path : String) -> Target {
   if path == "/principals/default/" {
     return Principal
   }
-  if path == "/cal/" || path == "/cal" {
+  if path == "/cal/" {
     return Home
+  }
+  if path == "/cal" {
+    return HomeBare
   }
   if !path.has_prefix("/cal/") {
     return Unknown
@@ -223,6 +231,10 @@ async fn route(
     Root => discovery_request(conn, request, @caldav.root_propfind())
     Principal => discovery_request(conn, request, @caldav.principal_propfind())
     Home => home_request(conn, store, request)
+    HomeBare =>
+      @httpd.respond(conn, 301, "Moved Permanently", headers=[
+        ("Location", "/cal/"),
+      ])
     Collection(name~) => collection_request(conn, store, request, name)
     Event(collection~, name~) =>
       event_request(conn, store, request, collection, name)

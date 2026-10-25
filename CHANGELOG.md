@@ -62,7 +62,11 @@
   test of a `comp-filter` to one component instance (RFC 4791 §9.7.1) —
   a `VEVENT` time-range is judged against that event's own UID series
   instead of every event in the resource, so another event's overlap can
-  no longer satisfy this event's filter (two-event false positive).
+  no longer satisfy this event's filter (two-event false positive);
+  redirect the home collection's bare URL `/cal` to its canonical slashed
+  form, the rule the nested collections already followed (the discovery
+  chain only ever emits slashed hrefs, so configured clients are
+  unaffected).
 
 ## 0.2.0
 

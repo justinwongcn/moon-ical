@@ -77,7 +77,7 @@ python tools/s6_acceptance.py
 ```
 
 Current results: 188 wasm, 173 wasm-gc, 188 JavaScript, and 195 native tests;
-23 HTTP storage and 34 live CalDAV curl checks also pass.
+23 HTTP storage and 36 live CalDAV curl checks also pass.
 
 Checks are written to discriminate, not just to observe: for anything that
 takes input and decides its output from it, the suite contains a pair of
@@ -89,7 +89,7 @@ results. The rule and the capability→evidence matrix are in
 
 | Client or driver | Discovery | Read/list | Create/update/delete | Result |
 |---|---:|---:|---:|---|
-| Real curl over TCP | Yes | Yes | Yes | 57/57 live checks pass |
+| Real curl over TCP | Yes | Yes | Yes | 59/59 live checks pass |
 | Thunderbird 155.0.1 (Windows) | Yes | Yes | Yes | Passed against localhost: seed read, create, in-place update, and delete verified in vdir |
 | DAVx5 | Not run | Not run | Not run | Android device required |
 | Apple Calendar | Not run | Not run | Not run | macOS/iOS device required |
