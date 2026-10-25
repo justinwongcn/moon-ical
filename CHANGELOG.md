@@ -74,6 +74,12 @@
   upstream's HTTP client and socket layer have none — a server that
   accepts and never answers used to hang the caller forever, and the
   bound now raises the new `FetchError::TimedOut`.
+- Upgrade to moonbitlang/async 0.22.4 and moonbitlang/x 0.5.5 ahead of
+  the 0.3.0 release. The premise behind `fetch_ics`'s timeout was
+  re-verified on the new async (still no timeout of its own in the HTTP
+  client or the socket layer); every strict gate and both live
+  acceptance suites pass on the upgraded dependencies, and the generated
+  interfaces are unchanged.
 
 ## 0.2.0
 

@@ -76,7 +76,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
     <span>更新日期 <b>2026-10-13</b></span>
     <span>进度 <b>S0–S10 与 R1–R12 全部完成</b>（0.2.0 已发布，0.3.0 开发中）</span>
     <span>工具链 <b>moon 0.1.20261023 / moonc v0.10.17</b>（<span class="mono">rr_moon_mod + rr_moon_pkg</span>；S10 后源码已按新 formatter 迁移 <code>Int→Int32</code>，S10.5 起 <code>.mbti</code> 也直接渲染 <code>Int32</code>）</span>
-    <span>依赖 <b>moonbitlang/async@0.21.2 · moonbitlang/x@0.5.1</b></span>
+    <span>依赖 <b>moonbitlang/async@0.22.4 · moonbitlang/x@0.5.5</b></span>
     <span>状态 <b>moon check ✓ · moon test 73/73 ✓</b></span>
   </div>
 </header>
@@ -209,6 +209,7 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
     <tr><td class="c">S18</td><td>复审修复第二波（K2）：comp-filter 的每项测试作用于同一组件实例（RFC 4791 §9.7.1）——VEVENT 的 time-range 改按该组件自身 UID 的系列判重叠（master 与 override 同 UID，展开语义不变），不再用全资源事件判；此前另一事件的区间重叠可以「代通过」本事件的 time-range（双事件资源假阳性）</td><td class="c">~+45</td><td>filter 差分测试（1 月区间 + SUMMARY=Beta 的双事件资源不选中，6 月区间选中 Beta）；S6 活体 +2 同型差分对；S5 23/23、S6 34/34 全绿（S6 计数勘误：S15 实加 7 项到 32，文档一直记 31，本轮 +2 并按真实值纠正）；全目标 188/173/188/195</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S19</td><td>复审修复第二波（K5e，jev 裁决的决策落地）：家目录裸形式 <code>/cal</code> 301 到规范 URL <code>/cal/</code>（RFC 4918 §5.2），与 S13 给嵌套集合立的规则统一——此前家目录单独双写法直接服务，且无任何决策记录（S5 以来的未审视继承行为）；发现链发出的 href 全部带斜杠，存量客户端不受影响</td><td class="c">~+25</td><td>serve wbtest 断言更新（<code>/cal</code> 与 <code>/cal?x</code> 归 HomeBare）；S6 活体 +2（裸形式 301+Location、带斜杠形式 200 差分对）；S5 23/23、S6 36/36 全绿</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S20</td><td>复审修复第二波（小项批 K3/K4/K5g）：①<code>ResourceView</code> 携带 feed 时区表并贯穿 VTODO/VJOURNAL 区间与 prop-filter 的 time-range（此前只认内置表，feed 私有 TZID 假阴性）；②<code>parse_utc_offset</code> 补小时 ≤23 上界（<code>+9900</code> 曾被静默接受为 99h）；③<code>fetch_ics</code> 以 <code>with_timeout</code> 兜底超时（上游 async 客户端与 socket 层无任何超时，挂起服务器原先永久阻塞调用方），<code>timeout_seconds?=30</code>、到点抛 <code>FetchError::TimedOut</code></td><td class="c">~+80</td><td>K3 差分（feed 声明 TZID 的 VTODO 选中 / 撤销声明不选中）；K4 差分（+9900 拒绝、+2359 仍合法）；K5g 超时单测（本地「接受但永不响应」监听器 + 1s 界，断言恰为 TimedOut——纯本地、进 CI）；S5 23/23、S6 36/36；全目标 189/174/189/197；fetch .mbti 预期两处 diff（新参数 + 新变体）</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S21</td><td>依赖升级（发布前窗口，排期经 jev 裁决）：<code>async</code> 0.21.2→0.22.4、<code>x</code> 0.5.1→0.5.5（<code>moon add --upgrade</code>）；K5g 的前提在新版 async 复核（HTTP 客户端与 socket 层仍无任何超时，§11 声明补注两版均核）</td><td class="c">~0（仅 moon.mod 与文档）</td><td>升级后全门闸 + 活体复跑：check/test all deny-warn 189/174/189/197、fmt、info 零 diff（.mbti 不变）、S5 23/23、S6 36/36</td><td><span class="chip done">完成</span></td></tr>
   </tbody>
 </table></div>
 
@@ -377,7 +378,7 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
     <tr><td><code>expand_series</code> 覆盖合并</td><td class="c">series 用例</td><td class="c">—</td><td>EXDATE 移除 / 改期 / 取消 / THISANDFUTURE 各一条</td></tr>
     <tr><td>序列化折行与引号</td><td class="c">serialize 11 例</td><td class="c">—</td><td>roundtrip 相等 + 幂等 + 75 octets 字节边界</td></tr>
     <tr><td>HTTP/1.1 请求层</td><td class="c">httpd 15 例</td><td class="c">S5</td><td>chunked → 411、畸形 → 400、Content-Length 按<b>字节</b>；头行 64KB / 头数 100 封顶 → 400；非数字 Content-Length → 400 而非 413（S14）</td></tr>
-    <tr><td>取件层 <code>fetch_ics</code></td><td class="c">fetch 1 例（native-only）</td><td class="c">demo 人工 URL 模式</td><td>判别性证据 = 超时单测（本地「接受但永不响应」监听器 + <code>timeout_seconds=1</code>，断言恰为 <code>FetchError::TimedOut</code>——上游 async 0.21.2 客户端与 socket 层无任何超时，本包的界是唯一防线，S20 补）；demo 对真实 .ics URL 打印解析后事件、非 200 抛 <code>FetchError::BadStatus</code>；外网测试不进 CI 是 S1.5 的既定决策（超时单测纯本地、进 CI）</td></tr>
+    <tr><td>取件层 <code>fetch_ics</code></td><td class="c">fetch 1 例（native-only）</td><td class="c">demo 人工 URL 模式</td><td>判别性证据 = 超时单测（本地「接受但永不响应」监听器 + <code>timeout_seconds=1</code>，断言恰为 <code>FetchError::TimedOut</code>——上游 async（0.21.2 与 0.22.4 均核实）客户端与 socket 层无任何超时，本包的界是唯一防线，S20 补）；demo 对真实 .ics URL 打印解析后事件、非 200 抛 <code>FetchError::BadStatus</code>；外网测试不进 CI 是 S1.5 的既定决策（超时单测纯本地、进 CI）</td></tr>
     <tr><td>vdir 存储 / ETag</td><td class="c">store 用例</td><td class="c">S5</td><td>同字节同 tag、改一字节即变、非法名拒绝</td></tr>
     <tr><td>集合创建 / 枚举 <span class="chip done">S10</span></td><td class="c">store + serve 用例</td><td class="c">S6</td><td>建两次第二次为 <code>false</code>；嵌套集合的事件不计入父集合</td></tr>
     <tr><td>发现链 / well-known</td><td class="c">caldav 用例</td><td class="c">S6</td><td>301 且 <code>Location: /cal/</code></td></tr>

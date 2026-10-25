@@ -26,6 +26,6 @@ preferred_target = "wasm"
 description = "iCalendar (RFC 5545) parsing, recurrence expansion, and a minimal CalDAV server in pure MoonBit"
 
 import {
-  "moonbitlang/async@0.21.2",
-  "moonbitlang/x@0.5.1",
+  "moonbitlang/async@0.22.4",
+  "moonbitlang/x@0.5.5",
 }
