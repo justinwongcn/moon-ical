@@ -2,6 +2,10 @@
 
 ## 0.4.0
 
+- Add `parse_mkcalendar` to the CalDAV semantics package: the typed
+  properties (`displayname`, `calendar-description`, `calendar-color`)
+  a `MKCALENDAR` request body asks for, entity-decoded. Parsing only —
+  what to persist is the embedding server's deployment decision.
 - Parse the `DURATION` property (RFC 5545 §3.3.6): an event stating no
   `DTEND` ends where its `DURATION` says (both present is the loud
   spec violation), occurrences inherit the length, and the VTODO /

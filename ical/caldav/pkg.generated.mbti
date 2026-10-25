@@ -12,6 +12,8 @@ pub fn collection_propfind(Array[DavResource], Int32, href? : String, displaynam
 
 pub fn parse_filter(String) -> Filter raise FilterError
 
+pub fn parse_mkcalendar(String) -> MkCalendarProps
+
 pub fn principal_propfind() -> String
 
 pub fn report(String, Array[DavResource]) -> ReportOutcome
@@ -60,6 +62,15 @@ pub fn Filter::equal(Self, Self) -> Bool
 pub fn Filter::matches(Self, String) -> Bool
 pub fn Filter::not_equal(Self, Self) -> Bool
 pub fn Filter::to_repr(Self) -> @debug.Repr
+
+pub(all) struct MkCalendarProps {
+  displayname : String?
+  description : String?
+  color : String?
+} derive(Eq, @debug.Debug)
+pub fn MkCalendarProps::equal(Self, Self) -> Bool
+pub fn MkCalendarProps::not_equal(Self, Self) -> Bool
+pub fn MkCalendarProps::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ParamFilter {
   name : String
