@@ -27,7 +27,7 @@ pub extend Freq with Eq::{not_equal, equal}
 /// to ±53; expansion of qualified weekdays arrives with S8.
 pub struct Byday {
   /// Zero when the weekday stands alone.
-  ordinal : Int
+  ordinal : Int32
   weekday : @time.Weekday
 } derive(Debug, Eq)
 
@@ -52,13 +52,13 @@ pub extend Byday with Eq::{not_equal, equal}
 /// clauses are absent, and every BY* list is empty when absent.
 pub struct Rule {
   freq : Freq
-  interval : Int
-  count : Int?
+  interval : Int32
+  count : Int32?
   until : @model.IcalDateTime?
   byday : Array[Byday]
-  bymonthday : Array[Int]
-  bymonth : Array[Int]
-  bysetpos : Array[Int]
+  bymonthday : Array[Int32]
+  bymonth : Array[Int32]
+  bysetpos : Array[Int32]
   wkst : @time.Weekday
 } derive(Debug, Eq)
 

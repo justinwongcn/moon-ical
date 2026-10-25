@@ -22,7 +22,7 @@ pub extend Occurrence with Eq::{not_equal, equal}
 /// same wall-clock delta.
 pub fn expand_series(
   events : Array[@model.Event],
-  limit? : Int = 200,
+  limit~ : Int32 = 200,
 ) -> Array[Occurrence] raise {
   let master = find_master(events)
   match master {

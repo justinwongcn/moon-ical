@@ -75,7 +75,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   <div class="meta">
     <span>更新日期 <b>2026-10-13</b></span>
     <span>进度 <b>S0–S10 与 R1–R12 全部完成</b>（0.2.0 已发布，0.3.0 开发中）</span>
-    <span>工具链 <b>moon 0.1.20261012 / moonc v0.10.15</b>（<span class="mono">rr_moon_mod + rr_moon_pkg</span>；该版 <code>moon fmt</code> 会做 <code>Int→Int32</code> 迁移，勿裸跑）</span>
+    <span>工具链 <b>moon 0.1.20261023 / moonc v0.10.17</b>（<span class="mono">rr_moon_mod + rr_moon_pkg</span>；S10 后源码已按新 formatter 迁移 <code>Int→Int32</code>，S10.5 起 <code>.mbti</code> 也直接渲染 <code>Int32</code>）</span>
     <span>依赖 <b>moonbitlang/async@0.21.2 · moonbitlang/x@0.5.1</b></span>
     <span>状态 <b>moon check ✓ · moon test 73/73 ✓</b></span>
   </div>
@@ -228,10 +228,14 @@ ical/model: parse_components(Array[String]) -&gt; Array[Component] raise
   <li><b>导入只写 moon.pkg</b>：<code>import { "moonbitlang/async/http" @http }</code> 写在所在目录的 <code>moon.pkg</code>；<code>.mbt</code> 文件里写 <code>import "..."</code> 是硬错误（3001/3002）。测试专用导入用 <code>import { … } for "test"</code>。</li>
   <li><b>可抛错误类型</b>：<code>pub(all) suberror Name { Ctor(field~ : Type) }</code>；<code>Error</code> 是内建 opaque 类型不是 trait，<code>impl Error for X</code> 必失败。展示用 <code>pub impl Show for Name with fn output(...)</code>。</li>
   <li><b>带标签字段两头都要带</b>：构造 <code>Ctor(a=1, b=2)</code>，匹配 <code>Ctor(a=x, b=y)</code>；位置式会报 requires 0 positional arguments。</li>
-  <li><b>区间</b>：<code>a..&lt;b</code>（右开）/ <code>a..=b</code>（闭）；<code>for</code> 头写坏会在下游报假错误（unbound identifier / 类型不匹配）——先修 for 头。</li>
+  <li><b>区间</b>：<code>a..&lt;b</code>（右开）/ <code>a..&lt;=b</code>（闭）。旧写法 <code>a..=b</code> 语义等价，但新版 formatter 会归一成 <code>a..&lt;=b</code>；<code>for</code> 头写坏会在下游报假错误（unbound identifier / 类型不匹配）——先修 for 头。</li>
   <li><b>不要 <code>String::trim()</code> 接 <code>StringView::data()</code></b>：<code>data()</code> 返回整个原串不是切片，trim 会静默消失。用 <code>String::from_array(s.to_array()[i:j])</code> 或手写字符数组裁剪（<code>ical/text/content_line.mbt</code> 里的 <code>trim_ascii</code> 就是这么写的）。</li>
   <li><b>API 拿不准先查</b>：<code>moon ide doc "Type::method"</code>（搜 core + 已注册依赖），不要凭记忆写 stdlib 名字。</li>
   <li><b>async 入口</b>：<code>async fn main</code> 需要根包 <code>moonbitlang/async</code> 一并导入；可执行包声明 <code>pkgtype(kind: "executable")</code>。</li>
+  <li><b><code>Int</code> 与 <code>Int32</code> 是同一个类型</b>：新版 formatter 把源码里的 <code>Int</code> 归一成 <code>Int32</code>；moonc v0.10.15 及以前 <code>.mbti</code> 会归一回 <code>Int</code>，<b>v0.10.17 起直接渲染 <code>Int32</code></b>（全仓 6 个接口文件 24 行纯渲染 diff，已随 S10.5 入库）——语义完全不变。S10 后仓库源码统一为 <code>Int32</code>，新代码跟随现状即可。</li>
+  <li><b>源码里的可选参数是带标签参数</b>：新版 formatter 把 <code>name? : T = d</code> 改写成 <code>name~ : T = d</code>。<b>差别在调用方式</b>——<code>~</code> 形式只能按名字传（<code>f(x, name=1)</code>），<b>不能再按位置传</b>（实测 <code>parse_date_time(line, zones, 7)</code> 报「requires 2 positional arguments, but is given 3」）。仓库内所有调用点都用 <code>name=value</code>，故本次迁移零调用点改动。</li>
+  <li><b><code>.mbti</code> 分不清 <code>?</code> 与 <code>~</code></b>：两者在接口文件里都渲染成 <code>name? : T</code>。于是「<code>.mbti</code> 无 diff ⇒ 对外接口无变化」这条判据在新工具链下<b>有盲区</b>——S10 迁移 <code>.mbti</code> 零 diff，但按位置传可选参数的调用方会编译失败。判断接口兼容性时不能只看 <code>.mbti</code>。</li>
+  <li><b>默认关闭的新 lint</b>：新版引入了一批默认 <code>off</code> 的检查（<code>0073 unnecessary_annotation</code>、<code>0074 missing_doc</code>、<code>0038/0039</code> 证明类等），<code>--deny-warn</code> 不会开启它们。用 <code>moon check --warn-list "+74"</code> 之类的开关按需排查（编号见 <code>moon explain --diagnostic</code>）。</li>
 </ul>
 
 <!-- ============================================================ -->

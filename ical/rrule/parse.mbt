@@ -31,13 +31,13 @@
 pub fn parse_rule(rule : String) -> Rule raise {
   let body = without_rrule_prefix(rule)
   let mut freq : Freq? = None
-  let mut interval : Int? = None
-  let mut count : Int? = None
+  let mut interval : Int32? = None
+  let mut count : Int32? = None
   let mut until : @model.IcalDateTime? = None
   let mut byday : Array[Byday] = []
-  let mut bymonthday : Array[Int] = []
-  let mut bymonth : Array[Int] = []
-  let mut bysetpos : Array[Int] = []
+  let mut bymonthday : Array[Int32] = []
+  let mut bymonth : Array[Int32] = []
+  let mut bysetpos : Array[Int32] = []
   let mut wkst : @time.Weekday? = None
   let seen : Array[String] = []
   for part in split_on(body, ';') {
@@ -157,7 +157,7 @@ fn parse_freq(value : String, rule : String) -> Freq raise {
 
 ///|
 /// `INTERVAL` and `COUNT`: a positive integer, nothing else.
-fn positive_clause(key : String, value : String, rule : String) -> Int raise {
+fn positive_clause(key : String, value : String, rule : String) -> Int32 raise {
   match parse_signed_int(value) {
     Some(n) =>
       if n >= 1 {
@@ -258,10 +258,10 @@ fn parse_int_list(
   value : String,
   key : String,
   rule : String,
-  bound : Int,
+  bound : Int32,
   signed : Bool,
-) -> Array[Int] raise {
-  let out : Array[Int] = []
+) -> Array[Int32] raise {
+  let out : Array[Int32] = []
   for item in split_on(value, ',') {
     let v = item.view()
     if !signed && v.length() > 0 && (v[0] == '-' || v[0] == '+') {
@@ -283,7 +283,7 @@ fn parse_int_list(
 ///|
 /// A decimal integer with an optional sign. Values longer than nine digits
 /// are refused rather than risked through silent wrap-around.
-fn parse_signed_int(text : String) -> Int? {
+fn parse_signed_int(text : String) -> Int32? {
   let v = text.view()
   let n = v.length()
   if n == 0 {
@@ -304,7 +304,7 @@ fn parse_signed_int(text : String) -> Int? {
   let mut digits = 0
   while i < n {
     let c = v[i]
-    if !(c is ('0'..='9')) {
+    if !(c is ('0'..<='9')) {
       return None
     }
     acc = acc * 10 + (c.to_int() - '0'.to_int())

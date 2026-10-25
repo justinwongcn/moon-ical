@@ -8,7 +8,7 @@ import {
 // Values
 pub fn escape_value(String) -> String
 
-pub fn parse_content_line(String, Int) -> ContentLine raise
+pub fn parse_content_line(String, Int32) -> ContentLine raise
 
 pub fn unescape_value(String) -> String
 
@@ -16,7 +16,7 @@ pub fn unfold(String) -> Array[String]
 
 // Errors
 pub(all) suberror ParseError {
-  BadLine(line_no~ : Int, line~ : String, message~ : String)
+  BadLine(line_no~ : Int32, line~ : String, message~ : String)
   BadRule(rule~ : String, message~ : String)
 } derive(Eq, @debug.Debug)
 pub fn ParseError::equal(Self, Self) -> Bool

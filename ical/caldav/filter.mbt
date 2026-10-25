@@ -357,12 +357,12 @@ fn is_supported_collation(collation : String) -> Bool {
 /// How many occurrences the adaptive expansion starts with. A time range is
 /// resolved by expanding until the series reaches the range or runs out, so
 /// this is only a starting point rather than a cap on what can match.
-const SERIES_INITIAL_LIMIT : Int = 32
+const SERIES_INITIAL_LIMIT : Int32 = 32
 
 ///|
 /// The ceiling the adaptive expansion stops doubling at. A rule that still
 /// has not reached the range by here is far denser than any real calendar.
-const SERIES_LIMIT_CAP : Int = 4096
+const SERIES_LIMIT_CAP : Int32 = 4096
 
 ///|
 /// The component tree and typed events of one calendar object resource.

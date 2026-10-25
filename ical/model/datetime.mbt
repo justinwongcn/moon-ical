@@ -18,7 +18,7 @@
 pub struct IcalDateTime {
   wall : @time.PlainDateTime
   /// Seconds east of UTC; `None` means the value is floating.
-  utc_offset : Int?
+  utc_offset : Int32?
   /// The `TZID` / `Z` / absolute-offset spelling that produced `utc_offset`,
   /// kept for error messages and for writing a feed back out.
   zone_id : String
@@ -41,11 +41,16 @@ pub fn IcalDateTime::instant_seconds(self : IcalDateTime) -> Int64 {
 }
 
 ///|
+/// Whether this value is pinned to UTC — a `Z` designator rather than a
+/// `TZID`, an absolute offset, or nothing at all.
 pub fn IcalDateTime::is_utc(self : IcalDateTime) -> Bool {
   self.utc_offset == Some(0)
 }
 
 ///|
+/// Whether this value floats: the feed declared no zone, so the wall reading
+/// means that time wherever it is read. Floating values sort as if UTC
+/// (see [`IcalDateTime::instant_seconds`]) but are not UTC.
 pub fn IcalDateTime::is_floating(self : IcalDateTime) -> Bool {
   match self.utc_offset {
     None => true
@@ -96,7 +101,10 @@ pub fn IcalDateTime::shift_seconds(
 ///|
 /// Negative when `self` happens before `other`, zero for the same instant,
 /// positive afterwards. All-day values compare by their calendar day.
-pub fn IcalDateTime::compare(self : IcalDateTime, other : IcalDateTime) -> Int {
+pub fn IcalDateTime::compare(
+  self : IcalDateTime,
+  other : IcalDateTime,
+) -> Int32 {
   self.instant_seconds().compare(other.instant_seconds())
 }
 
@@ -145,7 +153,7 @@ pub extend IcalDateTime with Show::{to_string, output}
 pub fn parse_date_time(
   line : @text.ContentLine,
   zones : ZoneTable,
-  line_no? : Int = 0,
+  line_no~ : Int32 = 0,
 ) -> IcalDateTime raise {
   let value_is_date = match line.param("VALUE") {
     Some(v) => String::to_upper(v) == "DATE"
@@ -170,7 +178,7 @@ pub fn parse_date_time(
 pub fn parse_single_date_time(
   text : String,
   zones : ZoneTable,
-  line_no? : Int = 0,
+  line_no~ : Int32 = 0,
 ) -> IcalDateTime raise {
   parse_value(text, tzid=None, false, zones, line_no)
 }
@@ -183,9 +191,9 @@ pub fn parse_single_date_time(
 pub fn parse_date_time_value(
   raw : String,
   zones : ZoneTable,
-  tzid? : String? = None,
-  value_is_date? : Bool = false,
-  line_no? : Int = 0,
+  tzid~ : String? = None,
+  value_is_date~ : Bool = false,
+  line_no~ : Int32 = 0,
 ) -> IcalDateTime raise {
   parse_value(raw, tzid~, value_is_date, zones, line_no)
 }
@@ -197,7 +205,7 @@ fn parse_value(
   tzid~ : String?,
   value_is_date : Bool,
   zones : ZoneTable,
-  line_no : Int,
+  line_no : Int32,
 ) -> IcalDateTime raise {
   let v = raw.view()
   let n = v.length()
@@ -279,9 +287,9 @@ fn parse_value(
 /// YYYYMMDD from positions 0..8 of a value's chars.
 fn read_date(
   v : StringView,
-  line_no : Int,
+  line_no : Int32,
   raw : String,
-) -> (Int, Int, Int) raise {
+) -> (Int32, Int32, Int32) raise {
   match (digits(v, 0, 4), digits(v, 4, 2), digits(v, 6, 2)) {
     (Some(y), Some(m), Some(d)) => (y, m, d)
     _ =>
@@ -297,9 +305,9 @@ fn read_date(
 /// THHMMSS from positions 9..14 of a value's chars.
 fn read_time(
   v : StringView,
-  line_no : Int,
+  line_no : Int32,
   raw : String,
-) -> (Int, Int, Int) raise {
+) -> (Int32, Int32, Int32) raise {
   match (digits(v, 9, 2), digits(v, 11, 2), digits(v, 13, 2)) {
     (Some(h), Some(mi), Some(s)) => (h, mi, s)
     _ =>
@@ -314,7 +322,7 @@ fn read_time(
 ///|
 /// Read `width` decimal digits starting at `from`, or `None` when the range is
 /// out of bounds or holds a non-digit.
-fn digits(v : StringView, from : Int, width : Int) -> Int? {
+fn digits(v : StringView, from : Int32, width : Int32) -> Int32? {
   let end = from + width
   if from < 0 || end > v.length() {
     return None
@@ -322,7 +330,7 @@ fn digits(v : StringView, from : Int, width : Int) -> Int? {
   let mut acc = 0
   for i in from..<end {
     let c = v[i]
-    if !(c is ('0'..='9')) {
+    if !(c is ('0'..<='9')) {
       return None
     }
     acc = acc * 10 + (c.to_int() - '0'.to_int())
@@ -331,7 +339,7 @@ fn digits(v : StringView, from : Int, width : Int) -> Int? {
 }
 
 ///|
-fn pad2(n : Int) -> String {
+fn pad2(n : Int32) -> String {
   if n < 10 {
     "0\{n}"
   } else {
@@ -340,7 +348,7 @@ fn pad2(n : Int) -> String {
 }
 
 ///|
-fn pad4(n : Int) -> String {
+fn pad4(n : Int32) -> String {
   let s = n.to_string()
   if s.length() >= 4 {
     s

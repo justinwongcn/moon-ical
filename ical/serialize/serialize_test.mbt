@@ -1,7 +1,7 @@
 ///|
 /// UTF-8 byte length of a string, the unit of RFC 5545's 75-octet fold
 /// limit.
-fn byte_len(s : String) -> Int {
+fn byte_len(s : String) -> Int32 {
   let mut total = 0
   for c in s.to_array() {
     let code = c.to_int()

@@ -8,9 +8,9 @@ import {
 }
 
 // Values
-pub fn expand(Rule, @model.IcalDateTime, limit? : Int) -> Array[@model.IcalDateTime] raise
+pub fn expand(Rule, @model.IcalDateTime, limit? : Int32) -> Array[@model.IcalDateTime] raise
 
-pub fn expand_series(Array[@model.Event], limit? : Int) -> Array[Occurrence] raise
+pub fn expand_series(Array[@model.Event], limit? : Int32) -> Array[Occurrence] raise
 
 pub fn parse_rule(String) -> Rule raise
 
@@ -28,7 +28,7 @@ pub impl Show for ExpandError
 
 // Types and methods
 pub struct Byday {
-  ordinal : Int
+  ordinal : Int32
   weekday : @time.Weekday
 } derive(Eq, @debug.Debug)
 pub fn Byday::equal(Self, Self) -> Bool
@@ -58,13 +58,13 @@ pub fn Occurrence::to_repr(Self) -> @debug.Repr
 
 pub struct Rule {
   freq : Freq
-  interval : Int
-  count : Int?
+  interval : Int32
+  count : Int32?
   until : @model.IcalDateTime?
   byday : Array[Byday]
-  bymonthday : Array[Int]
-  bymonth : Array[Int]
-  bysetpos : Array[Int]
+  bymonthday : Array[Int32]
+  bymonth : Array[Int32]
+  bysetpos : Array[Int32]
   wkst : @time.Weekday
 } derive(Eq, @debug.Debug)
 pub fn Rule::equal(Self, Self) -> Bool

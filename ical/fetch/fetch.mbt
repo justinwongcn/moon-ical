@@ -6,7 +6,7 @@
 /// see the status code and the URL instead of a misleading parse error that
 /// would come from feeding an HTML error page into the parser.
 pub(all) suberror FetchError {
-  BadStatus(status~ : Int, url~ : String)
+  BadStatus(status~ : Int32, url~ : String)
 } derive(Debug, Eq)
 
 ///|

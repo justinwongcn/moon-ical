@@ -2,7 +2,7 @@
 /// RFC 5545 §3.1: lines of text SHOULD NOT be longer than 75 octets,
 /// excluding the line break. Long content lines are folded — broken so
 /// each continuation physical line starts with one WSP.
-const FOLD_LIMIT : Int = 75
+const FOLD_LIMIT : Int32 = 75
 
 ///|
 /// Serialize a whole component forest back into iCalendar text:
@@ -144,7 +144,7 @@ fn append_string(out : Array[Char], text : String) -> Unit {
 
 ///|
 /// Bytes this character occupies in UTF-8.
-fn utf8_len(c : Char) -> Int {
+fn utf8_len(c : Char) -> Int32 {
   let code = c.to_int()
   if code < 0x80 {
     1

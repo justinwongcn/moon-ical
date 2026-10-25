@@ -22,7 +22,7 @@ struct ExpansionCase {
   rule : String
   dtstart : String
   /// The `limit` passed to `expand`.
-  limit : Int
+  limit : Int32
   expected : Array[String]
 }
 

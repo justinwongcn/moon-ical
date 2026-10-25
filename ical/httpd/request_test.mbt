@@ -153,7 +153,7 @@ priv struct CollectWriter {
 }
 
 ///|
-impl @io.Writer for CollectWriter with fn write_once(self, bytes, offset~, len~) -> Int {
+impl @io.Writer for CollectWriter with fn write_once(self, bytes, offset~, len~) -> Int32 {
   self.parts.push(@utf8.decode(bytes[offset:offset + len]))
   len
 }

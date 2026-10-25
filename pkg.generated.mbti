@@ -8,9 +8,9 @@ import {
 }
 
 // Values
-pub fn expand(@rrule.Rule, @model.IcalDateTime, limit? : Int) -> Array[@model.IcalDateTime] raise
+pub fn expand(@rrule.Rule, @model.IcalDateTime, limit? : Int32) -> Array[@model.IcalDateTime] raise
 
-pub fn expand_series(Array[@model.Event], limit? : Int) -> Array[@rrule.Occurrence] raise
+pub fn expand_series(Array[@model.Event], limit? : Int32) -> Array[@rrule.Occurrence] raise
 
 pub fn parse_calendar(String) -> Array[@model.Component] raise
 

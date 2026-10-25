@@ -8,7 +8,7 @@
 /// parsers such as `@rrule.parse_rule`, where a whole `RRULE` value is the
 /// unit of failure and no line context applies.
 pub(all) suberror ParseError {
-  BadLine(line_no~ : Int, line~ : String, message~ : String)
+  BadLine(line_no~ : Int32, line~ : String, message~ : String)
   BadRule(rule~ : String, message~ : String)
 } derive(Debug, Eq)
 

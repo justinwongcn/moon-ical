@@ -32,7 +32,7 @@ pub extend ExpandError with Show::{to_string, output}
 /// up, so a rule whose `BY*` clauses can never match (say
 /// `BYMONTH=2;BYMONTHDAY=30`) terminates with an empty result instead of
 /// spinning forever.
-const MAX_PERIODS : Int = 10_000
+const MAX_PERIODS : Int32 = 10_000
 
 ///|
 /// Expand a parsed [`Rule`] against its `DTSTART` into the occurrence
@@ -74,7 +74,7 @@ const MAX_PERIODS : Int = 10_000
 pub fn expand(
   rule : Rule,
   dtstart : @model.IcalDateTime,
-  limit? : Int = 200,
+  limit~ : Int32 = 200,
 ) -> Array[@model.IcalDateTime] raise {
   check_expandable(rule, dtstart)
   let normalized = NormalizedRule::new(rule)
@@ -128,7 +128,7 @@ pub fn expand(
 /// length, but not on the particular year or month.
 priv struct NormalizedRule {
   rule : Rule
-  monthdays_by_length : Array[Array[Int]]
+  monthdays_by_length : Array[Array[Int32]]
 }
 
 ///|
@@ -138,9 +138,9 @@ fn NormalizedRule::new(rule : Rule) -> NormalizedRule {
   bymonth.sort()
   bymonthday.sort()
   let sorted_rule = { ..rule, bymonth, bymonthday, }
-  let monthdays_by_length : Array[Array[Int]] = []
+  let monthdays_by_length : Array[Array[Int32]] = []
   for days_in_month in 28..<=31 {
-    let days : Array[Int] = []
+    let days : Array[Int32] = []
     for raw_day in bymonthday {
       let day = if raw_day > 0 { raw_day } else { days_in_month + raw_day + 1 }
       if day >= 1 && day <= days_in_month {
@@ -195,7 +195,7 @@ fn check_expandable(rule : Rule, dtstart : @model.IcalDateTime) -> Unit raise {
 fn candidates_for(
   normalized : NormalizedRule,
   start : @time.PlainDate,
-  period : Int,
+  period : Int32,
 ) -> Array[@time.PlainDate] raise {
   let rule = normalized.rule
   let all = match rule.freq {
@@ -212,7 +212,7 @@ fn candidates_for(
 /// Positive positions count from one; negative positions count backwards.
 fn apply_setpos(
   candidates : Array[@time.PlainDate],
-  positions : Array[Int],
+  positions : Array[Int32],
 ) -> Array[@time.PlainDate] {
   if positions.length() == 0 {
     return candidates
@@ -240,7 +240,7 @@ fn apply_setpos(
 fn daily_candidates(
   rule : Rule,
   start : @time.PlainDate,
-  period : Int,
+  period : Int32,
 ) -> Array[@time.PlainDate] raise {
   let day = start.add_days((period * rule.interval).to_int64())
   if passes_filters(rule, day) {
@@ -259,7 +259,7 @@ fn daily_candidates(
 fn weekly_candidates(
   rule : Rule,
   start : @time.PlainDate,
-  period : Int,
+  period : Int32,
 ) -> Array[@time.PlainDate] raise {
   let into_week = (weekday_num(start.weekday()) - weekday_num(rule.wkst) + 7) %
     7
@@ -291,7 +291,7 @@ fn weekly_candidates(
 fn monthly_candidates(
   normalized : NormalizedRule,
   start : @time.PlainDate,
-  period : Int,
+  period : Int32,
 ) -> Array[@time.PlainDate] raise {
   let rule = normalized.rule
   let months = start.year() * 12 + (start.month() - 1) + period * rule.interval
@@ -317,7 +317,7 @@ fn monthly_candidates(
 fn yearly_candidates(
   normalized : NormalizedRule,
   start : @time.PlainDate,
-  period : Int,
+  period : Int32,
 ) -> Array[@time.PlainDate] raise {
   let rule = normalized.rule
   let year = start.year() + period * rule.interval
@@ -336,7 +336,7 @@ fn yearly_candidates(
     }
     return out
   }
-  let months : Array[Int] = []
+  let months : Array[Int32] = []
   if rule.bymonth.length() > 0 {
     for month in rule.bymonth {
       months.push(month)
@@ -364,12 +364,12 @@ fn yearly_candidates(
 fn month_days(
   normalized : NormalizedRule,
   start : @time.PlainDate,
-  year : Int,
-  month : Int,
-) -> Array[Int] raise {
+  year : Int32,
+  month : Int32,
+) -> Array[Int32] raise {
   let rule = normalized.rule
   let dim = @time.PlainDate::of(year, month, 1).days_in_month()
-  let out : Array[Int] = []
+  let out : Array[Int32] = []
   if rule.bymonthday.length() > 0 {
     for day in normalized.monthdays_by_length[dim - 28] {
       let weekday = @time.PlainDate::of(year, month, day).weekday()
@@ -412,7 +412,7 @@ fn passes_filters(rule : Rule, day : @time.PlainDate) -> Bool {
 ///|
 /// Monday as 0 through Sunday as 6 — the arithmetic week-position of a
 /// weekday, whatever spelling it came in as.
-fn weekday_num(weekday : @time.Weekday) -> Int {
+fn weekday_num(weekday : @time.Weekday) -> Int32 {
   match weekday {
     @time.Weekday::Monday => 0
     @time.Weekday::Tuesday => 1
@@ -438,9 +438,9 @@ fn weekday_selected(entries : Array[Byday], weekday : @time.Weekday) -> Bool {
 ///|
 fn weekday_selected_in_month(
   entries : Array[Byday],
-  year : Int,
-  month : Int,
-  day : Int,
+  year : Int32,
+  month : Int32,
+  day : Int32,
   weekday : @time.Weekday,
 ) -> Bool raise {
   let dim = @time.PlainDate::of(year, month, 1).days_in_month()
@@ -499,7 +499,7 @@ fn has_ordinal_byday(entries : Array[Byday]) -> Bool {
 
 ///|
 /// Whether a normalized, ascending clause list contains the value.
-fn int_selected(list : Array[Int], value : Int) -> Bool {
+fn int_selected(list : Array[Int32], value : Int32) -> Bool {
   list.binary_search(value) is Ok(_)
 }
 

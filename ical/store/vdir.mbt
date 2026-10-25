@@ -244,13 +244,13 @@ pub fn etag_of(text : String) -> String {
 }
 
 ///|
-fn fnv_step(hash : UInt64, byte : Int) -> UInt64 {
+fn fnv_step(hash : UInt64, byte : Int32) -> UInt64 {
   (hash ^ byte.to_uint64()) * 0x100000001b3
 }
 
 ///|
 /// The UTF-8 encoding of one code point, byte by byte.
-fn utf8_bytes(code : Int) -> Array[Int] {
+fn utf8_bytes(code : Int32) -> Array[Int32] {
   if code < 0x800 {
     [0xC0 | (code >> 6), 0x80 | (code & 0x3F)]
   } else if code < 0x10000 {

@@ -9,13 +9,13 @@ import {
 // Values
 pub async fn[R : @io.Reader] read_request(R) -> HttpRequest?
 
-pub async fn[W : @io.Writer] respond(W, Int, String, headers? : Array[(String, String)], body? : String) -> Unit
+pub async fn[W : @io.Writer] respond(W, Int32, String, headers? : Array[(String, String)], body? : String) -> Unit
 
 // Errors
 pub(all) suberror HttpParseError {
   Malformed(message~ : String)
   ChunkedBody
-  BodyTooLarge(limit~ : Int)
+  BodyTooLarge(limit~ : Int32)
 } derive(Eq, @debug.Debug)
 pub fn HttpParseError::equal(Self, Self) -> Bool
 pub fn HttpParseError::not_equal(Self, Self) -> Bool

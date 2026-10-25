@@ -117,7 +117,7 @@ pub fn principal_propfind() -> String {
 /// `MKCALENDAR` (RFC 4791 §5.3.1).
 pub fn collection_propfind(
   resources : Array[DavResource],
-  depth : Int,
+  depth : Int32,
   href~ : String = "/cal/",
   displayname~ : String = "moon-ical",
   children~ : Array[(String, String)] = [],
@@ -263,6 +263,9 @@ fn multistatus(entries : Array[String]) -> String {
 }
 
 ///|
+/// Escape the five XML metacharacters so a calendar value or an href can sit
+/// inside a DAV response without being read as markup. The inverse of what a
+/// client does when it parses the response back.
 pub fn xml_escape(text : String) -> String {
   let out = StringBuilder()
   for c in text {

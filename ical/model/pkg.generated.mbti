@@ -14,15 +14,15 @@ pub fn parse_calendar(String) -> Array[Component] raise
 
 pub fn parse_components(Array[String]) -> Array[Component] raise
 
-pub fn parse_date_time(@text.ContentLine, ZoneTable, line_no? : Int) -> IcalDateTime raise
+pub fn parse_date_time(@text.ContentLine, ZoneTable, line_no? : Int32) -> IcalDateTime raise
 
-pub fn parse_date_time_value(String, ZoneTable, tzid? : String?, value_is_date? : Bool, line_no? : Int) -> IcalDateTime raise
+pub fn parse_date_time_value(String, ZoneTable, tzid? : String?, value_is_date? : Bool, line_no? : Int32) -> IcalDateTime raise
 
 pub fn parse_events(String) -> Array[Event] raise
 
-pub fn parse_single_date_time(String, ZoneTable, line_no? : Int) -> IcalDateTime raise
+pub fn parse_single_date_time(String, ZoneTable, line_no? : Int32) -> IcalDateTime raise
 
-pub fn parse_utc_offset(String, line_no~ : Int, raw~ : String) -> Int raise
+pub fn parse_utc_offset(String, line_no~ : Int32, raw~ : String) -> Int32 raise
 
 // Errors
 
@@ -60,11 +60,11 @@ pub impl Show for Event
 
 pub struct IcalDateTime {
   wall : @time.PlainDateTime
-  utc_offset : Int?
+  utc_offset : Int32?
   zone_id : String
   all_day : Bool
 } derive(Eq, @debug.Debug)
-pub fn IcalDateTime::compare(Self, Self) -> Int
+pub fn IcalDateTime::compare(Self, Self) -> Int32
 pub fn IcalDateTime::equal(Self, Self) -> Bool
 pub fn IcalDateTime::instant_seconds(Self) -> Int64
 pub fn IcalDateTime::is_floating(Self) -> Bool
@@ -78,12 +78,12 @@ pub fn IcalDateTime::to_string(Self) -> String
 pub impl Show for IcalDateTime
 
 pub struct ZoneTable {
-  entries : Map[String, Int]
+  entries : Map[String, Int32]
 } derive(@debug.Debug)
 pub fn ZoneTable::builtin_common() -> Self
 pub fn ZoneTable::empty() -> Self
-pub fn ZoneTable::insert(Self, String, Int) -> Unit
-pub fn ZoneTable::lookup(Self, String) -> Int?
+pub fn ZoneTable::insert(Self, String, Int32) -> Unit
+pub fn ZoneTable::lookup(Self, String) -> Int32?
 pub fn ZoneTable::to_repr(Self) -> @debug.Repr
 pub fn ZoneTable::with_builtin(Self) -> Self
 

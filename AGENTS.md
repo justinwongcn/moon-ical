@@ -69,13 +69,17 @@ Two non-negotiables:
 - In the last step, run `moon info` and check the `.mbti` diffs to see if the
   changes are expected.
 
-- **Do not run a bare `moon fmt` on this repository with moonc ≥ v0.10.15.**
-  That formatter rewrites `Int` to `Int32` and turns optional parameters
-  (`limit? : Int = 200`) into labeled ones (`limit~ : Int32 = 200`) — a
-  public-API change. The committed tree already fails `moon fmt --check` under
-  it, so a repo-wide diff from `moon fmt` is noise, not progress. Keep new code
-  in the existing `Int` style by hand. `moon check` / `moon test` / `moon info`
-  are unaffected.
+- **This tree is formatted by moonc ≥ v0.10.17, so `moon fmt` is safe again.**
+  That formatter canonicalizes three things, and new code should follow it:
+  `Int` → `Int32` (the same type; since v0.10.17 `.mbti` also renders it as
+  `Int32` — v0.10.15 used to render it back as `Int`), optional
+  parameters `name? : T = d` → labeled `name~ : T = d` (**labeled means callers
+  must pass it by name — positional passing no longer compiles**), and
+  `a..=b` → `a..<=b`.
+
+- `.mbti` does **not** distinguish `name?` from `name~`: both render as
+  `name? : T`. So "no `.mbti` diff" does not prove a calling convention is
+  unchanged — check the source when optional parameters move.
 
 - Run `moon test` to check tests pass. MoonBit supports snapshot testing; when
   changes affect outputs, run `moon test --update` to refresh snapshots.

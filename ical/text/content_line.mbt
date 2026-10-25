@@ -46,7 +46,7 @@ pub extend PropertyParam with Eq::{not_equal, equal}
 ///   assert_eq(line.value, "20260908T093000")
 /// }
 /// ```
-pub fn parse_content_line(line : String, line_no : Int) -> ContentLine raise {
+pub fn parse_content_line(line : String, line_no : Int32) -> ContentLine raise {
   let view = line.view()
   let n = view.length()
   // The first ':' outside a quoted param value starts the value. A ':' inside
@@ -220,7 +220,7 @@ fn split_unquoted(s : StringView, sep : UInt16) -> Array[StringView] {
 
 ///|
 /// Index of `target` outside double quotes, or -1 when it is absent.
-fn find_unquoted(s : StringView, target : UInt16) -> Int? {
+fn find_unquoted(s : StringView, target : UInt16) -> Int32? {
   let mut quoted = false
   let mut i = 0
   while i < s.length() {

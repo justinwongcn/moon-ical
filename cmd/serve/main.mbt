@@ -65,7 +65,7 @@ async fn drain(conn : @socket.Tcp) -> Unit {
 }
 
 ///|
-const DRAIN_CAP : Int = 10 * 1024 * 1024
+const DRAIN_CAP : Int32 = 10 * 1024 * 1024
 
 ///|
 /// Whether the connection loop goes on to read the next request.

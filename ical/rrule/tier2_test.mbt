@@ -2,7 +2,7 @@
 fn expand_strings(
   rule : String,
   start : String,
-  limit : Int,
+  limit : Int32,
 ) -> Array[String] raise {
   let dtstart = @model.parse_single_date_time(start, @model.ZoneTable::empty())
   @rrule.expand(@rrule.parse_rule(rule), dtstart, limit~).map(x => x.to_string())

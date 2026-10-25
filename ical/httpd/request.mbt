@@ -2,7 +2,7 @@
 /// A request-body cap, so a rogue client cannot make the server buffer
 /// an unbounded body in memory. vdir calendars are kilobytes; ten
 /// megabytes is already generous by an order of magnitude.
-const MAX_BODY : Int = 10 * 1024 * 1024
+const MAX_BODY : Int32 = 10 * 1024 * 1024
 
 ///|
 /// One hand-parsed HTTP/1.1 request (RFC 7230 §3, the subset CalDAV
@@ -59,7 +59,7 @@ pub extend HttpHeader with Eq::{not_equal, equal}
 pub(all) suberror HttpParseError {
   Malformed(message~ : String)
   ChunkedBody
-  BodyTooLarge(limit~ : Int)
+  BodyTooLarge(limit~ : Int32)
 } derive(Debug, Eq)
 
 ///|
@@ -272,7 +272,7 @@ async fn[R : @io.Reader] read_body(
 
 ///|
 /// Decimal digits only; anything else is refused rather than guessed.
-fn parse_int(text : String) -> Int {
+fn parse_int(text : String) -> Int32 {
   let v = text.view()
   let n = v.length()
   if n == 0 || n > 9 {
@@ -281,7 +281,7 @@ fn parse_int(text : String) -> Int {
   let mut acc = 0
   for i in 0..<n {
     let c = v[i]
-    if !(c is ('0'..='9')) {
+    if !(c is ('0'..<='9')) {
       return -1
     }
     acc = acc * 10 + (c.to_int() - '0'.to_int())
@@ -297,10 +297,10 @@ fn parse_int(text : String) -> Int {
 /// interleaved with another's.
 pub async fn[W : @io.Writer] respond(
   writer : W,
-  code : Int,
+  code : Int32,
   reason : String,
-  headers? : Array[(String, String)] = [],
-  body? : String = "",
+  headers~ : Array[(String, String)] = [],
+  body~ : String = "",
 ) -> Unit {
   let out = StringBuilder()
   out.write_string("HTTP/1.1 \{code} \{reason}\r\n")
@@ -316,7 +316,7 @@ pub async fn[W : @io.Writer] respond(
 
 ///|
 /// The UTF-8 byte length of a string — the unit HTTP lengths count in.
-fn utf8_byte_len(text : String) -> Int {
+fn utf8_byte_len(text : String) -> Int32 {
   let mut total = 0
   for c in text {
     let code = c.to_int()

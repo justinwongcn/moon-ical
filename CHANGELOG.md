@@ -23,6 +23,19 @@
 - Extend the live curl acceptance to cover filter selection, filter
   preconditions, and the collection lifecycle: 170 wasm / 157 wasm-gc / 170 js
   / 176 native tests, S5 21/21 and S6 23/23.
+- Align the source tree with moonc v0.10.15's formatter: `Int` is written as
+  `Int32`, optional parameters become labeled parameters, and inclusive ranges
+  use `..<=`. Semantics and the published `.mbti` interface are unchanged; the
+  one observable difference is that those parameters can no longer be passed
+  positionally, and every call site already passed them by name. `moon fmt
+  --check` passes again, so the CI formatting gate is green.
+- Re-render the six generated `.mbti` interfaces with moonc v0.10.17, which
+  now renders the type as `Int32` directly instead of folding it back to
+  `Int` (24 lines, render-only; the types are identical, so no API change).
+  Keeps `moon info` diff-clean on current toolchains, where CI runs it.
+- Document the three public definitions that carried no doc comment
+  (`IcalDateTime::is_utc`, `IcalDateTime::is_floating`, `xml_escape`), found by
+  enabling the new `missing_doc` lint.
 
 ## 0.2.0
 

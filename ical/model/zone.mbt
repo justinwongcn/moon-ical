@@ -13,7 +13,7 @@
 /// offset here (+01:00), while a feed that embeds its own `VTIMEZONE` gets the
 /// offset its author actually declared.
 pub struct ZoneTable {
-  entries : Map[String, Int]
+  entries : Map[String, Int32]
 } derive(Debug)
 
 ///|
@@ -29,7 +29,7 @@ pub fn ZoneTable::empty() -> ZoneTable {
 /// Offsets for the named zones that actually show up in the feeds we test
 /// against. Standard-time values only, on purpose (see the `ZoneTable` doc).
 pub fn ZoneTable::builtin_common() -> ZoneTable {
-  let zones : Map[String, Int] = {
+  let zones : Map[String, Int32] = {
     "UTC": 0,
     "GMT": 0,
     "Z": 0,
@@ -62,7 +62,7 @@ pub fn ZoneTable::builtin_common() -> ZoneTable {
 ///|
 /// Seconds east of UTC from an hour/minute pair, where a negative hour makes
 /// the whole offset negative (`offset(-5, 30)` is `-0530`, not `-0430`).
-fn offset(hours : Int, minutes : Int) -> Int {
+fn offset(hours : Int32, minutes : Int32) -> Int32 {
   let sign = if hours < 0 { -1 } else { 1 }
   sign * (hours.abs() * 3600 + minutes.abs() * 60)
 }
@@ -79,7 +79,7 @@ fn normalize_zone_id(tzid : String) -> String {
 pub fn ZoneTable::insert(
   self : ZoneTable,
   tzid : String,
-  seconds : Int,
+  seconds : Int32,
 ) -> Unit {
   self.entries[normalize_zone_id(tzid)] = seconds
 }
@@ -98,7 +98,7 @@ pub fn ZoneTable::with_builtin(feed : ZoneTable) -> ZoneTable {
 
 ///|
 /// Look a zone up, case-insensitively; the most recently inserted match wins.
-pub fn ZoneTable::lookup(self : ZoneTable, tzid : String) -> Int? {
+pub fn ZoneTable::lookup(self : ZoneTable, tzid : String) -> Int32? {
   self.entries.get(normalize_zone_id(tzid))
 }
 
@@ -122,9 +122,9 @@ pub fn ZoneTable::lookup(self : ZoneTable, tzid : String) -> Int? {
 /// ```
 pub fn parse_utc_offset(
   text : String,
-  line_no~ : Int,
+  line_no~ : Int32,
   raw~ : String,
-) -> Int raise {
+) -> Int32 raise {
   let v = text.view()
   let n = v.length()
   if n < 3 {

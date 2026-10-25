@@ -26,7 +26,7 @@ priv struct TagInfo {
   name : String
   attrs : Map[String, String]
   self_closing : Bool
-  end : Int
+  end : Int32
 }
 
 ///|
@@ -124,7 +124,7 @@ fn flush_text(stack : Array[XmlElement], chunk : String) -> Unit {
 ///|
 /// The offset just past the first occurrence of `needle` at or after `from`,
 /// or `None`.
-fn find_after(v : StringView, from : Int, needle : String) -> Int? {
+fn find_after(v : StringView, from : Int32, needle : String) -> Int32? {
   let rest = v[from:]
   match rest.find(needle.view()) {
     Some(offset) => Some(from + offset + needle.length())
@@ -134,7 +134,7 @@ fn find_after(v : StringView, from : Int, needle : String) -> Int? {
 
 ///|
 /// The offset of the first `target` code unit at or after `from`, or `None`.
-fn find_char(v : StringView, from : Int, target : UInt16) -> Int? {
+fn find_char(v : StringView, from : Int32, target : UInt16) -> Int32? {
   let n = v.length()
   for i in from..<n {
     if v[i] == target {
@@ -147,7 +147,7 @@ fn find_char(v : StringView, from : Int, target : UInt16) -> Int? {
 ///|
 /// Scan one start tag beginning at `<`. Attribute values may contain `>` and
 /// `/`, so the scan tracks quoting rather than stopping at the first one.
-fn scan_tag(v : StringView, start : Int) -> TagInfo? {
+fn scan_tag(v : StringView, start : Int32) -> TagInfo? {
   let n = v.length()
   let mut i = start + 1
   let name_start = i
@@ -195,7 +195,7 @@ fn scan_tag(v : StringView, start : Int) -> TagInfo? {
 ///|
 /// Scan one `name="value"` attribute pair and return the pair with the offset
 /// where scanning resumes. A bare name (HTML-style) is read as an empty value.
-fn scan_attribute(v : StringView, start : Int) -> ((String, String)?, Int) {
+fn scan_attribute(v : StringView, start : Int32) -> ((String, String)?, Int32) {
   let n = v.length()
   let mut i = start
   let name_start = i
