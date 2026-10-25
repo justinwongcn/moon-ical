@@ -46,7 +46,9 @@ async fn main {
     reuse_addr=true,
   )
   let bound = server.addr.port()
-  println("moon-ical serve: \{root} on http://127.0.0.1:\{bound}/cal/")
+  @stdio.stdout.write(
+    "moon-ical serve: \{root} on http://127.0.0.1:\{bound}/cal/\n",
+  )
   server.run_forever((conn, _) => handle_connection(conn, store))
 }
 
@@ -75,6 +77,33 @@ priv enum Outcome {
 }
 
 ///|
+/// `@httpd.respond` with the one-line access log every answered request
+/// earns: `METHOD path -> status`. Deliberately the whole of it — no
+/// levels, no config; before S24 a 500 left no trace anywhere and
+/// debugging meant guessing. The line goes through `@stdio.stdout`,
+/// whose writes reach the fd directly: core `println` is block-buffered
+/// when redirected under the async native backend, which for a server
+/// that never exits means the log never appears.
+async fn reply(
+  conn : @socket.Tcp,
+  request : @httpd.HttpRequest,
+  code : Int32,
+  reason : String,
+  headers~ : Array[(String, String)] = [],
+  body~ : String = "",
+) -> Unit {
+  @httpd.respond(conn, code, reason, headers~, body~)
+  @stdio.stdout.write("\{request.meth} \{request.path} -> \{code}\n")
+}
+
+///|
+/// A failure that is the server's, not the client's, goes to stderr so
+/// an operator sees more than a bare 500.
+async fn log_error(err : Error) -> Unit {
+  @stdio.stderr.write("handler error: \{err}\n")
+}
+
+///|
 /// Keep-alive: answer every request on this connection until the peer
 /// hangs up (a clean EOF between requests), sends something malformed,
 /// or a request fails to parse.
@@ -89,10 +118,23 @@ async fn handle_connection(
     let outcome = try {
       match @httpd.read_request(conn) {
         None => Stop // clean disconnect between requests
-        Some(request) => {
-          route(conn, store, request)
-          Next
-        }
+        Some(request) =>
+          // A failure below the request layer (store, filesystem) is the
+          // server's, not the client's: say so on stderr, answer 500 on
+          // this request's log line, and drop the connection.
+          try {
+            route(conn, store, request)
+            Next
+          } catch {
+            err => {
+              log_error(err)
+              @httpd.respond(conn, 500, "Internal Server Error", headers=[
+                ("Connection", "close"),
+              ])
+              @stdio.stdout.write("\{request.meth} \{request.path} -> 500\n")
+              Stop
+            }
+          }
       }
     } catch {
       @httpd.HttpParseError::ChunkedBody => {
@@ -133,9 +175,10 @@ async fn handle_connection(
         )
         Stop
       }
-      _ => {
-        // Anything raised below the request layer (store, filesystem)
-        // is the server's failure, not the client's malformed request.
+      err => {
+        // An unexpected failure while reading the request: no request to
+        // name, so the error itself is the log line.
+        log_error(err)
         @httpd.respond(conn, 500, "Internal Server Error", headers=[
           ("Connection", "close"),
         ])
@@ -225,20 +268,20 @@ async fn route(
 ) -> Unit {
   match target_of(request.path) {
     WellKnown =>
-      @httpd.respond(conn, 301, "Moved Permanently", headers=[
+      reply(conn, request, 301, "Moved Permanently", headers=[
         ("Location", "/cal/"),
       ])
     Root => discovery_request(conn, request, @caldav.root_propfind())
     Principal => discovery_request(conn, request, @caldav.principal_propfind())
     Home => home_request(conn, store, request)
     HomeBare =>
-      @httpd.respond(conn, 301, "Moved Permanently", headers=[
+      reply(conn, request, 301, "Moved Permanently", headers=[
         ("Location", "/cal/"),
       ])
     Collection(name~) => collection_request(conn, store, request, name)
     Event(collection~, name~) =>
       event_request(conn, store, request, collection, name)
-    Unknown => @httpd.respond(conn, 404, "Not Found")
+    Unknown => reply(conn, request, 404, "Not Found")
   }
 }
 
@@ -250,11 +293,11 @@ async fn discovery_request(
   body : String,
 ) -> Unit {
   if request.meth == "PROPFIND" {
-    dav_response(conn, body)
+    dav_response(conn, request, body)
   } else if request.meth == "OPTIONS" {
-    options_response(conn)
+    options_response(conn, request)
   } else {
-    method_not_allowed(conn)
+    method_not_allowed(conn, request)
   }
 }
 
@@ -268,17 +311,17 @@ async fn home_request(
   request : @httpd.HttpRequest,
 ) -> Unit {
   if request.meth == "GET" {
-    list_events(conn, store)
+    list_events(conn, request, store)
   } else if request.meth == "OPTIONS" {
-    options_response(conn)
+    options_response(conn, request)
   } else if request.meth == "PROPFIND" {
     propfind_collection(conn, store, request, "/cal/", "moon-ical", true)
   } else if request.meth == "REPORT" {
     report_request(conn, store, request, "/cal/")
   } else if request.meth == "MKCALENDAR" {
-    already_exists(conn)
+    already_exists(conn, request)
   } else {
-    method_not_allowed(conn)
+    method_not_allowed(conn, request)
   }
 }
 
@@ -296,36 +339,36 @@ async fn collection_request(
     None =>
       if request.meth == "MKCALENDAR" {
         if !@store.is_store_name(name) {
-          @httpd.respond(conn, 404, "Not Found")
+          reply(conn, request, 404, "Not Found")
         } else if store.create_collection(name) {
-          @httpd.respond(conn, 201, "Created")
+          reply(conn, request, 201, "Created")
         } else {
-          already_exists(conn)
+          already_exists(conn, request)
         }
       } else {
-        @httpd.respond(conn, 404, "Not Found")
+        reply(conn, request, 404, "Not Found")
       }
     Some(nested) =>
       if request.meth == "GET" {
-        list_events(conn, nested)
+        list_events(conn, request, nested)
       } else if request.meth == "OPTIONS" {
-        options_response(conn)
+        options_response(conn, request)
       } else if request.meth == "PROPFIND" {
         propfind_collection(conn, nested, request, href, name, false)
       } else if request.meth == "REPORT" {
         report_request(conn, nested, request, href)
       } else if request.meth == "DELETE" {
         if store.remove_collection(name) {
-          @httpd.respond(conn, 204, "No Content")
+          reply(conn, request, 204, "No Content")
         } else {
           // The collection is there, so a refusal here means it still holds
           // events: a collection is not deleted out from under its contents.
-          @httpd.respond(conn, 409, "Conflict", body="collection is not empty")
+          reply(conn, request, 409, "Conflict", body="collection is not empty")
         }
       } else if request.meth == "MKCALENDAR" {
-        already_exists(conn)
+        already_exists(conn, request)
       } else {
-        method_not_allowed(conn)
+        method_not_allowed(conn, request)
       }
   }
 }
@@ -348,14 +391,14 @@ async fn event_request(
   if collection is None {
     match store.collection(name) {
       Some(_) =>
-        @httpd.respond(conn, 301, "Moved Permanently", headers=[
+        reply(conn, request, 301, "Moved Permanently", headers=[
           ("Location", "/cal/\{name}/"),
         ])
       None => event_method(conn, store, request, name)
     }
   } else {
     match store_for(store, collection) {
-      None => @httpd.respond(conn, 404, "Not Found")
+      None => reply(conn, request, 404, "Not Found")
       Some(target) => event_method(conn, target, request, name)
     }
   }
@@ -386,14 +429,15 @@ async fn event_method(
   if !@store.is_store_name(name) {
     // The name is validated before it goes near the filesystem; a name that
     // could never be an event is simply not found.
-    @httpd.respond(conn, 404, "Not Found")
+    reply(conn, request, 404, "Not Found")
   } else if request.meth == "OPTIONS" {
-    options_response(conn)
+    options_response(conn, request)
   } else if request.meth == "GET" {
     match store.get(name) {
       Some(file) =>
-        @httpd.respond(
+        reply(
           conn,
+          request,
           200,
           "OK",
           headers=[
@@ -402,7 +446,7 @@ async fn event_method(
           ],
           body=file.text,
         )
-      None => @httpd.respond(conn, 404, "Not Found")
+      None => reply(conn, request, 404, "Not Found")
     }
   } else if request.meth == "PUT" {
     let current = store.get(name)
@@ -413,12 +457,12 @@ async fn event_method(
         request.header("If-None-Match"),
       )
       is @caldav.Precondition::Failed {
-      @httpd.respond(conn, 412, "Precondition Failed")
+      reply(conn, request, 412, "Precondition Failed")
     } else {
       let etag = store.put(name, request.body)
       let code = if current is Some(_) { 204 } else { 201 }
       let reason = if code == 204 { "No Content" } else { "Created" }
-      @httpd.respond(conn, code, reason, headers=[("ETag", "\"\{etag}\"")])
+      reply(conn, request, code, reason, headers=[("ETag", "\"\{etag}\"")])
     }
   } else if request.meth == "DELETE" {
     let current = store.get(name)
@@ -429,23 +473,28 @@ async fn event_method(
         None,
       )
       is @caldav.Precondition::Failed {
-      @httpd.respond(conn, 412, "Precondition Failed")
+      reply(conn, request, 412, "Precondition Failed")
     } else if store.delete(name) {
-      @httpd.respond(conn, 204, "No Content")
+      reply(conn, request, 204, "No Content")
     } else {
-      @httpd.respond(conn, 404, "Not Found")
+      reply(conn, request, 404, "Not Found")
     }
   } else {
-    method_not_allowed(conn)
+    method_not_allowed(conn, request)
   }
 }
 
 ///|
 /// A collection's events, one per line. Kept from the single-collection
 /// server as a plain-text convenience listing.
-async fn list_events(conn : @socket.Tcp, store : @store.VdirStore) -> Unit {
-  @httpd.respond(
+async fn list_events(
+  conn : @socket.Tcp,
+  request : @httpd.HttpRequest,
+  store : @store.VdirStore,
+) -> Unit {
+  reply(
     conn,
+    request,
     200,
     "OK",
     headers=[("Content-Type", "text/plain; charset=utf-8")],
@@ -473,6 +522,7 @@ async fn propfind_collection(
   }
   dav_response(
     conn,
+    request,
     @caldav.collection_propfind(
       load_resources(store, href),
       depth,
@@ -493,12 +543,13 @@ async fn report_request(
   href : String,
 ) -> Unit {
   match @caldav.report(request.body, load_resources(store, href)) {
-    @caldav.ReportOutcome::Report(body~) => dav_response(conn, body)
+    @caldav.ReportOutcome::Report(body~) => dav_response(conn, request, body)
     @caldav.ReportOutcome::UnsupportedReport =>
-      @httpd.respond(conn, 400, "Bad Request", body="unsupported REPORT")
+      reply(conn, request, 400, "Bad Request", body="unsupported REPORT")
     @caldav.ReportOutcome::PreconditionFailed(body~) =>
-      @httpd.respond(
+      reply(
         conn,
+        request,
         403,
         "Forbidden",
         headers=[("Content-Type", "application/xml; charset=utf-8")],
@@ -508,32 +559,46 @@ async fn report_request(
 }
 
 ///|
-async fn method_not_allowed(conn : @socket.Tcp) -> Unit {
-  @httpd.respond(conn, 405, "Method Not Allowed", headers=[
+async fn method_not_allowed(
+  conn : @socket.Tcp,
+  request : @httpd.HttpRequest,
+) -> Unit {
+  reply(conn, request, 405, "Method Not Allowed", headers=[
     ("Allow", "OPTIONS, GET, PUT, DELETE, PROPFIND, REPORT, MKCALENDAR"),
   ])
 }
 
 ///|
 /// `MKCALENDAR` on a collection that already exists.
-async fn already_exists(conn : @socket.Tcp) -> Unit {
-  @httpd.respond(conn, 405, "Method Not Allowed", headers=[
+async fn already_exists(
+  conn : @socket.Tcp,
+  request : @httpd.HttpRequest,
+) -> Unit {
+  reply(conn, request, 405, "Method Not Allowed", headers=[
     ("Allow", "OPTIONS, GET, PROPFIND, REPORT, DELETE"),
   ])
 }
 
 ///|
-async fn options_response(conn : @socket.Tcp) -> Unit {
-  @httpd.respond(conn, 200, "OK", headers=[
+async fn options_response(
+  conn : @socket.Tcp,
+  request : @httpd.HttpRequest,
+) -> Unit {
+  reply(conn, request, 200, "OK", headers=[
     ("Allow", "OPTIONS, GET, PUT, DELETE, PROPFIND, REPORT, MKCALENDAR"),
     ("DAV", "1, 3, calendar-access"),
   ])
 }
 
 ///|
-async fn dav_response(conn : @socket.Tcp, body : String) -> Unit {
-  @httpd.respond(
+async fn dav_response(
+  conn : @socket.Tcp,
+  request : @httpd.HttpRequest,
+  body : String,
+) -> Unit {
+  reply(
     conn,
+    request,
     207,
     "Multi-Status",
     headers=[("Content-Type", "application/xml; charset=utf-8")],

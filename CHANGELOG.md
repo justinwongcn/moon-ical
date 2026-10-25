@@ -2,6 +2,11 @@
 
 ## 0.4.0
 
+- Give the server a one-line access log (`METHOD path -> status`) and a
+  stderr line for handler failures: both go through the async runtime's
+  direct stdio writes, because core `println` is block-buffered when
+  redirected on the native backend and a server that never exits would
+  never flush it — before this, a 500 left no trace anywhere.
 - Type a REPORT by its root element's local name instead of a substring
   scan of the whole body, so a `calendar-query` whose text-match needle
   or href mentions `CALENDAR-MULTIGET` is no longer misrouted to the

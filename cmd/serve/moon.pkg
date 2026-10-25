@@ -4,6 +4,7 @@ import {
   "justinwongcn/moon-ical/ical/store",
   "moonbitlang/async",
   "moonbitlang/async/socket",
+  "moonbitlang/async/stdio",
   "moonbitlang/core/env",
 }
 
