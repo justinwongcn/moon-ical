@@ -395,9 +395,11 @@ fn[R] LineInput::take_bytes(
 
 ///|
 /// Decimal digits only; anything else is refused rather than guessed.
-/// The accumulator saturates near the Int64 ceiling so a well-formed but
+/// The accumulator saturates at the Int64 ceiling so a well-formed but
 /// absurd length stays "a number, a huge one" (the 413 bucket) instead
-/// of wrapping or being rejected as malformed.
+/// of wrapping or being rejected as malformed. The wrap check after the
+/// multiply-add catches the boundary case the pre-check misses:
+/// `Int64::MAX / 10` times ten plus a digit above seven still wraps.
 fn parse_int(text : String) -> Int64? {
   let v = text.view()
   let n = v.length()
@@ -410,10 +412,10 @@ fn parse_int(text : String) -> Int64? {
     if !(c is ('0'..<='9')) {
       return None
     }
-    if acc > 922_337_203_685_477_580 {
+    acc = acc * 10 + (c.to_int() - '0'.to_int()).to_int64()
+    if acc < 0 {
       return Some(9_223_372_036_854_775_807)
     }
-    acc = acc * 10 + (c.to_int() - '0'.to_int()).to_int64()
   }
   Some(acc)
 }

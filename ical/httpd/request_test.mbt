@@ -232,3 +232,17 @@ async test "a well-formed huge Content-Length is a size refusal, not malformed" 
     "request body exceeds 10485760 bytes",
   )
 }
+
+///|
+async test "an Int64-overflowing Content-Length still answers 413" {
+  // The saturation guard fired one digit late: acc == Int64::MAX/10
+  // exactly, times ten plus a digit above seven, wrapped negative — and
+  // a negative length read as "no size problem" and swallowed the
+  // connection's buffered bytes as the body.
+  assert_eq(
+    request_error_of(
+      "PUT /cal/a.ics HTTP/1.1\r\nContent-Length: 9223372036854775809\r\n\r\nx",
+    ),
+    "request body exceeds 10485760 bytes",
+  )
+}

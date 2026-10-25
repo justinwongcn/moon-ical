@@ -2,6 +2,11 @@
 
 ## 0.4.0
 
+- Fix an Int64 overflow in the Content-Length parser found by the third
+  review round: a length of `Int64::MAX/10` times ten plus a digit above
+  seven wrapped negative and read as "no size problem", swallowing the
+  connection's buffered bytes as the body. The accumulator now saturates
+  on the wrap itself.
 - Raise the existing typed `ExpandError::Invalid` when a rule has
   produced instances but the expansion's period budget cuts it off short
   of the caller's limit: a sparse unbounded series (a month-end weekly,
