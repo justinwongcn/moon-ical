@@ -316,6 +316,15 @@ fn parse_time_range(element : XmlElement) -> TimeRange raise FilterError {
       message="time-range without a start or an end",
     )
   }
+  // A range that starts at or after it ends can never overlap anything;
+  // answering it as an invalid filter says so, where silently matching
+  // nothing would read as "no events in range" for a request that never
+  // made sense.
+  if start is Some(s) && end is Some(e) && s >= e {
+    raise FilterError::InvalidFilter(
+      message="time-range start must be before end",
+    )
+  }
   { start, end, }
 }
 

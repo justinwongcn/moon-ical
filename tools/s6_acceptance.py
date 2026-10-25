@@ -111,6 +111,34 @@ def main():
         outside = query.replace("20260901T000000Z", "20300101T000000Z").replace("20261001T000000Z", "20300201T000000Z")
         code, _, body = request("REPORT", "/cal/", outside, ["Content-Type: application/xml"])
         check("calendar-query outside the range selects nothing", code == 207 and "UID:s6@moon-ical" not in body and "multistatus" in body)
+        # A range that starts at or after it ends can never overlap; it is
+        # an invalid filter (403 valid-filter), not an empty answer.
+        inverted = (
+            '<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+            '<D:prop><D:getetag/></D:prop>'
+            '<C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">'
+            '<C:time-range start="20261001T000000Z" end="20260901T000000Z"/>'
+            '</C:comp-filter></C:comp-filter></C:filter>'
+            '</C:calendar-query>'
+        )
+        code, _, body = request("REPORT", "/cal/", inverted, ["Content-Type: application/xml"])
+        check("an inverted time-range is refused as valid-filter", code == 403 and "valid-filter" in body)
+        # The report type is the root element, not a substring sniff: a
+        # query whose text-match needle names the other report still runs
+        # as a query and selects the matching event.
+        named = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:s6-named@moon-ical\r\nDTSTART:20260915T090000Z\r\nSUMMARY:CALENDAR-MULTIGET\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        request("PUT", "/cal/named.ics", named, ["If-None-Match: *"])
+        needle_query = (
+            '<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+            '<D:prop><D:getetag/></D:prop>'
+            '<C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">'
+            '<C:prop-filter name="SUMMARY"><C:text-match>CALENDAR-MULTIGET</C:text-match></C:prop-filter>'
+            '</C:comp-filter></C:comp-filter></C:filter>'
+            '</C:calendar-query>'
+        )
+        code, _, body = request("REPORT", "/cal/", needle_query, ["Content-Type: application/xml"])
+        check("a query naming the other report in its needle still queries", code == 207 and "/cal/named.ics" in body)
+        request("DELETE", "/cal/named.ics")
         no_filter = '<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/></D:prop></C:calendar-query>'
         code, _, body = request("REPORT", "/cal/", no_filter, ["Content-Type: application/xml"])
         check("calendar-query without a filter is refused", code == 403 and "valid-filter" in body)

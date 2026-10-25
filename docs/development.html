@@ -128,7 +128,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   </tbody>
 </table></div>
 
-<p><b>合计</b>：0.4.0 开发分支严格全目标测试为 wasm 192、wasm-gc 176、JavaScript 192、native 201；S5 23 项与 S6 36 项真实 curl 活体验收全绿。0.3.0 已发布到 mooncakes。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
+<p><b>合计</b>：0.4.0 开发分支严格全目标测试为 wasm 195、wasm-gc 179、JavaScript 195、native 204；S5 23 项与 S6 38 项真实 curl 活体验收全绿。0.3.0 已发布到 mooncakes。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
 
 <!-- ============================================================ -->
 <h2 id="s03"><span class="num">03</span>架构与数据流</h2>
@@ -389,6 +389,7 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
     <tr><td>If-Match / If-None-Match</td><td class="c">caldav 用例</td><td class="c">S6</td><td>陈旧 tag → 412（PUT 与 DELETE 双路径，S15）；<code>If-None-Match: *</code> 重复建 → 412</td></tr>
     <tr><td><b>MKCALENDAR 建集合</b> <span class="chip done">S10</span></td><td class="c">store + serve 用例</td><td class="c">S6</td><td>建后 Depth 1 <b>能发现</b>它；重复建 → 405</td></tr>
     <tr><td>Thunderbird CRUD</td><td class="c">—</td><td class="c">S7 人工会话</td><td>仅默认集合路径；<b>未覆盖</b> MKCALENDAR 与时间范围过滤（见 R6）</td></tr>
+    <tr><td class="c">S23</td><td>0.4.0 克制批次第一项（C+D，REPORT 语义收口）：①REPORT 判型改读 XML 根元素局部名（同款形状解析器），替代全文大写子串嗅探——text-match 针或 href 提及另一报表名不再误路由；②<code>time-range</code> start≥end 回 403 valid-filter——恒空区间静默匹配空会读作「区间内无事件」</td><td class="c">~+60</td><td>差分：query 针含 CALENDAR-MULTIGET 仍按 query 路由并选中目标事件（旧嗅探会误路由成 multiget 空答）；反转/相等区间 → 403+valid-filter（parse 层与 report 层各一钉）；S6 活体 +2；全目标 195/179/195/204、S5 23/23、S6 38/38</td><td><span class="chip done">完成</span></td></tr>
   </tbody>
 </table></div>
 

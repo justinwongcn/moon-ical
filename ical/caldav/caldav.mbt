@@ -183,43 +183,72 @@ pub extend ReportOutcome with Eq::{not_equal, equal}
 /// whole point of the report, so a body without one, or one this server
 /// cannot evaluate, is answered with the matching precondition failure
 /// instead of an unfiltered listing.
+
+///|
+/// Which REPORT a request body names. The root element's local name,
+/// read by the same XML shape parser the filter uses — not a substring
+/// scan of the whole body, which let a `text-match` needle or href that
+/// mentioned the other report's name misroute the request.
+priv enum ReportKind {
+  Multiget
+  Query
+  Other
+}
+
+///|
+fn report_kind(body : String) -> ReportKind {
+  match parse_xml_element(body) {
+    Some(root) =>
+      match root.name {
+        "calendar-multiget" => Multiget
+        "calendar-query" => Query
+        _ => Other
+      }
+    // Element names are lowercased while scanning; a body that is not an
+    // XML element at all names no report this server implements.
+    None => Other
+  }
+}
+
+///|
 pub fn report(body : String, resources : Array[DavResource]) -> ReportOutcome {
-  let upper = String::to_upper(body)
-  if upper.contains("CALENDAR-MULTIGET") {
-    let hrefs = xml_text_values(body, "href")
-    let selected : Map[String, Unit] = Map([], capacity=hrefs.length())
-    for href in hrefs {
-      // hrefs arrive entity-encoded like any other character data; a
-      // query-string ampersand sits on the wire as &amp;.
-      selected[decode_xml_entities(href)] = ()
-    }
-    let entries : Array[String] = []
-    for resource in resources {
-      if selected.contains(resource.href) {
-        entries.push(resource_response(resource, true))
+  match report_kind(body) {
+    Multiget => {
+      let hrefs = xml_text_values(body, "href")
+      let selected : Map[String, Unit] = Map([], capacity=hrefs.length())
+      for href in hrefs {
+        // hrefs arrive entity-encoded like any other character data; a
+        // query-string ampersand sits on the wire as &amp;.
+        selected[decode_xml_entities(href)] = ()
       }
-    }
-    Report(body=multistatus(entries))
-  } else if upper.contains("CALENDAR-QUERY") {
-    let filter = parse_filter(body) catch {
-      FilterError::InvalidFilter(_) =>
-        return PreconditionFailed(body=error_document("<C:valid-filter/>"))
-      FilterError::UnsupportedFilter(element~) =>
-        return PreconditionFailed(
-          body=error_document(
-            "<C:supported-filter>\{element}</C:supported-filter>",
-          ),
-        )
-    }
-    let entries : Array[String] = []
-    for resource in resources {
-      if filter.matches(resource.calendar_data) {
-        entries.push(resource_response(resource, true))
+      let entries : Array[String] = []
+      for resource in resources {
+        if selected.contains(resource.href) {
+          entries.push(resource_response(resource, true))
+        }
       }
+      Report(body=multistatus(entries))
     }
-    Report(body=multistatus(entries))
-  } else {
-    UnsupportedReport
+    Query => {
+      let filter = parse_filter(body) catch {
+        FilterError::InvalidFilter(_) =>
+          return PreconditionFailed(body=error_document("<C:valid-filter/>"))
+        FilterError::UnsupportedFilter(element~) =>
+          return PreconditionFailed(
+            body=error_document(
+              "<C:supported-filter>\{element}</C:supported-filter>",
+            ),
+          )
+      }
+      let entries : Array[String] = []
+      for resource in resources {
+        if filter.matches(resource.calendar_data) {
+          entries.push(resource_response(resource, true))
+        }
+      }
+      Report(body=multistatus(entries))
+    }
+    Other => UnsupportedReport
   }
 }
 

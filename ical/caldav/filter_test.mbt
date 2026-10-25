@@ -393,3 +393,31 @@ test "a VTODO time-range resolves the feed's own VTIMEZONE" {
     matches(vtodo_range, ics.replace(old="TZID:My-Zone", new="TZID:Gone")),
   )
 }
+
+///|
+test "an inverted time-range is an invalid filter, with equal bounds too" {
+  // The report-level 403 shape is pinned in caldav_test; this pins the
+  // parse-level contract: a half-open range needs start < end.
+  let inverted = "<C:time-range start=\"20260201T000000Z\" end=\"20260101T000000Z\"/>"
+  let error = try {
+    let _ = @caldav.parse_filter(
+      "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\">" +
+      "<C:filter><C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">\{inverted}</C:comp-filter></C:comp-filter></C:filter></C:calendar-query>",
+    )
+    "no-error"
+  } catch {
+    err => err.to_string()
+  }
+  assert_eq(error, "invalid filter: time-range start must be before end")
+  let equal = inverted.replace(old="20260101T000000Z", new="20260201T000000Z")
+  let error2 = try {
+    let _ = @caldav.parse_filter(
+      "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\">" +
+      "<C:filter><C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">\{equal}</C:comp-filter></C:comp-filter></C:filter></C:calendar-query>",
+    )
+    "no-error"
+  } catch {
+    err => err.to_string()
+  }
+  assert_eq(error2, "invalid filter: time-range start must be before end")
+}

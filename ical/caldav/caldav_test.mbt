@@ -182,3 +182,45 @@ test "a multiget href decodes XML entities before selection" {
     "<D:href>/cal/a&amp;x.ics</D:href></C:calendar-multiget>"
   assert_false(report_body(miss, resources).contains("/cal/a&amp;b.ics"))
 }
+
+///|
+test "the report type is the root element, not a substring of the body" {
+  // A calendar-query whose text-match needle names the *other* report:
+  // the old substring scan routed this body to calendar-multiget (no
+  // hrefs, empty answer), the root-element read routes it to the query
+  // it is, and the matching event is selected.
+  let named : Array[@caldav.DavResource] = [
+    {
+      href: "/cal/named.ics",
+      etag: "eee",
+      calendar_data: "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n" +
+      "UID:n\r\nDTSTART:20260110T090000Z\r\nDTEND:20260110T100000Z\r\n" +
+      "SUMMARY:CALENDAR-MULTIGET\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    },
+  ]
+  let body = query(
+    "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">" +
+    "<C:prop-filter name=\"SUMMARY\">" +
+    "<C:text-match>CALENDAR-MULTIGET</C:text-match>" +
+    "</C:prop-filter></C:comp-filter></C:comp-filter>",
+  )
+  let result = report_body(body, named)
+  assert_true(result.contains("/cal/named.ics"))
+}
+
+///|
+test "an inverted time-range fails the valid-filter precondition" {
+  // A range that starts at or after it ends can never overlap anything;
+  // before S23 it parsed fine and silently matched nothing, which reads
+  // as "no events" for a request that never made sense.
+  let body = query(
+    "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">" +
+    "<C:time-range start=\"20260201T000000Z\" end=\"20260101T000000Z\"/>" +
+    "</C:comp-filter></C:comp-filter>",
+  )
+  match @caldav.report(body, resources()) {
+    @caldav.ReportOutcome::PreconditionFailed(body~) =>
+      assert_true(body.contains("valid-filter"))
+    outcome => fail("expected a precondition failure, got \{Repr(outcome)}")
+  }
+}

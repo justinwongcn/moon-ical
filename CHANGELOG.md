@@ -2,6 +2,12 @@
 
 ## 0.4.0
 
+- Type a REPORT by its root element's local name instead of a substring
+  scan of the whole body, so a `calendar-query` whose text-match needle
+  or href mentions `CALENDAR-MULTIGET` is no longer misrouted to the
+  multiget handler; and refuse a `time-range` whose start is at or after
+  its end with the `valid-filter` precondition (403) instead of silently
+  matching nothing.
 - Close the four confirmed P3 findings from the second review round: a
   well-formed ten-digit `Content-Length` is a size refusal (413) instead
   of "not a plain integer" (400) — the parser saturates an `Int64`
