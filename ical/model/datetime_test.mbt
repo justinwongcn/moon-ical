@@ -167,3 +167,35 @@ test "a four-digit year below 1000 is padded when printed" {
   let v = @model.parse_date_time(cl, @model.ZoneTable::builtin_common())
   assert_eq(v.to_string(), "0908-01-01")
 }
+
+///|
+test "out-of-range components are line errors, not x/time failures" {
+  // Before S12 these escaped as untyped Failure from PlainDateTime::of,
+  // which a caller matching ParseError never caught (review round M2).
+  assert_eq(
+    error_of("DTSTART:20260908T250000"),
+    "line 0: time-hour out of range in: 20260908T250000 (in `20260908T250000`)",
+  )
+  // ISO 8601 admits 24:00:00; RFC 5545 §3.3.4 does not, and x/time would
+  // accept it, so the bound cannot be left to PlainDateTime::of.
+  assert_eq(
+    error_of("DTSTART:20260908T240000"),
+    "line 0: time-hour out of range in: 20260908T240000 (in `20260908T240000`)",
+  )
+  assert_eq(
+    error_of("DTSTART:20261301T000000"),
+    "line 0: date-time component out of range in: 20261301T000000 (in `20261301T000000`)",
+  )
+  assert_eq(
+    error_of("DTSTART:20260230T000000"),
+    "line 0: date-time component out of range in: 20260230T000000 (in `20260230T000000`)",
+  )
+  assert_eq(
+    error_of("DTSTART:20260908T099900"),
+    "line 0: date-time component out of range in: 20260908T099900 (in `20260908T099900`)",
+  )
+  assert_eq(
+    error_of("DTSTART;VALUE=DATE:20260230"),
+    "line 0: date-time component out of range in: 20260230 (in `20260230`)",
+  )
+}

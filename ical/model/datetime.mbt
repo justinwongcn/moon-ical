@@ -199,6 +199,32 @@ pub fn parse_date_time_value(
 }
 
 ///|
+/// `@time.PlainDateTime::of` with an out-of-range component reported as
+/// the package's line error. Left to x/time, month 13 or February 30
+/// escapes as an untyped `Failure` — which a caller matching
+/// [`@text.ParseError`] never sees, the opposite of the contract every
+/// other malformed value here keeps.
+fn plain_date_time_of(
+  y : Int32,
+  m : Int32,
+  d : Int32,
+  hh : Int32,
+  mm : Int32,
+  ss : Int32,
+  line_no~ : Int32,
+  raw~ : String,
+) -> @time.PlainDateTime raise {
+  @time.PlainDateTime::of(y, m, d, hour=hh, minute=mm, second=ss) catch {
+    _ =>
+      raise @text.ParseError::BadLine(
+        line_no~,
+        line=raw,
+        message="date-time component out of range in: \{raw}",
+      )
+  }
+}
+
+///|
 /// The shared body of both entry points: read one iCalendar date-time value.
 fn parse_value(
   raw : String,
@@ -213,7 +239,7 @@ fn parse_value(
   if n == 8 {
     let (y, m, d) = read_date(v, line_no, raw)
     IcalDateTime::{
-      wall: @time.PlainDateTime::of(y, m, d),
+      wall: plain_date_time_of(y, m, d, 0, 0, 0, line_no~, raw~),
       utc_offset: None,
       zone_id: "",
       all_day: true,
@@ -227,7 +253,18 @@ fn parse_value(
   } else {
     let (y, m, d) = read_date(v, line_no, raw)
     let (hh, mm, ss) = read_time(v, line_no, raw)
-    let wall = @time.PlainDateTime::of(y, m, d, hour=hh, minute=mm, second=ss)
+    // RFC 5545 §3.3.4 bounds time-hour at 23. moonbitlang/x additionally
+    // accepts 24:00:00 as midnight-of-the-next-day (ISO 8601), so the
+    // range cannot be left to `PlainDateTime::of` — check it here, where
+    // it is a line error like every other malformed component.
+    if hh > 23 {
+      raise @text.ParseError::BadLine(
+        line_no~,
+        line=raw,
+        message="time-hour out of range in: \{raw}",
+      )
+    }
+    let wall = plain_date_time_of(y, m, d, hh, mm, ss, line_no~, raw~)
     // `YYYYMMDDThhmmss` is 15 chars; anything past that is
     // the designator: nothing, `Z`, or `+hhmm`/`-hhmm`.
     let tail = n - 15

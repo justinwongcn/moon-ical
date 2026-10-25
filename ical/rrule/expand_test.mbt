@@ -282,3 +282,35 @@ test "WEEKLY with a negative BYMONTHDAY keeps only month-end weekdays" {
   assert_eq(out[0].to_string(), "2026-04-30T00:00:00Z")
   assert_eq(out[1].to_string(), "2026-12-31T00:00:00Z")
 }
+
+///|
+test "expansion ends at the representable calendar instead of raising" {
+  // Before S12 the walk escaped as x/time's untyped Failure from deep
+  // inside PlainDate::of/add_days: MONTHLY;INTERVAL=100 walked past year
+  // 9999 once the limit rose above 957, and the WEEKLY/DAILY products
+  // wrapped Int32. A series that cannot continue is over, not failed.
+  let dtstart = @model.parse_single_date_time(
+    "20260101T000000Z",
+    @model.ZoneTable::empty(),
+  )
+  let monthly = @rrule.expand(
+    @rrule.parse_rule("FREQ=MONTHLY;INTERVAL=100"),
+    dtstart,
+    limit=1000,
+  )
+  assert_eq(monthly.length(), 957)
+  assert_eq(monthly[956].to_string(), "9992-09-01T00:00:00Z")
+  let weekly = @rrule.expand(
+    @rrule.parse_rule("FREQ=WEEKLY;INTERVAL=400000000"),
+    dtstart,
+    limit=5,
+  )
+  assert_eq(weekly.length(), 1)
+  assert_eq(weekly[0].to_string(), "2026-01-01T00:00:00Z")
+  let daily = @rrule.expand(
+    @rrule.parse_rule("FREQ=DAILY;INTERVAL=800000000"),
+    dtstart,
+    limit=5,
+  )
+  assert_eq(daily.length(), 1)
+}

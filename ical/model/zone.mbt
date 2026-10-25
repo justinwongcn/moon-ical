@@ -103,9 +103,12 @@ pub fn ZoneTable::lookup(self : ZoneTable, tzid : String) -> Int32? {
 }
 
 ///|
-/// Parse an iCalendar UTC-offset value: `+0800`, `-0500`, `+0530`, or a bare
-/// `+08`. Raises [`ParseError`] on anything else, because a half-read offset
-/// silently shifts every event in a calendar.
+/// Parse an iCalendar UTC-offset value (RFC 5545 §3.3.14): `+0800`,
+/// `-0500`, `+0530`, `+053030`, or a bare `+08` (a deliberate lenience —
+/// the RFC grammar requires the minutes). Raises [`ParseError`] on
+/// anything else: an offset whose shape or components are not read whole
+/// would silently shift every event in a calendar, which is how the
+/// pre-S12 half-read of `+05:30` lost half an hour.
 ///
 /// # Example
 /// ```mbt nocheck
@@ -127,11 +130,15 @@ pub fn parse_utc_offset(
 ) -> Int32 raise {
   let v = text.view()
   let n = v.length()
-  if n < 3 {
+  // Sign, two-digit hour, optional two-digit minute, optional two-digit
+  // second — and nothing else. The exact length is the whole check: a
+  // colon form or a stray tail used to be read by its first five
+  // characters with the rest silently dropped.
+  if n != 3 && n != 5 && n != 7 {
     raise @text.ParseError::BadLine(
       line_no~,
       line=raw,
-      message="UTC offset too short: \{text}",
+      message="UTC offset must be +hh, +hhmm, or +hhmmss: \{text}",
     )
   }
   let sign = if v[0] == '-' {
@@ -146,9 +153,19 @@ pub fn parse_utc_offset(
     )
   }
   let hours = digits(v, 1, 2)
-  let minutes = if n == 5 { digits(v, 3, 2) } else { Some(0) }
-  match (hours, minutes) {
-    (Some(h), Some(m)) => sign * (h * 3600 + m * 60)
+  let minutes = if n >= 5 { digits(v, 3, 2) } else { Some(0) }
+  let seconds = if n == 7 { digits(v, 5, 2) } else { Some(0) }
+  match (hours, minutes, seconds) {
+    (Some(h), Some(m), Some(s)) =>
+      if m > 59 || s > 59 {
+        raise @text.ParseError::BadLine(
+          line_no~,
+          line=raw,
+          message="UTC offset minute or second out of range: \{text}",
+        )
+      } else {
+        sign * (h * 3600 + m * 60 + s)
+      }
     _ =>
       raise @text.ParseError::BadLine(
         line_no~,

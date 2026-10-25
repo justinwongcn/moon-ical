@@ -35,6 +35,12 @@ pub extend ExpandError with Show::{to_string, output}
 const MAX_PERIODS : Int32 = 10_000
 
 ///|
+/// The last year moonbitlang/x's `PlainDate` can represent (its
+/// `validate_year` bound). A candidate past it ends the expansion walk —
+/// see [`expand`].
+const MAX_PLAIN_YEAR : Int64 = 9999
+
+///|
 /// Expand a parsed [`Rule`] against its `DTSTART` into the occurrence
 /// date-times of the series, in chronological order (RFC 5545 §3.3.10).
 ///
@@ -56,7 +62,11 @@ const MAX_PERIODS : Int32 = 10_000
 /// `DTSTART` only when it matches); `UNTIL` bounds the series
 /// inclusively, compared by instant. `limit` caps how many occurrences
 /// are returned — the safety valve for unbounded rules — and never
-/// truncates a `COUNT`/`UNTIL` rule that ends within it.
+/// truncates a `COUNT`/`UNTIL` rule that ends within it. A series whose
+/// next candidate would fall past the representable calendar (year 9999
+/// in moonbitlang/x) ends there rather than raising, whatever `INTERVAL`
+/// says — the huge-interval products are computed in 64-bit for the same
+/// reason: a wrapped 32-bit product can name a *valid but wrong* date.
 ///
 /// # Example
 /// ```mbt nocheck
@@ -88,7 +98,21 @@ pub fn expand(
   let mut done = false
   let mut period = 0
   while !done && period < MAX_PERIODS {
-    for day in candidates_for(normalized, start, period) {
+    let candidates : Array[@time.PlainDate] = match
+      candidates_for(normalized, start, period) {
+      // The next candidate would fall outside the representable calendar
+      // (year -9999..9999 in moonbitlang/x), so the series has reached the
+      // end of every date it could ever express — the walk is over, not
+      // failed. Without this the walk raised x/time's untyped Failure
+      // instead of ending (INTERVAL in the hundreds on MONTHLY, or an
+      // Int32 product wrapping negative on WEEKLY/DAILY).
+      None => {
+        done = true
+        []
+      }
+      Some(days) => days
+    }
+    for day in candidates {
       if day < start {
         continue
       }
@@ -196,15 +220,18 @@ fn candidates_for(
   normalized : NormalizedRule,
   start : @time.PlainDate,
   period : Int32,
-) -> Array[@time.PlainDate] raise {
+) -> Array[@time.PlainDate]? raise {
   let rule = normalized.rule
-  let all = match rule.freq {
+  let all : Array[@time.PlainDate]? = match rule.freq {
     Daily => daily_candidates(normalized, start, period)
     Weekly => weekly_candidates(normalized, start, period)
     Monthly => monthly_candidates(normalized, start, period)
     Yearly => yearly_candidates(normalized, start, period)
   }
-  apply_setpos(all, rule.bysetpos)
+  match all {
+    None => None
+    Some(days) => Some(apply_setpos(days, rule.bysetpos))
+  }
 }
 
 ///|
@@ -236,17 +263,26 @@ fn apply_setpos(
 
 ///|
 /// `DAILY`: one date per period, the interval step from `DTSTART`, kept
-/// only if it survives every present `BY*` filter.
+/// only if it survives every present `BY*` filter. `None` when the step
+/// leaves the representable calendar.
 fn daily_candidates(
   normalized : NormalizedRule,
   start : @time.PlainDate,
   period : Int32,
-) -> Array[@time.PlainDate] raise {
-  let day = start.add_days((period * normalized.rule.interval).to_int64())
-  if passes_filters(normalized, day) {
-    [day]
-  } else {
-    []
+) -> Array[@time.PlainDate]? {
+  // Int64 on purpose: period * interval can exceed Int32 for the huge
+  // INTERVAL values parse_rule admits, and a wrapped product can land on
+  // a *valid* date — the wrong occurrence, silently.
+  let step = period.to_int64() * normalized.rule.interval.to_int64()
+  let day : @time.PlainDate? = Some(start.add_days(step)) catch { _ => None }
+  match day {
+    None => None
+    Some(day) =>
+      if passes_filters(normalized, day) {
+        Some([day])
+      } else {
+        Some([])
+      }
   }
 }
 
@@ -255,30 +291,37 @@ fn daily_candidates(
 /// `period * interval` weeks from `DTSTART`'s week, filtered to the
 /// `BYDAY` weekdays — or, with no `BYDAY`, to `DTSTART`'s own weekday.
 /// `WKST` decides which week a date belongs to, which is why it changes
-/// the result near a week boundary.
+/// the result near a week boundary. `None` past the representable
+/// calendar.
 fn weekly_candidates(
   normalized : NormalizedRule,
   start : @time.PlainDate,
   period : Int32,
-) -> Array[@time.PlainDate] raise {
+) -> Array[@time.PlainDate]? raise {
   let rule = normalized.rule
   let into_week = (weekday_num(start.weekday()) - weekday_num(rule.wkst) + 7) %
     7
   let week0 = start.add_days(-into_week.to_int64())
-  let base = week0.add_days((period * rule.interval * 7).to_int64())
-  let out : Array[@time.PlainDate] = []
-  for i in 0..<7 {
-    let day = base.add_days(i.to_int64())
-    let wanted = if rule.byday.length() > 0 {
-      weekday_selected(rule.byday, day.weekday())
-    } else {
-      day.weekday() == start.weekday()
-    }
-    if wanted && passes_filters(normalized, day) {
-      out.push(day)
+  let step = period.to_int64() * rule.interval.to_int64() * 7
+  let base : @time.PlainDate? = Some(week0.add_days(step)) catch { _ => None }
+  match base {
+    None => None
+    Some(base) => {
+      let out : Array[@time.PlainDate] = []
+      for i in 0..<7 {
+        let day = base.add_days(i.to_int64())
+        let wanted = if rule.byday.length() > 0 {
+          weekday_selected(rule.byday, day.weekday())
+        } else {
+          day.weekday() == start.weekday()
+        }
+        if wanted && passes_filters(normalized, day) {
+          out.push(day)
+        }
+      }
+      Some(out)
     }
   }
-  out
 }
 
 ///|
@@ -293,20 +336,29 @@ fn monthly_candidates(
   normalized : NormalizedRule,
   start : @time.PlainDate,
   period : Int32,
-) -> Array[@time.PlainDate] raise {
+) -> Array[@time.PlainDate]? raise {
   let rule = normalized.rule
-  let months = start.year() * 12 + (start.month() - 1) + period * rule.interval
+  // Int64 arithmetic: period * interval overflows Int32 for the huge
+  // INTERVAL values parse_rule admits, and a wrapped month count would
+  // realize a wrong-but-valid year.
+  let months = start.year().to_int64() * 12 +
+    (start.month() - 1).to_int64() +
+    period.to_int64() * rule.interval.to_int64()
   let year = months / 12
-  let month = months % 12 + 1
+  if year > MAX_PLAIN_YEAR {
+    return None
+  }
+  let year = Int64::to_int(year)
+  let month = Int64::to_int(months % 12 + 1)
   if rule.bymonth.length() > 0 && !int_selected(rule.bymonth, month) {
-    return []
+    return Some([])
   }
   let days = month_days(normalized, start, year, month)
   let out : Array[@time.PlainDate] = []
   for day in days {
     out.push(@time.PlainDate::of(year, month, day))
   }
-  out
+  Some(out)
 }
 
 ///|
@@ -319,9 +371,14 @@ fn yearly_candidates(
   normalized : NormalizedRule,
   start : @time.PlainDate,
   period : Int32,
-) -> Array[@time.PlainDate] raise {
+) -> Array[@time.PlainDate]? raise {
   let rule = normalized.rule
-  let year = start.year() + period * rule.interval
+  let year = start.year().to_int64() +
+    period.to_int64() * rule.interval.to_int64()
+  if year > MAX_PLAIN_YEAR {
+    return None
+  }
+  let year = Int64::to_int(year)
   if rule.bymonth.length() == 0 &&
     rule.bymonthday.length() == 0 &&
     has_ordinal_byday(rule.byday) {
@@ -335,7 +392,7 @@ fn yearly_candidates(
         }
       }
     }
-    return out
+    return Some(out)
   }
   let months : Array[Int32] = []
   if rule.bymonth.length() > 0 {
@@ -355,7 +412,7 @@ fn yearly_candidates(
       out.push(@time.PlainDate::of(year, month, day))
     }
   }
-  out
+  Some(out)
 }
 
 ///|
