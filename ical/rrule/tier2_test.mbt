@@ -206,3 +206,44 @@ test "series merge ignores overrides from another UID" {
     "2026-09-01T09:00:00Z", "2026-09-02T09:00:00Z", "2026-09-03T09:00:00Z",
   ])
 }
+
+///|
+test "an override without DTEND keeps the master's duration" {
+  // The master runs 09:00-10:00; the override moves only the start to
+  // 09:30. Before S26 the moved occurrence reported no end at all — a
+  // one-hour meeting became open-ended.
+  let text = "BEGIN:VCALENDAR\r\n" +
+    "BEGIN:VEVENT\r\nUID:dur\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T100000Z\r\n" +
+    "RRULE:FREQ=DAILY;COUNT=3\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nUID:dur\r\nRECURRENCE-ID:20260902T090000Z\r\nDTSTART:20260902T093000Z\r\n" +
+    "END:VEVENT\r\nEND:VCALENDAR\r\n"
+  let merged = @rrule.expand_series(@model.parse_events(text))
+  assert_eq(merged.length(), 3)
+  assert_eq(merged[1].start.to_string(), "2026-09-02T09:30:00Z")
+  assert_eq(
+    merged[1].end
+    .unwrap_or(
+      @model.parse_single_date_time(
+        "20260101T000000Z",
+        @model.ZoneTable::empty(),
+      ),
+    )
+    .to_string(),
+    "2026-09-02T10:30:00Z",
+  )
+}
+
+///|
+test "a group expands the series of its own UID, not any master" {
+  // An override of uid=a arrives before an unrelated master of uid=b:
+  // the group is about a, so there is no master to expand — before S26
+  // the first master of ANY uid was picked and b's series came out.
+  let text = "BEGIN:VCALENDAR\r\n" +
+    "BEGIN:VEVENT\r\nUID:a\r\nRECURRENCE-ID:20260902T090000Z\r\nDTSTART:20260902T093000Z\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nUID:b\r\nDTSTART:20260901T090000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nEND:VEVENT\r\n" +
+    "END:VCALENDAR\r\n"
+  let events = @model.parse_events(text)
+  // The group of uid a (first event) has no master: no series.
+  let merged = @rrule.expand_series(events)
+  assert_eq(merged.length(), 0)
+}

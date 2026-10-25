@@ -199,3 +199,30 @@ test "out-of-range components are line errors, not x/time failures" {
     "line 0: date-time component out of range in: 20260230 (in `20260230`)",
   )
 }
+
+///|
+test "VALUE=DATE with a date-time value is refused, not half-read" {
+  // VALUE=DATE names an 8-digit date; a 15-digit date-time under it used
+  // to be accepted as all-day while keeping its clock reading — neither
+  // the one nor the other. Same refuse-rather-than-guess as S12's
+  // half-read offsets.
+  let line = @text.parse_content_line("DTSTART;VALUE=DATE:20260908T093000", 1)
+  let error = try {
+    let _ = @model.parse_date_time_value(
+      line.value,
+      @model.ZoneTable::empty(),
+      value_is_date=true,
+      line_no=1,
+    )
+    "no-error"
+  } catch {
+    err => err.to_string()
+  }
+  assert_eq(
+    error, "line 1: VALUE=DATE with a non-date value: 20260908T093000 (in `20260908T093000`)",
+  )
+  // The plain date spelling keeps working, all-day as declared.
+  let ok_line = @text.parse_content_line("DTSTART;VALUE=DATE:20260908", 1)
+  let dt = @model.parse_date_time(ok_line, @model.ZoneTable::empty())
+  assert_true(dt.all_day)
+}

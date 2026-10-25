@@ -222,9 +222,22 @@ pub fn report(body : String, resources : Array[DavResource]) -> ReportOutcome {
         selected[decode_xml_entities(href)] = ()
       }
       let entries : Array[String] = []
+      let answered : Map[String, Unit] = Map([], capacity=resources.length())
       for resource in resources {
         if selected.contains(resource.href) {
           entries.push(resource_response(resource, true))
+          answered[resource.href] = ()
+        }
+      }
+      // A requested href with nothing behind it answers 404 for that
+      // href, the per-href shape RFC 4791's multiget examples show:
+      // silently dropping it left a client reconciling deletions unable
+      // to tell "absent" from "deleted".
+      for href in hrefs {
+        let decoded = decode_xml_entities(href)
+        if !answered.contains(decoded) {
+          entries.push(missing_href_response(decoded))
+          answered[decoded] = ()
         }
       }
       Report(body=multistatus(entries))
@@ -260,6 +273,15 @@ fn error_document(inner : String) -> String {
   "<D:error xmlns:D=\"DAV:\" xmlns:C=\"urn:ietf:params:xml:ns:caldav\">" +
   inner +
   "</D:error>"
+}
+
+///|
+/// The `DAV:response` for a requested href with nothing behind it: the
+/// bare 404 status line, the per-href shape RFC 4791's multiget examples
+/// show for missing resources.
+fn missing_href_response(href : String) -> String {
+  "<D:response><D:href>\{xml_escape(href)}</D:href>" +
+  "<D:status>HTTP/1.1 404 Not Found</D:status></D:response>"
 }
 
 ///|

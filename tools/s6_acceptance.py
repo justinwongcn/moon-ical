@@ -151,6 +151,13 @@ def main():
         miss = multiget.replace("/cal/s6.ics", "/cal/nothere.ics")
         code, _, body = request("REPORT", "/cal/", miss, ["Content-Type: application/xml"])
         check("multiget for a missing href selects nothing", code == 207 and "/cal/s6.ics" not in body and "multistatus" in body)
+        # A missing href is answered per-href with 404 (RFC 4791 multiget
+        # shape), so a client can tell "absent" from "deleted"; before S26
+        # it was silently dropped. Both hrefs of a mixed request get their
+        # own response element: 200 with data, 404 without.
+        mixed = multiget.replace("</C:calendar-multiget>", "<D:href xmlns:D=\"DAV:\">/cal/nothere.ics</D:href></C:calendar-multiget>")
+        code, _, body = request("REPORT", "/cal/", mixed, ["Content-Type: application/xml"])
+        check("a mixed multiget answers 200 and per-href 404", code == 207 and "404 Not Found" in body and "/cal/nothere.ics" in body and "calendar-data" in body)
         # Every test of a comp-filter applies to ONE component instance
         # (RFC 4791 9.7.1). k2a overlaps January but is not named k2beta;
         # k2beta is named k2beta but sits in June. Judging the time-range

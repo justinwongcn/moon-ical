@@ -224,3 +224,25 @@ test "an inverted time-range fails the valid-filter precondition" {
     outcome => fail("expected a precondition failure, got \{Repr(outcome)}")
   }
 }
+
+///|
+test "calendar-multiget answers a missing href with a per-href 404" {
+  // RFC 4791's multiget examples answer each requested href; a missing
+  // one gets its own 404 response so a client reconciling deletions can
+  // tell "absent" from "deleted" — before S26 it was silently dropped.
+  let body = "<C:calendar-multiget xmlns:C=\"urn:ietf:params:xml:ns:caldav\">" +
+    "<D:href xmlns:D=\"DAV:\">/cal/a.ics</D:href>" +
+    "<D:href xmlns:D=\"DAV:\">/cal/gone.ics</D:href>" +
+    "</C:calendar-multiget>"
+  let result = report_body(body, resources())
+  assert_true(result.contains("/cal/a.ics"))
+  assert_true(result.contains("getetag"))
+  assert_true(result.contains("/cal/gone.ics"))
+  assert_true(result.contains("404 Not Found"))
+  // The differential: the present href is a 200 propstat answer, the
+  // missing one carries no calendar data.
+  let gone_at = result.find("/cal/gone.ics".view()).unwrap_or(0)
+  let after = result[gone_at:].to_owned()
+  assert_true(after.contains("404"))
+  assert_false(after.contains("calendar-data"))
+}

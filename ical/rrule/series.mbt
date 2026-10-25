@@ -63,7 +63,7 @@ pub fn expand_series(
                       out.push({
                         uid,
                         start,
-                        end: event.dtend,
+                        end: override_end(event, duration),
                         summary: event.summary,
                         recurrence_id: slot,
                       })
@@ -113,9 +113,18 @@ pub fn expand_series(
 }
 
 ///|
+/// The series definition: the first event without a `RECURRENCE-ID` that
+/// carries the group's UID — the UID of the group's first event. A
+/// master of some other UID used to be picked up when it came first,
+/// silently expanding the wrong series for the group; a group whose UID
+/// has no master has no series to expand.
 fn find_master(events : Array[@model.Event]) -> @model.Event? {
+  if events.length() == 0 {
+    return None
+  }
+  let uid = events[0].uid.unwrap_or("")
   for event in events {
-    if event.recurrence_id is None {
+    if event.recurrence_id is None && event.uid.unwrap_or("") == uid {
       return Some(event)
     }
   }
@@ -169,6 +178,25 @@ fn SeriesIndex::build(
 ///|
 fn cancelled(event : @model.Event) -> Bool {
   event.status.map(s => s.to_upper()) == Some("CANCELLED")
+}
+
+///|
+/// An override's end: its own `DTEND`, or the master's duration when the
+/// override moved only the start. An override that says nothing about the
+/// end keeps the meeting's length — dropping it made a moved one-hour
+/// meeting report no end at all.
+fn override_end(
+  event : @model.Event,
+  duration : Int64?,
+) -> @model.IcalDateTime? raise {
+  match event.dtend {
+    Some(end) => Some(end)
+    None =>
+      match (event.dtstart, duration) {
+        (Some(start), Some(seconds)) => Some(start.shift_seconds(seconds))
+        _ => None
+      }
+  }
 }
 
 ///|

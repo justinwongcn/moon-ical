@@ -235,6 +235,16 @@ fn parse_value(
 ) -> IcalDateTime raise {
   let v = raw.view()
   let n = v.length()
+  // VALUE=DATE names an 8-digit date and nothing else: accepting a
+  // 15-digit date-time under it marked the value all-day while keeping
+  // its clock reading — neither the one nor the other, silently.
+  if value_is_date && n != 8 {
+    raise @text.ParseError::BadLine(
+      line_no~,
+      line=raw,
+      message="VALUE=DATE with a non-date value: \{raw}",
+    )
+  }
   // An 8-digit value is a DATE. Anything longer needs the T separator.
   if n == 8 {
     let (y, m, d) = read_date(v, line_no, raw)

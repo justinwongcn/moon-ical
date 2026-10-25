@@ -84,8 +84,8 @@ python tools/s5_acceptance.py
 python tools/s6_acceptance.py
 ```
 
-Current results: 195 wasm, 179 wasm-gc, 195 JavaScript, and 204 native tests;
-23 HTTP storage and 38 live CalDAV curl checks also pass.
+Current results: 199 wasm, 183 wasm-gc, 199 JavaScript, and 208 native tests;
+23 HTTP storage and 39 live CalDAV curl checks also pass.
 
 Checks are written to discriminate, not just to observe: for anything that
 takes input and decides its output from it, the suite contains a pair of
@@ -97,7 +97,7 @@ results. The rule and the capability→evidence matrix are in
 
 | Client or driver | Discovery | Read/list | Create/update/delete | Result |
 |---|---:|---:|---:|---|
-| Real curl over TCP | Yes | Yes | Yes | 61/61 live checks pass |
+| Real curl over TCP | Yes | Yes | Yes | 62/62 live checks pass |
 | Thunderbird 155.0.1 (Windows) | Yes | Yes | Yes | Passed against localhost: seed read, create, in-place update, and delete verified in vdir |
 | DAVx5 | Not run | Not run | Not run | Android device required |
 | Apple Calendar | Not run | Not run | Not run | macOS/iOS device required |
@@ -128,6 +128,11 @@ iCloud, Yahoo, and Outlook/Microsoft Graph is post-hackathon work.
 - `MKCALENDAR` creates the collection but does not store the properties in its
   request body (`displayname`, `calendar-color`); the collection's name is its
   display name.
+- A bare top-level `VEVENT` (no `VCALENDAR` wrapper) parses into a
+  component tree but `parse_events` yields no events for it; the tree is
+  still inspectable via `parse_components`.
+- An `EXDATE` at the same instant as a `RECURRENCE-ID` override removes
+  that instance; the override does not resurrect it.
 - `/cal/` is both the calendar home and the default collection. A collection
   created by `MKCALENDAR` nests beside the existing events rather than moving
   them, so a client already pointed at `/cal/` keeps working.

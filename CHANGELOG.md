@@ -2,6 +2,15 @@
 
 ## 0.4.0
 
+- Tighten four series and response semantics: `expand_series` picks the
+  series master by the group's own UID (a foreign master no longer gets
+  expanded for a group it does not belong to) and an override without
+  its own `DTEND` keeps the master's duration; `calendar-multiget`
+  answers a requested but absent href with its own 404 response
+  (RFC 4791's per-href shape) instead of dropping it; `VALUE=DATE` with
+  a date-time value is a line error instead of a half-read all-day
+  value. The bare top-level `VEVENT` and the `EXDATE`-over-override
+  behavior are now documented boundaries rather than surprises.
 - Make `unfold` linear: each logical line accumulates in its own
   buffer instead of re-copying the whole line on every fold. A 770KB
   folded line measured 1.68s before and 6.6ms after (255x, native
