@@ -17,7 +17,13 @@
 /// }
 /// ```
 pub fn unfold(input : String) -> Array[String] {
-  let logical : Array[String] = []
+  // One buffer per logical line: a fold appends that physical line's own
+  // text to its line's buffer, so unfolding costs one copy per physical
+  // line. The old `logical[last] + rest` string append re-copied the
+  // whole line on every fold — quadratic, and a 10MB logical line (which
+  // the server's own body cap admits) extrapolated to minutes per
+  // unfold, measured 281ms for a 385KB line before this became linear.
+  let logical : Array[StringBuilder] = []
   let view = input.view()
   let n = view.length()
   let mut start = 0
@@ -39,7 +45,11 @@ pub fn unfold(input : String) -> Array[String] {
   if start < n {
     push_physical(logical, view[start:])
   }
-  logical
+  let out : Array[String] = []
+  for line in logical {
+    out.push(line.to_string())
+  }
+  out
 }
 
 ///|
@@ -47,21 +57,25 @@ pub fn unfold(input : String) -> Array[String] {
 /// logical line, otherwise it starts a new one. A fold marker with nothing to
 /// fold into is kept as its own line rather than dropped, so malformed data
 /// survives the parse instead of vanishing.
-fn push_physical(logical : Array[String], physical : StringView) -> Unit {
+fn push_physical(logical : Array[StringBuilder], physical : StringView) -> Unit {
   let is_fold = physical.length() > 0 &&
     (physical[0] == ' ' || physical[0] == '\t')
   if !is_fold {
     if physical.length() > 0 {
-      logical.push(physical.to_owned())
+      let line = StringBuilder()
+      line.write_string(physical.to_owned())
+      logical.push(line)
     }
   } else {
     // Unfold drops exactly one leading WSP, then joins.
     let rest = physical[1:].to_owned()
     if logical.length() > 0 {
       let last = logical.length() - 1
-      logical[last] = logical[last] + rest
+      logical[last].write_string(rest)
     } else {
-      logical.push(rest)
+      let line = StringBuilder()
+      line.write_string(rest)
+      logical.push(line)
     }
   }
 }

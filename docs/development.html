@@ -391,6 +391,7 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
     <tr><td>Thunderbird CRUD</td><td class="c">—</td><td class="c">S7 人工会话</td><td>仅默认集合路径；<b>未覆盖</b> MKCALENDAR 与时间范围过滤（见 R6）</td></tr>
     <tr><td class="c">S23</td><td>0.4.0 克制批次第一项（C+D，REPORT 语义收口）：①REPORT 判型改读 XML 根元素局部名（同款形状解析器），替代全文大写子串嗅探——text-match 针或 href 提及另一报表名不再误路由；②<code>time-range</code> start≥end 回 403 valid-filter——恒空区间静默匹配空会读作「区间内无事件」</td><td class="c">~+60</td><td>差分：query 针含 CALENDAR-MULTIGET 仍按 query 路由并选中目标事件（旧嗅探会误路由成 multiget 空答）；反转/相等区间 → 403+valid-filter（parse 层与 report 层各一钉）；S6 活体 +2；全目标 195/179/195/204、S5 23/23、S6 38/38</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S24</td><td>0.4.0 克制批次第二项（B，可观测性）：一行式访问日志 <code>METHOD path -&gt; status</code> + handler 错误落 stderr（此前 500 完全无痕）——刻意无级别无配置；输出走 <code>@stdio</code> 直写 fd（实测 core <code>println</code> 在 native 重定向下块缓冲、永不退出的服务器永远刷不出，此为本项实测发现）</td><td class="c">~+90</td><td>活体验证：200/404/301/500 各出一行且状态准确；嵌套集合内 PUT 到目录 → 500 + stderr 带具体 OSError；S5 23/23、S6 38/38 复跑无回归</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S25</td><td>0.4.0 克制批次第三项（F，健壮性）：unfold 折行拼接去平方——每逻辑行独立缓冲，折叠只追加本物理行文本；定性依据 = 服务器 10MB body 上限内单条巨折行会触发二次型放大（PUT 落盘后每次 calendar-query 的 filter 求值都要 unfold 一遍）</td><td class="c">~+35</td><td>新增常驻基准 <code>bench unfold one folded line folds=10000</code>（native release）：修复前 1.68s/次 → 修复后 6.58ms（255×；stash 往返对照）；既有 unfold 用例全绿；S5 23/23、S6 38/38</td><td><span class="chip done">完成</span></td></tr>
   </tbody>
 </table></div>
 

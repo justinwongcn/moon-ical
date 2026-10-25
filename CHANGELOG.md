@@ -2,6 +2,11 @@
 
 ## 0.4.0
 
+- Make `unfold` linear: each logical line accumulates in its own
+  buffer instead of re-copying the whole line on every fold. A 770KB
+  folded line measured 1.68s before and 6.6ms after (255x, native
+  release, now a kept benchmark); within the server's own 10MB body cap
+  the old quadratic extrapolated to minutes per unfold.
 - Give the server a one-line access log (`METHOD path -> status`) and a
   stderr line for handler failures: both go through the async runtime's
   direct stdio writes, because core `println` is block-buffered when
