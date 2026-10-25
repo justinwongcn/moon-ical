@@ -54,6 +54,18 @@
       "sourceType": "github",
       "skillPath": "skills/ocaml2moonbit-migration/SKILL.md",
       "computedHash": "52f4ea98bdcb068ce64828d5d26c948fd1c5d432c366f2c3df8743a65e67b338"
+    },
+    "openwiki-init": {
+      "source": "kinensake/openwiki-skills",
+      "sourceType": "github",
+      "skillPath": "skills/openwiki-init/SKILL.md",
+      "computedHash": "c97dbe50c2619ef877efc9864709c3b8b71cd33f62246dbb9beca1b4ac04c181"
+    },
+    "openwiki-update": {
+      "source": "kinensake/openwiki-skills",
+      "sourceType": "github",
+      "skillPath": "skills/openwiki-update/SKILL.md",
+      "computedHash": "47212ef0921988db2a5817fe20aae4db43d332a2e7f0aa43899a5ee51d4bc7d7e8"
     }
   }
 }

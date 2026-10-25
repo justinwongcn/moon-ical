@@ -54,7 +54,8 @@
 `calendar-query` 的 `CALDAV:filter` 是一棵 `CompFilter`/`PropFilter` 树（`parse_filter` 从 XML 请求体解析，非法结构回 `FilterError`）：
 
 - 嵌套 `comp-filter` 与 `is-not-defined`；
-- `time-range`：对含 RRULE 的组件走 `expand_series` 展开判重叠（RFC 4791 §7.4/§9.9）；
+- `time-range`：对含 RRULE 的组件走 `expand_series` 展开判重叠（RFC 4791 §7.4/§9.9）；S20 起**所有** time-range 路径（含 VTODO/VJOURNAL 区间与 prop-filter）都携带 feed 的时区表——此前只认内置表，feed 私有 TZID 的组件会静默匹配不到；
+- **每项测试作用于同一组件实例**（RFC 4791 §9.7.1，S18）：`VEVENT` 的 time-range 按该组件**自身 UID 的系列**判重叠（master 与 override 同 UID，展开语义不变），不是全资源事件——另一事件的区间重叠不能"代通过"本事件的过滤（双事件资源假阳性已被差分测试钉死）；
 - `prop-filter` 的 `text-match`（两种 collation：默认 `i;ascii-casemap` 折叠大小写、`i;octet` 字节敏感）与 `param-filter`；
 - 求值入口 `Filter::matches(calendar_data)`，对序列化后的 `.ics` 文本判定。
 
@@ -71,5 +72,6 @@
 | `ical/caldav` | `FilterError` | `InvalidFilter(message~)`、`UnsupportedFilter(element~)` |
 | `ical/store` | `StoreError` | `BadName(name~)` |
 | `ical/httpd` | `HttpParseError` | `Malformed(message~)`、`ChunkedBody`、`BodyTooLarge(limit~)` |
+| `ical/fetch` | `FetchError` | `BadStatus`（非 200）、`TimedOut`（S20 超时兜底） |
 
 历史教训（S12）：不要让外部依赖的未类型化 `Failure`（如 x/time 的日期越界）泄漏过包边界——越界日期分量必须收敛为带行号的 `BadLine`。给某条错误路径改契约时，连判别式测试一起改（S14 的 400/413 分流就是这么做的）。

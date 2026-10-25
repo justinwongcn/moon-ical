@@ -17,7 +17,7 @@ moon-ical 是两条栈：一条**库管线**把 `.ics` 文本变成类型化事�
 - `ical/rrule`：`parse_rule` 把 RRULE 值解析成类型化 `Rule`（不支持子句**显式报错**），`expand` 单规则展开，`expand_series` 在日历级合并 `EXDATE` 与 `RECURRENCE-ID` 覆盖。语义细节见 [domain.md](domain.md)。
 - `ical/serialize`：组件树 → CRLF 折行 `.ics`，与解析对称（roundtrip 组件树相等且幂等）。CalDAV 响应体里的 `calendar-data` 就是它的输出。
 
-`ical/fetch` 是可选的网络取件切片（`fetch_ics`），demo 用它做 URL 模式；网络测试不进 CI 是 S1.5 的既定决策。
+`ical/fetch` 是可选的网络取件切片（`fetch_ics`，S20 起自带 `timeout_seconds?` 默认 30 秒、到点抛 `FetchError::TimedOut`——上游 HTTP 客户端与 socket 层没有任何超时），demo 用它做 URL 模式；外部 URL 的网络测试不进 CI 仍是 S1.5 的既定决策，S20 加的唯一单测靠本地"接受但永不响应"监听器触发超时，纯本地、进 CI。
 
 ## 服务栈（native 目标）
 

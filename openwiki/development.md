@@ -42,7 +42,7 @@ CI（`.github/workflows/check.yml`）跑的就是这套。意外的 `.mbti` diff
 | 单元测试 | `*_test.mbt`（黑盒）/ `*_wbtest.mbt`（白盒） | 各包目录内；`moon coverage analyze > uncovered.log` 找盲区 |
 | RFC 语料对拍 | `ical/rrule/*corpus*` + `tools/gen_s3_corpus_test.py` | 期望值从 graham/rrule 套件**机械抽取**，不是实现的回声（R5 的库层范本） |
 | 基准 | `*_bench_test.mbt` | native release；R 系列基线：parse ~15.6ms、multiget ~3.7ms、series ~1.68ms、monthly ~5.5ms |
-| 活体验收 | `tools/s5_acceptance.py`（22 项）、`tools/s6_acceptance.py`（31 项） | 起服务器后 curl 打真实 TCP；S5/S6 全绿才算服务端验收 |
+| 活体验收 | `tools/s5_acceptance.py`（23 项）、`tools/s6_acceptance.py`（36 项） | 起服务器后 curl 打真实 TCP；S5/S6 全绿才算服务端验收 |
 | fixture | `fixtures/recurrence-demo.ics`（`tools/make_recurring_fixture.py` 生成） | RRULE/EXDATE/RECURRENCE-ID/DST 全都有的演示源，驱动 demo/展开/合并/客户端演示 |
 
 结果断言优先 `assert_eq` / `assert_true(pattern is ...)`；快照用 derive `Debug` + `debug_inspect`，别用 `Show`。

@@ -13,7 +13,7 @@
 | `/cal/` | 日历家 = **默认集合**；`PROPFIND`（Depth 0/1）、`REPORT`、`OPTIONS`；`MKCALENDAR` 在此被拒（405） |
 | `/cal/<cal>/` | MKCALENDAR 创建的嵌套集合：`PROPFIND` / `REPORT` / `GET` / `DELETE`（非空删除 409） |
 | `/cal/<name>.ics`、`/cal/<cal>/<event>.ics` | 单个事件：`GET` / `PUT` / `DELETE` |
-| `/cal/<cal>`（无斜杠） | 301 规范化到带斜杠形式（S13；此前 Windows 上 500、POSIX 上静默清空集合） |
+| `/cal/<cal>`、`/cal`（无斜杠） | 301 规范化到带斜杠形式（S13 集合 / S19 家目录；此前 Windows 上 500、POSIX 上静默清空集合） |
 
 `/cal/` 兼作日历家与默认集合是 S10 的刻意兼容取舍：新建集合并排放在 `/cal/<cal>/`，已有客户端指到 `/cal/` 继续工作。
 
@@ -30,7 +30,7 @@
 手解析请求行/头/体（不走 `@async` 的 `read_request`，因其 `RequestMethod` 是封闭枚举），自带缓冲的有界读取（S14 的 `LineInput`）：
 
 - chunked 请求体 → `411 Length Required`；
-- 单头行 > 64KB 或头 > 100 行 → `400`；超限请求体 → `413`；
+- 单头行 > 64KB 或头 > 100 行 → `400`；超限请求体 → `413`（拒绝前先排空连接，否则客户端未读上传的关闭 RST 会吞掉 413 响应——S17，有原始 socket 活体检查钉住）；
 - 非数字 `Content-Length` → `400`（不是 413）；
 - 方法只是 token，PROPFIND/REPORT/MKCALENDAR 天然可读；
 - 响应复用 `@async` 的 `send_response`，内容经 StringBuilder 缓冲（R11 修掉 O(n²) 拼接）。
@@ -56,10 +56,10 @@ moon run cmd/serve --target native -- ./caldata 8437
 
 活体验收是起真实服务器后用 curl 打真实 TCP 请求：
 
-- `tools/s5_acceptance.py` — 22 项 HTTP 存储检查：PUT/GET/DELETE 往返、ETag 变化、411、边界头等。
-- `tools/s6_acceptance.py` — 31 项活体 CalDAV：发现链、Depth 差分、filter 区间内外选择（R1+R2）、403 前置条件、MKCALENDAR 生命周期、412 路径等。
+- `tools/s5_acceptance.py` — 23 项 HTTP 存储检查：PUT/GET/DELETE 往返、ETag 变化、411、边界头、413 中途上传可达等。
+- `tools/s6_acceptance.py` — 36 项活体 CalDAV：发现链、Depth 差分、filter 区间内外选择（R1+R2）、403 前置条件、MKCALENDAR 生命周期、412 路径、裸 URL 301 差分等。
 
-互操作现状以 [README.md](../README.md) 的矩阵为准：curl 44/44 活体通过；Thunderbird 155.0.1 完整 CRUD 已验；DAVx5 / Apple Calendar 未跑。**互操作通过不是协议完整的证据**（R6）——Thunderbird 恰好绕开了 S10 的两条缺陷。
+互操作现状以 [README.md](../README.md) 的矩阵为准：curl 59/59 活体通过；Thunderbird 155.0.1 完整 CRUD 已验；DAVx5 / Apple Calendar 未跑。**互操作通过不是协议完整的证据**（R6）——Thunderbird 恰好绕开了 S10 的两条缺陷。
 
 ## 服务端已知边界速查
 

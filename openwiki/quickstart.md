@@ -2,8 +2,8 @@
 
 moon-ical（`justinwongcn/moon-ical`）是一个纯 MoonBit 的 [iCalendar (RFC 5545)](https://www.rfc-editor.org/rfc/rfc5545) 解析 / 重复事件展开库，外加一个最小化的 [CalDAV (RFC 4791)](https://www.rfc-editor.org/rfc/rfc4791) 服务器。它覆盖从 `.ics` 输入到类型化事件、重复展开、再到真实日历客户端可直连的 DAV 日历的完整路径。
 
-- **当前状态**：0.2.0 已发布到 mooncakes；0.3.0 开发中（本仓库 HEAD 所在分支）。0.3.0 的主题是 `calendar-query` 真正求值 `CALDAV:filter` 与 `MKCALENDAR` 真正创建集合，以及 S11–S15 复审修复波。
-- **测试规模**：全目标严格闸门全绿 —— wasm 185、wasm-gc 170、JavaScript 185、native 192；另有 22 项 S5 HTTP 存储与 31 项 S6 活体 CalDAV curl 验收。
+- **当前状态**：0.2.0 已发布到 mooncakes；0.3.0 开发中（本仓库 HEAD 所在分支）。0.3.0 的主题是 `calendar-query` 真正求值 `CALDAV:filter` 与 `MKCALENDAR` 真正创建集合，以及 S11–S20 两轮复审修复波。
+- **测试规模**：全目标严格闸门全绿 —— wasm 189、wasm-gc 174、JavaScript 189、native 197；另有 23 项 S5 HTTP 存储与 36 项 S6 活体 CalDAV curl 验收。
 - **互操作**：Thunderbird 155.0.1（Windows）已完成发现、读取、创建、修改、删除的真实联调；DAVx5 / Apple Calendar 是候选，未跑。
 
 ## 为什么有这个项目
@@ -58,7 +58,7 @@ test {
 | `ical/model` | 组件树（未知组件保留）、四态时间 `IcalDateTime`、时区表 `ZoneTable`、`Event` 类型化视图 | `parse_calendar`、`parse_events`、`build_zone_table` |
 | `ical/rrule` | RRULE 解析（三档分界）与展开；系列级覆盖合并 | `parse_rule`、`expand`、`expand_series` |
 | `ical/serialize` | 组件树 → 折行 `.ics` 文本（CRLF、75 octet、UTF-8 不劈开） | `serialize_components` |
-| `ical/fetch` | URL 取件薄层（`@http.get` + 状态检查） | `fetch_ics` |
+| `ical/fetch` | URL 取件薄层（`@http.get` + 状态检查 + 超时兜底，上游客户端自身无超时） | `fetch_ics` |
 | `ical/httpd` | HTTP/1.1 请求层：手解析请求行/头/体，方法只是 token（WebDAV 方法天然可用） | `read_request`、`respond` |
 | `ical/caldav` | WebDAV/CalDAV 语义（纯函数包，无 IO）：发现、PROPFIND、REPORT、filter 求值、XML | `report`、`parse_filter`、`collection_propfind` |
 | `ical/store` | vdir 存储：每事件一个 `.ics`、目录即集合、内容寻址 ETag | `VdirStore`、`etag_of` |
