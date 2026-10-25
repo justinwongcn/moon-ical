@@ -2,6 +2,10 @@
 
 ## 0.4.0
 
+- Refuse Windows reserved device names (`CON`, `PRN`, `AUX`, `NUL`,
+  `COM1`-`COM9`, `LPT1`-`LPT9`, with or without an extension) as store
+  names on every platform: a vdir Windows cannot read breaks the
+  portability the layout exists for.
 - Add `parse_mkcalendar` to the CalDAV semantics package: the typed
   properties (`displayname`, `calendar-description`, `calendar-color`)
   a `MKCALENDAR` request body asks for, entity-decoded. Parsing only —

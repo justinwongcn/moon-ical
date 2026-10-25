@@ -103,7 +103,7 @@ capability→evidence matrix are in
 
 | Client or driver | Discovery | Read/list | Create/update/delete | Result |
 |---|---:|---:|---:|---|
-| Real curl over TCP | Yes | Yes | Yes | 62/62 live checks pass |
+| Real curl over TCP | Yes | Yes | Yes | 63/63 live checks pass |
 | Thunderbird 155.0.1 (Windows) | Yes | Yes | Yes | Passed against localhost: seed read, create, in-place update, and delete verified in vdir |
 | DAVx5 | Not run | Not run | Not run | Android device required |
 | Apple Calendar | Not run | Not run | Not run | macOS/iOS device required |

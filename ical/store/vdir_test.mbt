@@ -65,3 +65,22 @@ async test "names that are not one plain token are refused" {
   assert_eq(name_error("C:\\x"), "refused store name: C:\\x")
   assert_eq(name_error("a b"), "refused store name: a b")
 }
+
+///|
+test "Windows reserved device names are refused as store names" {
+  // The base is reserved with or without an extension (CON.ics too);
+  // longer spellings and COM10 are ordinary names. The refusal applies
+  // on every platform: a vdir that Windows cannot read breaks the
+  // portability the layout exists for.
+  assert_eq(@store.is_store_name("CON"), false)
+  assert_eq(@store.is_store_name("con.ics"), false)
+  assert_eq(@store.is_store_name("Prn"), false)
+  assert_eq(@store.is_store_name("NUL"), false)
+  assert_eq(@store.is_store_name("AUX"), false)
+  assert_eq(@store.is_store_name("COM1"), false)
+  assert_eq(@store.is_store_name("lpt9"), false)
+  assert_eq(@store.is_store_name("COM10"), true)
+  assert_eq(@store.is_store_name("console"), true)
+  assert_eq(@store.is_store_name("auxiliary"), true)
+  assert_eq(@store.is_store_name("a.ics"), true)
+}

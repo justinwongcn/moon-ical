@@ -191,6 +191,12 @@ def main() -> int:
         code, _, _ = request("DELETE", "/cal/test.ics")
         check("second DELETE -> 404", code == 404, f"got {code}")
 
+        # 9b. A Windows-reserved device name is refused as a store name
+        # on every platform (a vdir Windows cannot read breaks the
+        # layout's portability); the routing answers a plain 404.
+        code, _, _ = request("PUT", "/cal/CON", BODY_A)
+        check("a Windows-reserved device name is a plain 404", code == 404, f"got {code}")
+
         # 10. Off-collection paths are 404.
         code, _, _ = request("GET", "/nope")
         check("off-collection path -> 404", code == 404, f"got {code}")

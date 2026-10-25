@@ -304,6 +304,9 @@ pub fn is_store_name(name : String) -> Bool {
   if name.length() == 0 || name[0] == '.' {
     return false
   }
+  if is_windows_reserved_device(name) {
+    return false
+  }
   for c in name {
     if !(c is ('a'..<='z') ||
       c is ('A'..<='Z') ||
@@ -315,4 +318,30 @@ pub fn is_store_name(name : String) -> Bool {
     }
   }
   true
+}
+
+///|
+/// Whether the name's base collides with a Windows reserved device name
+/// (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`). Windows
+/// reserves the base with or without an extension, so `CON.ics` counts.
+/// A vdir is portable by construction — the layout exists so other tools
+/// can read it — and a file Windows itself cannot read would break that
+/// the first time the collection is copied or synced, so the refusal
+/// applies on every platform, not just where the server runs.
+fn is_windows_reserved_device(name : String) -> Bool {
+  let v = name.view()
+  let base = match v.find(".".view()) {
+    Some(dot) => v[:dot].to_owned()
+    None => name
+  }
+  let upper = String::to_upper(base)
+  if upper is ("CON" | "PRN" | "AUX" | "NUL") {
+    return true
+  }
+  if upper.length() == 4 {
+    let prefix = upper[0:3].to_owned()
+    let tail = upper[3:4].to_owned()
+    return (prefix == "COM" || prefix == "LPT") && tail >= "1" && tail <= "9"
+  }
+  false
 }
