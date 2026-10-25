@@ -338,3 +338,37 @@ test "a time-range on VALARM is declined with supported-filter" {
     error, "unsupported filter element: <C:comp-filter name=\"VALARM\"><C:time-range/></C:comp-filter>",
   )
 }
+
+///|
+test "a comp-filter's tests must pass on one event instance" {
+  // RFC 4791 §9.7.1: every nested test of a comp-filter applies to the
+  // same component instance. Alpha overlaps January but is not named
+  // Beta; Beta is named Beta but sits in June. Judging the time-range
+  // over the whole resource let Alpha's overlap satisfy Beta's filter
+  // and the calendar falsely matched.
+  let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" +
+    "BEGIN:VEVENT\r\nUID:a\r\nSUMMARY:Alpha\r\nDTSTART:20260110T120000Z\r\nDTEND:20260110T130000Z\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nUID:b\r\nSUMMARY:Beta\r\nDTSTART:20260610T120000Z\r\nDTEND:20260610T130000Z\r\nEND:VEVENT\r\n" +
+    "END:VCALENDAR\r\n"
+  assert_false(
+    matches(
+      "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">" +
+      "<C:time-range start=\"20260101T000000Z\" end=\"20260201T000000Z\"/>" +
+      "<C:prop-filter name=\"SUMMARY\"><C:text-match>Beta</C:text-match></C:prop-filter>" +
+      "</C:comp-filter></C:comp-filter>",
+      ics,
+    ),
+  )
+  // The differential the whole-resource judgement could not make: move
+  // the range to June and Beta itself satisfies both tests, so the same
+  // calendar matches.
+  assert_true(
+    matches(
+      "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">" +
+      "<C:time-range start=\"20260601T000000Z\" end=\"20260701T000000Z\"/>" +
+      "<C:prop-filter name=\"SUMMARY\"><C:text-match>Beta</C:text-match></C:prop-filter>" +
+      "</C:comp-filter></C:comp-filter>",
+      ics,
+    ),
+  )
+}

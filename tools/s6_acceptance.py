@@ -116,6 +116,31 @@ def main():
         miss = multiget.replace("/cal/s6.ics", "/cal/nothere.ics")
         code, _, body = request("REPORT", "/cal/", miss, ["Content-Type: application/xml"])
         check("multiget for a missing href selects nothing", code == 207 and "/cal/s6.ics" not in body and "multistatus" in body)
+        # Every test of a comp-filter applies to ONE component instance
+        # (RFC 4791 9.7.1). k2a overlaps January but is not named k2beta;
+        # k2beta is named k2beta but sits in June. Judging the time-range
+        # over the whole resource let k2a's overlap satisfy k2beta's
+        # filter, so the January+name query must select nothing.
+        k2a = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:k2a@moon-ical\r\nSUMMARY:k2alpha\r\nDTSTART:20260110T120000Z\r\nDTEND:20260110T130000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        k2beta = k2a.replace("UID:k2a@moon-ical", "UID:k2b@moon-ical").replace("SUMMARY:k2alpha", "SUMMARY:k2beta").replace("20260110", "20260610")
+        request("PUT", "/cal/k2a.ics", k2a, ["If-None-Match: *"])
+        request("PUT", "/cal/k2beta.ics", k2beta, ["If-None-Match: *"])
+        both = (
+            '<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+            '<D:prop><D:getetag/></D:prop>'
+            '<C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">'
+            '<C:time-range start="20260101T000000Z" end="20260201T000000Z"/>'
+            '<C:prop-filter name="SUMMARY"><C:text-match>k2beta</C:text-match></C:prop-filter>'
+            '</C:comp-filter></C:comp-filter></C:filter>'
+            '</C:calendar-query>'
+        )
+        code, _, body = request("REPORT", "/cal/", both, ["Content-Type: application/xml"])
+        check("no single instance satisfies both tests", code == 207 and "k2a" not in body and "k2beta" not in body and "multistatus" in body)
+        june = both.replace("20260101T000000Z", "20260601T000000Z").replace("20260201T000000Z", "20260701T000000Z")
+        code, _, body = request("REPORT", "/cal/", june, ["Content-Type: application/xml"])
+        check("the June instance satisfies both tests", code == 207 and "/cal/k2beta.ics" in body and "k2a" not in body)
+        request("DELETE", "/cal/k2a.ics")
+        request("DELETE", "/cal/k2beta.ics")
         # A write on the collection itself is a method miss, not a write.
         code, hdrs, _ = request("PUT", "/cal/", "x")
         check("PUT on the home collection is 405 with Allow", code == 405 and "PROPFIND" in hdrs.get("allow", ""))

@@ -58,7 +58,11 @@
   after refusing an oversized body, so the 413 actually reaches a client
   that is still uploading instead of dying to the close-time RST (the
   411 branch already drained; measured 6/6 losses before, reliable
-  delivery after — now pinned by a raw-socket live check).
+  delivery after — now pinned by a raw-socket live check); apply every
+  test of a `comp-filter` to one component instance (RFC 4791 §9.7.1) —
+  a `VEVENT` time-range is judged against that event's own UID series
+  instead of every event in the resource, so another event's overlap can
+  no longer satisfy this event's filter (two-event false positive).
 
 ## 0.2.0
 

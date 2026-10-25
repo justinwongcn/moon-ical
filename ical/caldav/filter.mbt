@@ -466,19 +466,25 @@ fn comp_tests_pass(
 ///|
 /// Whether a component overlaps a time range.
 ///
-/// A `VEVENT` is judged through the expanded series (RFC 4791 §7.4: the
-/// server MUST expand recurring components and match when any instance
-/// overlaps), which also folds in `EXDATE`, moved `RECURRENCE-ID` instances,
-/// and `RANGE=THISANDFUTURE` shifts. The other component types are judged on
-/// their own `DTSTART` / `DTEND` / `DUE` interval, which is the extent of
-/// what this build interprets for them.
+/// A `VEVENT` is judged through the expanded series of *its own* UID
+/// (RFC 4791 §7.4: the server MUST expand recurring components and match
+/// when any instance overlaps), which also folds in `EXDATE`, moved
+/// `RECURRENCE-ID` instances, and `RANGE=THISANDFUTURE` shifts. Scoping
+/// to the component's series is what §9.7.1 asks: every test of a
+/// comp-filter applies to one component instance, so another event's
+/// overlap must not satisfy this event's time-range. The other component
+/// types are judged on their own `DTSTART` / `DTEND` / `DUE` interval,
+/// which is the extent of what this build interprets for them.
 fn component_overlaps(
   component : @model.Component,
   range : TimeRange,
   view : ResourceView,
 ) -> Bool {
   if component.kind == "VEVENT" {
-    return events_overlap(view.events, range)
+    let series = view.events.filter(event => {
+      event.uid.unwrap_or("") == component_uid(component)
+    })
+    return events_overlap(series, range)
   }
   match component_interval(component) {
     Some(interval) =>
@@ -489,6 +495,18 @@ fn component_overlaps(
         range,
       )
     None => false
+  }
+}
+
+///|
+/// The UID of a component, read the way `event_from_component` reads it:
+/// the unescaped text of the first `UID` property, "" when absent. A
+/// component and the event parsed from it then compare equal on the same
+/// string, which is how the series scope above finds its group.
+fn component_uid(component : @model.Component) -> String {
+  match component.property("UID") {
+    Some(line) => @text.unescape_value(line.value)
+    None => ""
   }
 }
 
