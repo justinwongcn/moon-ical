@@ -8,17 +8,19 @@ import {
 // Values
 pub fn check_preconditions(String?, String?, String?) -> Precondition
 
-pub fn collection_propfind(Array[DavResource], Int32, href? : String, displayname? : String, children? : Array[(String, String)]) -> String
+pub fn collection_propfind(Array[DavResource], Int32, href? : String, displayname? : String, children? : Array[(String, String)], selection? : PropFind) -> String
 
 pub fn parse_filter(String) -> Filter raise FilterError
 
 pub fn parse_mkcalendar(String) -> MkCalendarProps
 
-pub fn principal_propfind() -> String
+pub fn parse_propfind(String) -> PropFind raise PropfindError
+
+pub fn principal_propfind(selection? : PropFind) -> String
 
 pub fn report(String, Array[DavResource]) -> ReportOutcome
 
-pub fn root_propfind() -> String
+pub fn root_propfind(selection? : PropFind) -> String
 
 pub fn xml_escape(String) -> String
 
@@ -33,6 +35,16 @@ pub fn FilterError::output(Self, &Logger) -> Unit
 pub fn FilterError::to_repr(Self) -> @debug.Repr
 pub fn FilterError::to_string(Self) -> String
 pub impl Show for FilterError
+
+pub(all) suberror PropfindError {
+  Malformed
+} derive(Eq, @debug.Debug)
+pub fn PropfindError::equal(Self, Self) -> Bool
+pub fn PropfindError::not_equal(Self, Self) -> Bool
+pub fn PropfindError::output(Self, &Logger) -> Unit
+pub fn PropfindError::to_repr(Self) -> @debug.Repr
+pub fn PropfindError::to_string(Self) -> String
+pub impl Show for PropfindError
 
 // Types and methods
 pub(all) struct CompFilter {
@@ -99,6 +111,15 @@ pub(all) struct PropFilter {
 pub fn PropFilter::equal(Self, Self) -> Bool
 pub fn PropFilter::not_equal(Self, Self) -> Bool
 pub fn PropFilter::to_repr(Self) -> @debug.Repr
+
+pub(all) enum PropFind {
+  AllProp
+  PropName
+  Prop(Array[String])
+} derive(Eq, @debug.Debug)
+pub fn PropFind::equal(Self, Self) -> Bool
+pub fn PropFind::not_equal(Self, Self) -> Bool
+pub fn PropFind::to_repr(Self) -> @debug.Repr
 
 pub(all) enum ReportOutcome {
   Report(body~ : String)

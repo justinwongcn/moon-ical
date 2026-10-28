@@ -82,77 +82,6 @@ fn tag_list_contains(value : String, current : String?) -> Bool {
 }
 
 ///|
-/// A DAV multistatus body for the server root, exposing the current-user
-/// principal used by Thunderbird, DAVx5, and Apple Calendar discovery.
-pub fn root_propfind() -> String {
-  multistatus([
-    response(
-      "/",
-      "<D:resourcetype><D:collection/></D:resourcetype>" +
-      "<D:current-user-principal><D:href>/principals/default/</D:href></D:current-user-principal>",
-    ),
-  ])
-}
-
-///|
-/// A DAV multistatus body for the single built-in principal.
-pub fn principal_propfind() -> String {
-  multistatus([
-    response(
-      "/principals/default/",
-      "<D:resourcetype><D:principal/></D:resourcetype>" +
-      "<C:calendar-home-set><D:href>/cal/</D:href></C:calendar-home-set>" +
-      "<D:displayname>moon-ical</D:displayname>",
-    ),
-  ])
-}
-
-///|
-/// A DAV multistatus body for one calendar collection. Depth 0 returns only
-/// the collection itself; depth 1 additionally returns every nested calendar
-/// collection and every calendar object with its ETag.
-///
-/// `href` and `displayname` describe the collection being asked about, so the
-/// same builder answers for the calendar home and for a collection created by
-/// `MKCALENDAR` (RFC 4791 §5.3.1).
-pub fn collection_propfind(
-  resources : Array[DavResource],
-  depth : Int32,
-  href~ : String = "/cal/",
-  displayname~ : String = "moon-ical",
-  children~ : Array[(String, String)] = [],
-) -> String {
-  let entries : Array[String] = [collection_response(href, displayname)]
-  if depth == 1 {
-    for child in children {
-      let (child_href, child_name) = child
-      entries.push(collection_response(child_href, child_name))
-    }
-    for item in resources {
-      entries.push(resource_response(item, false))
-    }
-  }
-  multistatus(entries)
-}
-
-///|
-/// The `DAV:response` for one calendar collection.
-fn collection_response(href : String, displayname : String) -> String {
-  let name = if displayname.length() > 0 {
-    "<D:displayname>\{xml_escape(displayname)}</D:displayname>"
-  } else {
-    ""
-  }
-  response(
-    href,
-    "<D:resourcetype><D:collection/><C:calendar/></D:resourcetype>" +
-    name +
-    "<C:supported-calendar-component-set><C:comp name=\"VEVENT\"/></C:supported-calendar-component-set>" +
-    "<D:current-user-principal><D:href>/principals/default/</D:href></D:current-user-principal>",
-  )
-}
-
-///|
 /// What a `REPORT` request body produced.
 ///
 /// The cases stay separate rather than folding into an optional body because
@@ -183,86 +112,105 @@ pub extend ReportOutcome with Eq::{not_equal, equal}
 /// whole point of the report, so a body without one, or one this server
 /// cannot evaluate, is answered with the matching precondition failure
 /// instead of an unfiltered listing.
-
-///|
-/// Which REPORT a request body names. The root element's local name,
-/// read by the same XML shape parser the filter uses — not a substring
-/// scan of the whole body, which let a `text-match` needle or href that
-/// mentioned the other report's name misroute the request.
-priv enum ReportKind {
-  Multiget
-  Query
-  Other
-}
-
-///|
-fn report_kind(body : String) -> ReportKind {
-  match parse_xml_element(body) {
-    Some(root) =>
-      match root.name {
-        "calendar-multiget" => Multiget
-        "calendar-query" => Query
-        _ => Other
-      }
-    // Element names are lowercased while scanning; a body that is not an
-    // XML element at all names no report this server implements.
-    None => Other
-  }
-}
-
-///|
+///
+/// Both reports carry a property selection as a direct child of their
+/// root, which the DTD (RFC 4791 §9.5/§9.10) leaves optional; the
+/// response answers that selection the way `PROPFIND` would (§7.8), so
+/// an unrequested property is not returned and a requested one with no
+/// answer gets its own 404 propstat.
 pub fn report(body : String, resources : Array[DavResource]) -> ReportOutcome {
-  match report_kind(body) {
-    Multiget => {
-      let hrefs = xml_text_values(body, "href")
-      let selected : Map[String, Unit] = Map([], capacity=hrefs.length())
-      for href in hrefs {
-        // hrefs arrive entity-encoded like any other character data; a
-        // query-string ampersand sits on the wire as &amp;.
-        selected[decode_xml_entities(href)] = ()
-      }
-      let entries : Array[String] = []
-      let answered : Map[String, Unit] = Map([], capacity=resources.length())
-      for resource in resources {
-        if selected.contains(resource.href) {
-          entries.push(resource_response(resource, true))
-          answered[resource.href] = ()
-        }
-      }
-      // A requested href with nothing behind it answers 404 for that
-      // href, the per-href shape RFC 4791's multiget examples show:
-      // silently dropping it left a client reconciling deletions unable
-      // to tell "absent" from "deleted".
-      for href in hrefs {
-        let decoded = decode_xml_entities(href)
-        if !answered.contains(decoded) {
-          entries.push(missing_href_response(decoded))
-          answered[decoded] = ()
-        }
-      }
-      Report(body=multistatus(entries))
-    }
-    Query => {
-      let filter = parse_filter(body) catch {
-        FilterError::InvalidFilter(_) =>
-          return PreconditionFailed(body=error_document("<C:valid-filter/>"))
-        FilterError::UnsupportedFilter(element~) =>
-          return PreconditionFailed(
-            body=error_document(
-              "<C:supported-filter>\{element}</C:supported-filter>",
-            ),
-          )
-      }
-      let entries : Array[String] = []
-      for resource in resources {
-        if filter.matches(resource.calendar_data) {
-          entries.push(resource_response(resource, true))
-        }
-      }
-      Report(body=multistatus(entries))
-    }
-    Other => UnsupportedReport
+  // The report type is the root element's local name, read by the same
+  // XML shape parser the filter uses — not a substring scan of the whole
+  // body, which let a `text-match` needle or href that mentioned the
+  // other report's name misroute the request.
+  guard parse_xml_element(body) is Some(root) else {
+    // A body that is not an XML element at all names no report this
+    // server implements.
+    return UnsupportedReport
   }
+  match root.name {
+    "calendar-multiget" => multiget_report(root, body, resources)
+    "calendar-query" => query_report(root, body, resources)
+    _ => UnsupportedReport
+  }
+}
+
+///|
+/// The `calendar-multiget` branch: answer the requested `href` values
+/// with the properties the report's selection names.
+fn multiget_report(
+  root : XmlElement,
+  body : String,
+  resources : Array[DavResource],
+) -> ReportOutcome {
+  let selection = selection_of(root).unwrap_or(AllProp)
+  let hrefs = xml_text_values(body, "href")
+  let selected : Map[String, Unit] = Map([], capacity=hrefs.length())
+  for href in hrefs {
+    // hrefs arrive entity-encoded like any other character data; a
+    // query-string ampersand sits on the wire as &amp;.
+    selected[decode_xml_entities(href)] = ()
+  }
+  let entries : Array[String] = []
+  let answered : Map[String, Unit] = Map([], capacity=resources.length())
+  for resource in resources {
+    if selected.contains(resource.href) {
+      entries.push(
+        propfind_response(
+          resource.href,
+          resource_props(resource, ReportContext),
+          selection,
+        ),
+      )
+      answered[resource.href] = ()
+    }
+  }
+  // A requested href with nothing behind it answers 404 for that
+  // href, the per-href shape RFC 4791's multiget examples show:
+  // silently dropping it left a client reconciling deletions unable
+  // to tell "absent" from "deleted".
+  for href in hrefs {
+    let decoded = decode_xml_entities(href)
+    if !answered.contains(decoded) {
+      entries.push(missing_href_response(decoded))
+      answered[decoded] = ()
+    }
+  }
+  Report(body=multistatus(entries))
+}
+
+///|
+/// The `calendar-query` branch: evaluate the filter and answer each
+/// matching resource with the properties the report's selection names.
+fn query_report(
+  root : XmlElement,
+  body : String,
+  resources : Array[DavResource],
+) -> ReportOutcome {
+  let filter = parse_filter(body) catch {
+    FilterError::InvalidFilter(_) =>
+      return PreconditionFailed(body=error_document("<C:valid-filter/>"))
+    FilterError::UnsupportedFilter(element~) =>
+      return PreconditionFailed(
+        body=error_document(
+          "<C:supported-filter>\{element}</C:supported-filter>",
+        ),
+      )
+  }
+  let selection = selection_of(root).unwrap_or(AllProp)
+  let entries : Array[String] = []
+  for resource in resources {
+    if filter.matches(resource.calendar_data) {
+      entries.push(
+        propfind_response(
+          resource.href,
+          resource_props(resource, ReportContext),
+          selection,
+        ),
+      )
+    }
+  }
+  Report(body=multistatus(entries))
 }
 
 ///|
@@ -282,29 +230,6 @@ fn error_document(inner : String) -> String {
 fn missing_href_response(href : String) -> String {
   "<D:response><D:href>\{xml_escape(href)}</D:href>" +
   "<D:status>HTTP/1.1 404 Not Found</D:status></D:response>"
-}
-
-///|
-fn resource_response(item : DavResource, include_data : Bool) -> String {
-  let data = if include_data {
-    "<C:calendar-data>\{xml_escape(item.calendar_data)}</C:calendar-data>"
-  } else {
-    ""
-  }
-  response(
-    item.href,
-    "<D:resourcetype/>" +
-    "<D:getcontenttype>text/calendar; charset=utf-8</D:getcontenttype>" +
-    "<D:getetag>\{xml_escape("\"\{item.etag}\"")}</D:getetag>" +
-    data,
-  )
-}
-
-///|
-fn response(href : String, properties : String) -> String {
-  "<D:response><D:href>\{xml_escape(href)}</D:href>" +
-  "<D:propstat><D:prop>\{properties}</D:prop>" +
-  "<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>"
 }
 
 ///|

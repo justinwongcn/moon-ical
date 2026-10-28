@@ -19,8 +19,8 @@
 
 ## 方法与条件写入
 
-- `PROPFIND`：Depth 0 只回自身、Depth 1 加子项；**忽略请求的 `DAV:prop` 集**，固定返回 resourcetype / getcontenttype / getetag / calendar-data（声明过的边界）。
-- `REPORT`：按**根元素**判定报告类型（S23 起——此前对整个 body 做大写子串嗅探，text-match 针或 href 里含另一报告名会误路由到 multiget）；`calendar-query`（filter 求值，见 [domain.md](domain.md)）与 `calendar-multiget`（只回被请求的 href；缺失的 href 回各自的 404 response 元素——RFC 4791 示例的逐 href 形状，S26 前是静默跳过）；未知报告类型 400。
+- `PROPFIND`：Depth 0 只回自身、Depth 1 加子项；请求体里的 `DAV:prop` 选择**被尊重**（S34，`parse_propfind`）：按列出的属性裁剪，无答案的属性进 404 propstat（RFC 4918 §9.1.2），空体 ≡ allprop；畸形体（非 XML、根不是 `propfind`、缺选择子元素）回 400；`calendar-data` 不是 WebDAV 属性（RFC 4791 §9.6），PROPFIND 里显式请求它也是 404。
+- `REPORT`：按**根元素**判定报告类型（S23 起——此前对整个 body 做大写子串嗅探，text-match 针或 href 里含另一报告名会误路由到 multiget）；`calendar-query`（filter 求值，见 [domain.md](domain.md)）与 `calendar-multiget`（只回被请求的 href；缺失的 href 回各自的 404 response 元素——RFC 4791 示例的逐 href 形状，S26 前是静默跳过）；根的 `DAV:prop` 选择同样被尊重（DTD 里可选，缺失视为 allprop，含 calendar-data）；未知报告类型 400。
 - `MKCALENDAR`：在 `/cal/<cal>/` 创建集合，201；已存在 405；**请求体属性（displayname、calendar-color）不落盘**，集合名即 displayname。
 - 条件写入：`If-Match` 陈旧 → 412（PUT 与 DELETE 双路径），`If-None-Match: *` 重复创建 → 412。
 - `PUT /cal/` → 405 + `Allow`（S15 补上的方法缺失路径）。
@@ -57,14 +57,14 @@ moon run cmd/serve --target native -- ./caldata 8437
 
 活体验收是起真实服务器后用 curl 打真实 TCP 请求：
 
-- `tools/s5_acceptance.py` — 23 项 HTTP 存储检查：PUT/GET/DELETE 往返、ETag 变化、411、边界头、413 中途上传可达等。
-- `tools/s6_acceptance.py` — 36 项活体 CalDAV：发现链、Depth 差分、filter 区间内外选择（R1+R2）、403 前置条件、MKCALENDAR 生命周期、412 路径、裸 URL 301 差分等。
+- `tools/s5_acceptance.py` — 24 项 HTTP 存储检查：PUT/GET/DELETE 往返、ETag 变化、411、边界头、413 中途上传可达等。
+- `tools/s6_acceptance.py` — 47 项活体 CalDAV：发现链、Depth 差分、`DAV:prop` 选择差分（R1+R2+R3）、filter 区间内外选择、403 前置条件、MKCALENDAR 生命周期、412 路径、裸 URL 301 差分等。
 
-互操作现状以 [README.md](../README.md) 的矩阵为准：curl 59/59 活体通过；Thunderbird 155.0.1 完整 CRUD 已验；DAVx5 / Apple Calendar 未跑。**互操作通过不是协议完整的证据**（R6）——Thunderbird 恰好绕开了 S10 的两条缺陷。
+互操作现状以 [README.md](../README.md) 的矩阵为准：curl 71/71 活体通过；Thunderbird 155.0.1 完整 CRUD 已验；DAVx5 / Apple Calendar 未跑。**互操作通过不是协议完整的证据**（R6）——Thunderbird 恰好绕开了 S10 的两条缺陷。
 
 ## 服务端已知边界速查
 
-- `PROPFIND`/`REPORT` 忽略 `DAV:prop` 选择，固定属性集；
+- `PROPFIND`/`REPORT` 的 `DAV:prop` 选择已实现（S34，`parse_propfind`）；剩余的边角：按 local name 匹配（命名空间不敏感）、404 回显带 `DAV:` 前缀、`calendar-data` 的子元素（`expand` 等）不支持而回全量、`allprop` 的 `include` 读为无额外约束；
 - `MKCALENDAR` body 属性已类型化解析（caldav 的 `parse_mkcalendar`，S30），但服务端仍不落盘——是否持久化是嵌入方的部署决策；
 - `sync-collection` / CTag 不支持（400）；
 - `DURATION` 已解析为替代结束（S29，见 [domain.md](domain.md)）；`RDATE`/`VALUE=PERIOD` 不解析，额外的重复实例被忽略；

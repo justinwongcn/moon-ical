@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 (unreleased)
+
+- Honor the `DAV:prop` selection in `PROPFIND` and `REPORT` bodies: answers
+  carry exactly the properties the request named, a property the resource
+  has no answer for gets its own 404 propstat (RFC 4918 §9.1.2), and
+  `propname` answers names without values. `calendar-data` is a report
+  property, not a WebDAV property (RFC 4791 §9.6): reports return it, and
+  in `PROPFIND` an explicit request for it answers 404. The report DTDs
+  leave the selection optional, so a body without one reads as `allprop`.
+  Matching is by lowercased local name; the 404 echo carries the `DAV:`
+  prefix regardless of the request's.
+- Add `parse_propfind` and the `PropFind` / `PropfindError` types to the
+  CalDAV semantics package; `root_propfind`, `principal_propfind`, and
+  `collection_propfind` take a `selection` parameter. An empty `PROPFIND`
+  body reads as `allprop` (RFC 4918 §9.1); a body that does not parse,
+  roots elsewhere, or names none of the three selection forms is a bad
+  request (400) rather than a silent `allprop`.
+
 ## 0.4.0
 
 - Upgrade to moonbitlang/async 0.22.5 and moonbitlang/x 0.5.6 (the

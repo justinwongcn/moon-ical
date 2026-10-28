@@ -128,7 +128,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   </tbody>
 </table></div>
 
-<p><b>合计</b>：0.5.0 开发分支严格全目标测试为 wasm 212、wasm-gc 195、JavaScript 212、native 222；S5 24 项与 S6 39 项真实 curl 活体验收全绿。0.4.0 已发布到 mooncakes（2026-10-26）。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
+<p><b>合计</b>：0.5.0 开发分支严格全目标测试为 wasm 225、wasm-gc 208、JavaScript 225、native 235；S5 24 项与 S6 47 项真实 curl 活体验收全绿。0.4.0 已发布到 mooncakes（2026-10-26）。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调。</p>
 
 <!-- ============================================================ -->
 <h2 id="s03"><span class="num">03</span>架构与数据流</h2>
@@ -289,7 +289,7 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
   <li><b>完整 IANA tzdb</b>——固定偏移 + VTIMEZONE，边界进 README（接缝 S2）。</li>
   <li><b>chunked 请求体</b>——回 <code>411 Length Required</code>（客户端 PUT 几乎不用 chunked）。</li>
   <li><b>超 大 .ics 流式解析</b>、sync-token 全量同步（getctag 基础版即可）。</li>
-  <li><b>PROPFIND/REPORT 的 <code>DAV:prop</code> 选择</b>——S10 让 <code>calendar-query</code> 求值了 filter，但请求的属性集合仍被忽略，响应固定返回 resourcetype / getcontenttype / getetag / calendar-data；按 prop 裁剪与「未知属性回 404 propstat」留后续。</li>
+  <li><b><code>DAV:prop</code> 选择的剩余边角</b>——S34 让 PROPFIND/REPORT 尊重属性选择（裁剪 + 404 propstat + propname + 畸形体 400）；仍按 local name 匹配（命名空间不敏感）、404 回显带 <code>DAV:</code> 前缀（形状解析器只留 local name）、<code>calendar-data</code> 的子元素（<code>expand</code> 等）不支持而回全量、<code>allprop</code> 的 <code>include</code> 读为无额外约束。</li>
   <li><b>MKCALENDAR 请求体属性</b>——S10 让 <code>MKCALENDAR</code> 真正建集合，但 body 里的 <code>displayname</code> / <code>calendar-color</code> 等属性不落盘；集合名即 displayname。</li>
   <li><b><code>/cal/</code> 兼作家目录与默认集合</b>——S10 刻意的兼容取舍：首版已从 <code>/cal/</code> 直接服务事件且既有客户端按该路径配置，故新建集合并排放在其下（<code>/cal/&lt;cal&gt;/</code>），而不是把事件搬进 <code>/cal/default/</code>。</li>
   <li><b>VALARM 的 time-range</b>——回 <code>403 supported-filter</code>，不解析相对 trigger。</li>
@@ -386,6 +386,7 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
     <tr><td>PROPFIND Depth 0/1</td><td class="c">caldav 用例</td><td class="c">S6</td><td>depth 0 <b>不含</b>事件、depth 1 含；S15 起 S6 活体含 Depth 0 与不可解析 Depth 的差分（桩 hardcode depth=1 会挂）</td></tr>
     <tr><td><b>calendar-query filter 求值</b> <span class="chip done">S10</span></td><td class="c">filter 19 例</td><td class="c">S6</td><td><b>区间内选中 vs 区间外空结果（R1+R2）</b>；<code>i;octet</code> 大小写敏感 vs 默认折叠</td></tr>
     <tr><td>calendar-multiget</td><td class="c">caldav 用例</td><td class="c">S6</td><td>只返回被请求的 href；未知 href 返回<b>空</b> multistatus（S15，R2）</td></tr>
+    <tr><td><b><code>DAV:prop</code> 属性选择</b> <span class="chip done">S34</span></td><td class="c">caldav 13 例（propfind_test）</td><td class="c">S6（+8 项）</td><td><b>只差 prop 元素的两请求答案不同（R1）</b>：getetag-only 不含 calendar-data、加上即恢复；未知属性 → 404 propstat（R3）；PROPFIND 里 calendar-data → 404（RFC 4791 §9.6）；空体 ≡ allprop；畸形体 → 400</td></tr>
     <tr><td>If-Match / If-None-Match</td><td class="c">caldav 用例</td><td class="c">S6</td><td>陈旧 tag → 412（PUT 与 DELETE 双路径，S15）；<code>If-None-Match: *</code> 重复建 → 412</td></tr>
     <tr><td><b>MKCALENDAR 建集合</b> <span class="chip done">S10</span></td><td class="c">store + serve 用例</td><td class="c">S6</td><td>建后 Depth 1 <b>能发现</b>它；重复建 → 405</td></tr>
     <tr><td>Thunderbird CRUD</td><td class="c">—</td><td class="c">S7 人工会话</td><td>仅默认集合路径；<b>未覆盖</b> MKCALENDAR 与时间范围过滤（见 R6）</td></tr>
@@ -401,12 +402,13 @@ ServerConnection 实现了 @io.Reader（server.mbt:65）
     <tr><td class="c">S31</td><td>0.5.0 批次第三项（身份定界 0.86 健壮性项）：存储层名字白名单拒绝 Windows 保留设备名（<code>CON</code>/<code>PRN</code>/<code>AUX</code>/<code>NUL</code>/<code>COM1-9</code>/<code>LPT1-9</code>，带不带扩展名都算——Windows 保留的是基名）；<b>全平台拒绝</b>而非仅运行平台——vdir 的存在理由是跨工具可移植，Windows 读不了的文件会在拷贝/同步时破坏它；路由层以 404 作答（与非法名同路径）</td><td class="c">~+40</td><td>11 形态差分（4 基名 + 2 带扩展 + 2 COM/LPT + 3 普通名不受影响）；s5 活体 +1（PUT /cal/CON → 404）；全目标 211/194/211/221、S5 24/24、S6 39/39</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S32</td><td>0.5.0 批次第四项（身份定界 0.95 卫生项）：覆盖率审计（caret 模式绕过 coverage 解析器对 xml.mbt 的诊断）——抓到<b>文档与实现不一致</b>：README 声明双顶层「第一根胜」，实现实为最后一根覆盖第一根（追加第二根可伪装 REPORT 判型）；对齐为第一根胜（root 已设即不覆盖，两处赋值点加守卫）；补三个判别测试（声明/注释/DOCTYPE/双顶层整体行为、超长十进制与空十六进制引用）</td><td class="c">~+45</td><td>差分：双顶层第一根胜（修复前该测试红——审计即判别）；全目标 212/195/212/222、S5 24/24、S6 39/39；.mbti 零变化</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S33</td><td>0.5.0 批次例行项（身份定界 0.91 供应链卫生）：依赖升级 <code>async</code> 0.22.4→0.22.5、<code>x</code> 0.5.5→0.5.6（moon search 实证有新版）；升级后全门闸 + 活体复跑全绿、.mbti 不变</td><td class="c">~0</td><td>check/test all deny-warn 212/195/212/222、fmt、info 零 diff、S5 24/24、S6 39/39</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S34</td><td>0.5.0 核心收官项（backlog 2.90，与 S29 DURATION 并列第一梯队；本轮 Jev 必要性裁决：协议偏离 0.996、核心义务 0.988、低成本 0.992、与克制原则不冲突 0.026，把 0.5.0 编成里最后一个核心项落地）：PROPFIND/REPORT 的 <code>DAV:prop</code> 属性选择——新增 <code>parse_propfind</code> + <code>PropFind</code>（AllProp/PropName/Prop）：空体 ≡ allprop（RFC 4918 §9.1 MUST），畸形体（非 XML/根不是 propfind/缺选择子元素）→ Malformed，serve 层回 400（设计裁决 0.955，与 REPORT 判型 400 同口径）；属性表按语境两档——REPORT 含 <code>calendar-data</code>、PROPFIND 不含（RFC 4791 §9.6：它不是 WebDAV 属性，PROPFIND 里显式请求回 404 propstat，裁决 0.961）；REPORT 的选择元素按 DTD 可选，缺失视为 allprop（裁决 0.843）；无答案的属性单独 404 propstat（RFC 4918 §9.1.2，§9.1.3 双 propstat 形状）；propname 只回名字；serve 的发现链/集合 PROPFIND 全部接通；.mbti 预期 +parse_propfind/+PropFind/+PropfindError、三构建器 +selection? </td><td class="c">~+630</td><td>13 单测（R5 转写 RFC 4791 §7.9.1 multiget 例；无 prop ≡ allprop 的 assert_eq 判别；R1 裁剪/恢复对；双 propstat 全缺无 200 段；propname 两语境；DTD 七形态含空体/双形态次序/include/去重；Malformed 三例；per-kind 404；重名折叠；回显转义；local name 匹配）+ S6 活体 +8（精确回答/异名差分/未知 404/calendar-data 404/畸形 400/REPORT 裁剪/恢复/空 prop）；审核修 2 缺陷（404 回显未转义可注入、render 路径缺去重）+ 补 1 覆盖缺口（命名空间不敏感匹配无判别用例），Jev 复核实现无契约偏差（0.146）；全目标 225/208/225/235、S5 24/24、S6 47/47；multiget 基准 904µs（无回归）</td><td><span class="chip done">完成</span></td></tr>
   </tbody>
 </table></div>
 
 <h3>当前已知的未验证 / 未支持面（诚实清单）</h3>
 <ul>
-  <li><b><code>&lt;D:prop&gt;</code> 属性选择</b>：已知被忽略（见 §08），<b>无任何证据</b>；PROPFIND / REPORT 都返回固定属性集。</li>
+  <li><b><code>&lt;D:prop&gt;</code> 属性选择</b>：S34 已实现——PROPFIND/REPORT 按选择裁剪、404 propstat、propname、空体 ≡ allprop、畸形体 400；证据见矩阵 caldav 行。剩余边角（local name 匹配、回显前缀、expand 子元素）见 §08。</li>
   <li><b><code>sync-collection</code> / CTag</b>：未支持，返回 400——有单测钉住「不支持」这一事实本身，但没有实现。</li>
   <li><b>MKCALENDAR 请求体属性</b>（<code>displayname</code>、<code>calendar-color</code>）：不落盘（见 §08）。</li>
   <li><b>VALARM 的 <code>time-range</code></b>：显式 <code>403 supported-filter</code>（有单测）。</li>

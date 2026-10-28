@@ -271,8 +271,14 @@ async fn route(
       reply(conn, request, 301, "Moved Permanently", headers=[
         ("Location", "/cal/"),
       ])
-    Root => discovery_request(conn, request, @caldav.root_propfind())
-    Principal => discovery_request(conn, request, @caldav.principal_propfind())
+    Root =>
+      discovery_request(conn, request, selection => {
+        @caldav.root_propfind(selection~)
+      })
+    Principal =>
+      discovery_request(conn, request, selection => {
+        @caldav.principal_propfind(selection~)
+      })
     Home => home_request(conn, store, request)
     HomeBare =>
       reply(conn, request, 301, "Moved Permanently", headers=[
@@ -286,14 +292,20 @@ async fn route(
 }
 
 ///|
-/// The two discovery resources answer `PROPFIND` and `OPTIONS` only.
+/// The two discovery resources answer `PROPFIND` and `OPTIONS` only. A
+/// `PROPFIND` body that names no readable property selection answers 400,
+/// the same refusal an unreadable `REPORT` body gets.
 async fn discovery_request(
   conn : @socket.Tcp,
   request : @httpd.HttpRequest,
-  body : String,
+  build : (@caldav.PropFind) -> String,
 ) -> Unit {
   if request.meth == "PROPFIND" {
-    dav_response(conn, request, body)
+    match propfind_selection(request) {
+      Some(selection) => dav_response(conn, request, build(selection))
+      None =>
+        reply(conn, request, 400, "Bad Request", body="malformed PROPFIND")
+    }
   } else if request.meth == "OPTIONS" {
     options_response(conn, request)
   } else {
@@ -503,6 +515,19 @@ async fn list_events(
 }
 
 ///|
+/// The parsed property selection of a `PROPFIND` request body, or `None`
+/// when the body is malformed — which answers 400 (RFC 4918 §14.20 makes
+/// the selection element required, so an unreadable one is a bad request,
+/// not a silent allprop).
+fn propfind_selection(request : @httpd.HttpRequest) -> @caldav.PropFind? {
+  try @caldav.parse_propfind(request.body) catch {
+    _ => None
+  } noraise {
+    selection => Some(selection)
+  }
+}
+
+///|
 /// `PROPFIND` on a collection. `Depth: 1` adds its nested calendar
 /// collections and its events; anything else is treated as depth 0.
 async fn propfind_collection(
@@ -513,6 +538,13 @@ async fn propfind_collection(
   displayname : String,
   include_children : Bool,
 ) -> Unit {
+  let selection = match propfind_selection(request) {
+    Some(selection) => selection
+    None => {
+      reply(conn, request, 400, "Bad Request", body="malformed PROPFIND")
+      return
+    }
+  }
   let depth = if request.header("Depth") == Some("1") { 1 } else { 0 }
   let children : Array[(String, String)] = []
   if include_children && depth == 1 {
@@ -529,6 +561,7 @@ async fn propfind_collection(
       href~,
       displayname~,
       children~,
+      selection~,
     ),
   )
 }

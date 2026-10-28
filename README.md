@@ -82,8 +82,8 @@ python tools/s5_acceptance.py
 python tools/s6_acceptance.py
 ```
 
-Right now that's 201 wasm, 184 wasm-gc, 201 JavaScript, and 210 native
-tests, plus 23 HTTP storage checks and 39 live CalDAV checks driven by curl.
+Right now that's 225 wasm, 208 wasm-gc, 225 JavaScript, and 235 native
+tests, plus 24 HTTP storage checks and 47 live CalDAV checks driven by curl.
 
 The suite is written to fail when a capability is missing: every
 input-driven behavior has a pair of requests that differ in exactly that
@@ -95,7 +95,7 @@ capability→evidence matrix are in
 
 | Client or driver | Discovery | Read/list | Create/update/delete | Result |
 |---|---:|---:|---:|---|
-| Real curl over TCP | Yes | Yes | Yes | 63/63 live checks pass |
+| Real curl over TCP | Yes | Yes | Yes | 71/71 live checks pass |
 | Thunderbird 155.0.1 (Windows) | Yes | Yes | Yes | Passed against localhost: seed read, create, in-place update, and delete verified in vdir |
 | DAVx5 | Not run | Not run | Not run | Android device required |
 | Apple Calendar | Not run | Not run | Not run | macOS/iOS device required |
@@ -124,8 +124,11 @@ iCloud, Yahoo, and Outlook/Microsoft Graph is post-hackathon work.
 - Request bodies need a `Content-Length`; chunked uploads get `411`.
 - Sub-daily RRULE frequencies and `BYWEEKNO`, `BYYEARDAY`, `BYHOUR`,
   `BYMINUTE`, and `BYSECOND` are rejected as parse errors.
-- `calendar-query` evaluates the filter, but `PROPFIND` and `REPORT` still
-  ignore the requested `DAV:prop` set and answer with a fixed property set.
+- `PROPFIND` and `REPORT` honor the requested `DAV:prop` set: answers are
+  trimmed to it, unanswerable names get their own 404 propstat, and
+  `calendar-data` (not a WebDAV property) is report-only — in `PROPFIND`
+  it answers 404. Matching is by local name, and the 404 echo carries the
+  `DAV:` prefix regardless of the request's.
 - `MKCALENDAR` creates the collection but ignores the properties in its
   request body (`displayname`, `calendar-color`); the collection's name is
   its display name.

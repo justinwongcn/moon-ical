@@ -94,6 +94,31 @@ def main():
         check("Depth 0 omits the events", code == 207 and "/cal/s6.ics" not in body)
         code, _, body = request("PROPFIND", "/cal/", headers=["Depth: infinity"])
         check("an unparseable Depth reads as 0", code == 207 and "/cal/s6.ics" not in body)
+        # The property selection is an input the response builder reads
+        # (RFC 4918 9.1): requests differing only in the DAV:prop list must
+        # answer different property sets, an unknown name gets its own 404
+        # propstat, and calendar-data — not a WebDAV property (RFC 4791 9.6)
+        # — does not exist for PROPFIND at all. A stub returning a fixed
+        # property set cannot pass this block.
+        selection = (
+            '<?xml version="1.0" encoding="utf-8" ?>'
+            '<D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+            '<D:prop>%s</D:prop></D:propfind>'
+        )
+        cup_only = selection % "<D:current-user-principal/>"
+        code, _, body = request("PROPFIND", "/cal/", cup_only, ["Content-Type: application/xml", "Depth: 0"])
+        check("propfind answers exactly the property it names", code == 207 and "current-user-principal" in body and "resourcetype" not in body and "getetag" not in body and "getcontenttype" not in body)
+        etag_ask = selection % "<D:getetag/>"
+        code, _, body = request("PROPFIND", "/cal/", etag_ask, ["Content-Type: application/xml", "Depth: 0"])
+        check("a different property name answers differently", code == 207 and "getetag" in body and "current-user-principal" not in body and "404 Not Found" in body)
+        unknown_ask = selection % "<D:no-such-prop/>"
+        code, _, body = request("PROPFIND", "/cal/", unknown_ask, ["Content-Type: application/xml", "Depth: 0"])
+        check("an unknown property is a 404 propstat", code == 207 and "404 Not Found" in body and "<D:no-such-prop/>" in body)
+        data_ask = selection % '<C:calendar-data/>'
+        code, _, body = request("PROPFIND", "/cal/", data_ask, ["Content-Type: application/xml", "Depth: 1"])
+        check("propfind answers calendar-data with a 404 propstat", code == 207 and "404 Not Found" in body and "BEGIN:VCALENDAR" not in body)
+        code, _, body = request("PROPFIND", "/cal/", '<D:propfind xmlns:D="DAV:"/>', ["Content-Type: application/xml", "Depth: 0"])
+        check("a selection-less propfind is a bad request", code == 400)
         # The filter is the defining part of a calendar-query (RFC 4791 §7.8),
         # so the request carries a real one and the checks assert the selection
         # it implies rather than merely that the event came back. The unfiltered
@@ -158,6 +183,22 @@ def main():
         mixed = multiget.replace("</C:calendar-multiget>", "<D:href xmlns:D=\"DAV:\">/cal/nothere.ics</D:href></C:calendar-multiget>")
         code, _, body = request("REPORT", "/cal/", mixed, ["Content-Type: application/xml"])
         check("a mixed multiget answers 200 and per-href 404", code == 207 and "404 Not Found" in body and "/cal/nothere.ics" in body and "calendar-data" in body)
+        # The report's prop element is honored like PROPFIND's (RFC 4791
+        # 7.8): a getetag-only query ships no calendar data, and naming
+        # calendar-data brings it back — the R1 pair.
+        trim = (
+            '<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+            '<D:prop><D:getetag/></D:prop>'
+            '<C:filter><C:comp-filter name="VCALENDAR"/></C:filter>'
+            '</C:calendar-query>'
+        )
+        code, _, body = request("REPORT", "/cal/", trim, ["Content-Type: application/xml"])
+        check("a report naming getetag alone omits calendar data", code == 207 and "getetag" in body and "calendar-data" not in body and "BEGIN:VCALENDAR" not in body)
+        code, _, body = request("REPORT", "/cal/", trim.replace("<D:getetag/>", "<D:getetag/><C:calendar-data/>"), ["Content-Type: application/xml"])
+        check("naming calendar-data in a report brings it back", code == 207 and "calendar-data" in body and "BEGIN:VCALENDAR" in body)
+        empty_prop = '<C:calendar-multiget xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop/><D:href>/cal/s6.ics</D:href></C:calendar-multiget>'
+        code, _, body = request("REPORT", "/cal/", empty_prop, ["Content-Type: application/xml"])
+        check("an empty prop list answers an empty propstat", code == 207 and "<D:prop></D:prop>" in body and "/cal/s6.ics" in body)
         # Every test of a comp-filter applies to ONE component instance
         # (RFC 4791 9.7.1). k2a overlaps January but is not named k2beta;
         # k2beta is named k2beta but sits in June. Judging the time-range

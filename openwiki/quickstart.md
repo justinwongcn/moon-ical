@@ -60,7 +60,7 @@ test {
 | `ical/serialize` | 组件树 → 折行 `.ics` 文本（CRLF、75 octet、UTF-8 不劈开） | `serialize_components` |
 | `ical/fetch` | URL 取件薄层（`@http.get` + 状态检查 + 超时兜底，上游客户端自身无超时） | `fetch_ics` |
 | `ical/httpd` | HTTP/1.1 请求层：手解析请求行/头/体，方法只是 token（WebDAV 方法天然可用） | `read_request`、`respond` |
-| `ical/caldav` | WebDAV/CalDAV 语义（纯函数包，无 IO）：发现、PROPFIND、REPORT、filter 求值、XML | `report`、`parse_filter`、`collection_propfind` |
+| `ical/caldav` | WebDAV/CalDAV 语义（纯函数包，无 IO）：发现、PROPFIND、REPORT、`DAV:prop` 选择、filter 求值、XML | `report`、`parse_filter`、`parse_propfind`、`collection_propfind` |
 | `ical/store` | vdir 存储：每事件一个 `.ics`、目录即集合、内容寻址 ETag | `VdirStore`、`etag_of` |
 | `cmd/serve` | 可执行入口：TCP accept、路由、把 httpd/caldav/store 组装起来 | `moon run cmd/serve` |
 | `demo` | 演示入口：本地 fixture 或 URL → 事件清单 | `moon run demo` |
