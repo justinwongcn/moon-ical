@@ -234,19 +234,38 @@ fn propfind_response(
   props : Array[DavProp],
   selection : PropFind,
 ) -> String {
-  let found : Array[String] = []
-  let missing : Array[String] = []
-  let answered : Array[String] = []
+  // The allprop and propname answers are streamed straight into one
+  // builder — they are the hot shapes (a full listing per resource),
+  // and their shape is fixed enough to write without intermediates.
+  let out = StringBuilder()
+  out.write_string("<D:response><D:href>")
+  out.write_string(xml_escape(href))
+  out.write_string("</D:href>")
   match selection {
-    AllProp =>
+    AllProp => {
+      out.write_string("<D:propstat><D:prop>")
       for prop in props {
-        found.push(prop.value)
+        out.write_string(prop.value)
       }
-    PropName =>
+      out.write_string(
+        "</D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat>",
+      )
+    }
+    PropName => {
+      out.write_string("<D:propstat><D:prop>")
       for prop in props {
-        found.push("<\{prop.qname}/>")
+        out.write_string("<")
+        out.write_string(prop.qname)
+        out.write_string("/>")
       }
-    Prop(requested) =>
+      out.write_string(
+        "</D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat>",
+      )
+    }
+    Prop(requested) => {
+      let found : Array[String] = []
+      let missing : Array[String] = []
+      let answered : Array[String] = []
       for name in requested {
         if answered.contains(name) {
           continue
@@ -267,19 +286,28 @@ fn propfind_response(
           None => missing.push("<D:\{xml_escape(name)}/>")
         }
       }
+      if found.length() > 0 || missing.length() == 0 {
+        out.write_string("<D:propstat><D:prop>")
+        for piece in found {
+          out.write_string(piece)
+        }
+        out.write_string(
+          "</D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat>",
+        )
+      }
+      if missing.length() > 0 {
+        out.write_string("<D:propstat><D:prop>")
+        for piece in missing {
+          out.write_string(piece)
+        }
+        out.write_string(
+          "</D:prop><D:status>HTTP/1.1 404 Not Found</D:status></D:propstat>",
+        )
+      }
+    }
   }
-  let mut body = "<D:response><D:href>\{xml_escape(href)}</D:href>"
-  if found.length() > 0 || missing.length() == 0 {
-    body = body +
-      "<D:propstat><D:prop>\{found.join("")}</D:prop>" +
-      "<D:status>HTTP/1.1 200 OK</D:status></D:propstat>"
-  }
-  if missing.length() > 0 {
-    body = body +
-      "<D:propstat><D:prop>\{missing.join("")}</D:prop>" +
-      "<D:status>HTTP/1.1 404 Not Found</D:status></D:propstat>"
-  }
-  body + "</D:response>"
+  out.write_string("</D:response>")
+  out.to_string()
 }
 
 ///|

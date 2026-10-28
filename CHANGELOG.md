@@ -18,6 +18,13 @@
   roots elsewhere, or names none of the three selection forms is a bad
   request (400) rather than a silent `allprop`.
 
+- Speed up the calendar-multiget path by a measured 35% (920.67µs →
+  597.77µs at 500 hrefs × 500 resources, native release): requested hrefs
+  are read off the report's parsed XML tree instead of a second full-body
+  scan, `xml_escape` returns inputs that carry no metacharacter without
+  building a copy, and the allprop/propname responses stream straight
+  into one builder. Internal only — no public interface changes.
+
 ## 0.4.0
 
 - Upgrade to moonbitlang/async 0.22.5 and moonbitlang/x 0.5.6 (the

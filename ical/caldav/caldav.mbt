@@ -129,9 +129,24 @@ pub fn report(body : String, resources : Array[DavResource]) -> ReportOutcome {
     return UnsupportedReport
   }
   match root.name {
-    "calendar-multiget" => multiget_report(root, body, resources)
+    "calendar-multiget" => multiget_report(root, resources)
     "calendar-query" => query_report(root, body, resources)
     _ => UnsupportedReport
+  }
+}
+
+///|
+/// The character data of every `href` element at any depth, in document
+/// order — read off the tree the report already parsed, so the body is
+/// scanned once, not twice (the hrefs used to come from a second raw
+/// pass over the whole body).
+fn collect_hrefs(element : XmlElement, out : Array[String]) -> Unit {
+  for child in element.children {
+    if child.name == "href" {
+      out.push(child.text)
+    } else {
+      collect_hrefs(child, out)
+    }
   }
 }
 
@@ -140,11 +155,11 @@ pub fn report(body : String, resources : Array[DavResource]) -> ReportOutcome {
 /// with the properties the report's selection names.
 fn multiget_report(
   root : XmlElement,
-  body : String,
   resources : Array[DavResource],
 ) -> ReportOutcome {
   let selection = selection_of(root).unwrap_or(AllProp)
-  let hrefs = xml_text_values(body, "href")
+  let hrefs : Array[String] = []
+  collect_hrefs(root, hrefs)
   let selected : Map[String, Unit] = Map([], capacity=hrefs.length())
   for href in hrefs {
     // hrefs arrive entity-encoded like any other character data; a
@@ -245,6 +260,17 @@ fn multistatus(entries : Array[String]) -> String {
 /// inside a DAV response without being read as markup. The inverse of what a
 /// client does when it parses the response back.
 pub fn xml_escape(text : String) -> String {
+  let v = text.view()
+  let n = v.length()
+  // The common inputs (etags, hrefs, ASCII calendar data) carry no
+  // metacharacter: one scan returns the input without building a copy.
+  let mut i = 0
+  while i < n && !(v[i] is ('&' | '<' | '>' | '"' | '\'')) {
+    i = i + 1
+  }
+  if i == n {
+    return text
+  }
   let out = StringBuilder()
   for c in text {
     match c {
@@ -257,47 +283,6 @@ pub fn xml_escape(text : String) -> String {
     }
   }
   out.to_string()
-}
-
-///|
-/// Extract text from namespace-qualified or unqualified XML elements with a
-/// given local name. This deliberately small parser is sufficient for DAV
-/// request selection and never interprets entities as markup.
-fn xml_text_values(xml : String, local_name : String) -> Array[String] {
-  let values : Array[String] = []
-  let view = xml.view()
-  let wanted = local_name.view()
-  let n = view.length()
-  let mut i = 0
-  while i < n {
-    if view[i] == '<' && i + 1 < n && view[i + 1] != '/' {
-      let mut close = i + 1
-      while close < n && view[close] != '>' && view[close] != ' ' {
-        close = close + 1
-      }
-      let qname = view[i + 1:close]
-      if local_part(qname).equal_ignore_ascii_case(wanted) {
-        let mut open_end = close
-        while open_end < n && view[open_end] != '>' {
-          open_end = open_end + 1
-        }
-        if open_end < n {
-          let close_name = "</\{qname}>"
-          let rest = view[open_end + 1:]
-          match rest.find(close_name.view()) {
-            Some(offset) => {
-              values.push(rest[:offset].to_owned())
-              i = open_end + 1 + offset + close_name.length()
-              continue
-            }
-            None => ()
-          }
-        }
-      }
-    }
-    i = i + 1
-  }
-  values
 }
 
 ///|
