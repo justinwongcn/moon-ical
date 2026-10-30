@@ -1,80 +1,85 @@
-# 领域概念：iCalendar 模型与重复事件
+# 日历模型、重复集合与时间查询
 
-本页是库层的语义地图：数据模型怎么建、重复事件怎么展开、CalDAV 过滤怎么求值。改这些区域前先读它；每条语义都有对拍或差分测试钉住（证据地图见 [development.md](development.md)）。
+本页说明当前 0.5.0 工作区的计算契约。0.4.0 已发布，但没有本轮的 RDATE 和严格时区变更。测试入口见 [development.md](development.md)。
 
-## 数据模型（`ical/model`）
+## 解析保留与语义计算
 
-**组件树**。`parse_components` 把逻辑行建成 BEGIN/END 嵌套的 `Component` 树。未知组件和未知属性**原样保留**——这是设计立场，不是宽容：序列化 roundtrip 后组件树必须相等，未知内容仍出现在输出里。
+`parse_calendar` 返回 `Component` 树；`parse_components` 接受逻辑行。未知组件和属性留在树里，序列化后再解析应得到相等的树。这不代表输入经过了完整 RFC 校验，也不代表所有属性都有类型化语义。
 
-**四态时间 `IcalDateTime`**（derive `Eq`）：
+`parse_events` 将 VCALENDAR 下的 VEVENT 转成 `Event`。`Component::events(zones~)` 映射一个日历，`Component::event(zones~)` 只映射当前 VEVENT，其他组件返回 `None`。后一入口让查询不必解析无关事件。裸顶层 VEVENT 可保留为树，但 `parse_events` 不产出事件。
 
-| 形态 | 例子 | 语义 |
-|---|---|---|
-| UTC | `DTSTART:20260901T090000Z` | 绝对时刻 |
-| floating | `DTSTART:20260901T090000` | 无时区的墙上时间 |
-| TZID | `DTSTART;TZID=America/New_York:...` | 经 `ZoneTable` 解析出偏移 |
-| 日期（全天） | `DTSTART;VALUE=DATE:20260901` | `Event::all_day` 判定 |
+`Event` 包括 UID、文本字段、DTSTART/DTEND、RRULE 原文、EXDATE、RDATE、RECURRENCE-ID、RANGE 和 STATUS。`DURATION` 在没有 DTEND 时确定结束；两者并存报错。日期/周时长按固定偏移下的秒数计算，occurrence 可继承 master 时长。
 
-解析入口：`parse_date_time`（内容行）、`parse_single_date_time`（RRULE 的 UNTIL 等裸值）、`parse_date_time_value`（EXDATE 多值）。关键规则：**未知 TZID 报错，不静默回落 UTC**。
+## 时间与固定绑定
 
-**`ZoneTable`**：内置常用时区的固定偏移表（`builtin_common`）+ feed 内嵌 `VTIMEZONE`（优先级更高）。内部是 `Map[String,Int]` 索引（R11 优化，覆盖写 = 后插入胜）。仓库没有完整 IANA tzdb——重复的墙上时间跨 DST 保持解析出的偏移，这是声明过的边界。
+`IcalDateTime` 是结构体，保存墙上时间、可选 UTC 偏移、TZID 和全天标记，不是四个枚举构造子。
 
-**`Event` 类型化视图**：`parse_events` / `parse_calendar` 从组件树抽取 `Event { uid, summary, location, description, dtstart, dtend, recurrence_id, rrule, exdates }`。属性缺失是 `None` 不是错；畸形属性带行号报错。S29 起 `DURATION` 按 RFC 5545 §3.3.6 严格解析为**替代结束**：无 `DTEND` 的事件以其结束，两者并存是响亮的规范违例，occurrence 继承时长，`VTODO`/`VFREEBUSY` 的 time-range 同样认它；日/周分量按精确秒计（在项目已声明的固定偏移时区下，名义时长与精确时长重合）。剩余声明边界：`RDATE` 与 `VALUE=PERIOD` 不解析。
+| 输入 | 当前处理 |
+|---|---|
+| `...Z` | UTC 绝对时刻 |
+| 无 designator、无 TZID | floating 墙上时间；库排序按既有 epoch 约定，不替调用方选择当地时区 |
+| `VALUE=DATE` | 全天日期 |
+| `TZID=...` | 必须有可用的固定绑定，否则报 `BadLine` |
 
-## RRULE 分档语义（`ical/rrule`）
+`ZoneTable::builtin_common()` 现在只提供 UTC/GMT/Z 固定别名，不再猜地域时区的标准偏移。调用方可用 `insert(name, seconds)` 明确声明固定绑定，并承担该绑定适用于输入日期的责任。
 
-支持面按"档"划分，**档外子句显式 `BadRule` / `ExpandError::Unsupported` 报错，绝不静默吞**：
+内嵌 VTIMEZONE 只有在可证明固定时才用于计算：STANDARD 必需字段唯一、DTSTART 为 floating DATE-TIME、FROM 与 TO 相同、所有段偏移一致，且没有 DAYLIGHT 或重复转换规则。动态、无效或冲突声明记录在拒绝表中，并遮蔽同名默认绑定；只有日期真正引用它时才失败。未引用的声明和原始树仍可保存、写回。`rejection_reason` 可查询拒绝原因。
 
-- **支持**：`DAILY` / `WEEKLY` / `MONTHLY` / `YEARLY` × `INTERVAL`、`COUNT`、`UNTIL`、序数 `BYDAY`（如 `-1SU`）、正负 `BYMONTHDAY`、`BYMONTH`、`BYSETPOS`、`WKST`。
-- **显式拒绝**：sub-daily 频率（`HOURLY`/`MINUTELY`/`SECONDLY`）与 `BYWEEKNO`、`BYYEARDAY`、`BYHOUR`、`BYMINUTE`、`BYSECOND`。
+不支持完整 IANA tzdb 或动态 VTIMEZONE 转换。即使事件没有跨 DST，夏季起点也不能用冬季偏移代算。
 
-展开语义的关键点：
+## RRULE 支持与预算
 
-- **候选组合**：MONTHLY/YEARLY 中多个 BY* 子句同时存在 = 交集，单个 = 生成器，全无 = DTSTART 回退特例。
-- **不存在的日子跳过不钳位**：`MONTHLY;BYMONTHDAY=31` 在 2 月不产出 Feb 30。
-- **错误契约**：`COUNT`+`UNTIL` 互斥、`UNTIL` 与 DTSTART 值类型不一致 → `ExpandError::Invalid`。
-- **数值安全**（S12）：展开步进全 `Int64` 化；越出 year 9999 视为序列自然终结，不再回绕出"有效但错误"的日期。
-- **预算耗尽即报错**（S27）：无界规则走完 10000 周期预算仍不终止时抛 `ExpandError::Invalid`，不再静默返回"看似完整"的前缀；子句永不匹配的空走仍返回空，`COUNT`/`UNTIL` 有界与填满 `limit` 的走查照常结束。CalDAV 的 time-range 求值捕获该错误并回退到 master 区间。
-- **负 `BYMONTHDAY`**（S11）：DAILY/WEEKLY 路径按候选日所在月长度归一化判定——曾静默零匹配，现已用差分测试钉死。
+`parse_rule` 支持 DAILY/WEEKLY/MONTHLY/YEARLY，以及 INTERVAL、COUNT、UNTIL、序数 BYDAY、正负 BYMONTHDAY、BYMONTH、BYSETPOS、WKST。sub-daily 频率与 BYWEEKNO/BYYEARDAY/BYHOUR/BYMINUTE/BYSECOND 明确拒绝。
 
-**对拍纪律**：期望值不是自造的。`expand_corpus_test.mbt` 由 `tools/gen_s3_corpus_test.py` 从 [graham/rrule](https://github.com/graham/rrule) 测试套件**机械抽取**生成（第一档 23 条 + 第二档 8 条；语料出处登记在 THIRD-PARTY-NOTICES.md）。改展开逻辑前先跑它。
+- 候选日期按周期排序、去重后再应用 BYSETPOS 和 COUNT。重复 BYMONTH 或归一到同一天的月日不重复计数。
+- 不存在的日期跳过，不钳位成月末。
+- COUNT 与 UNTIL 不能并存；UNTIL 的时间域必须符合起点。
+- 步进使用 Int64；越出 year 9999 自然终止。
+- `limit` 是原始 RRULE 实例预算。填满 limit 可以返回前缀；走完 10000 周期仍未耗尽且未填满预算时，`expand` 和 `expand_series` 报 `ExpandError::Invalid`，包括有 COUNT/UNTIL或零输出的情况。
 
-## 系列覆盖合并（`expand_series`）
+语料来自 [graham/rrule](https://github.com/graham/rrule)，出处见 [第三方声明](../THIRD-PARTY-NOTICES.md)。旧纽约示例现在使用调用方显式固定绑定，只验证重复规则，不验证纽约历史偏移。
 
-真实日历里重复事件不是一条 RRULE 就完事——`expand_series(events)` 在日历级做有效系列合并：
+## RDATE 与系列合并
 
-- `EXDATE`：从序列中移除指定实例；
-- `RECURRENCE-ID` + 改期 DTSTART：移动单个实例；
-- `RECURRENCE-ID` + `STATUS:CANCELLED`：取消单个实例；
-- `RANGE=THISANDFUTURE`：从覆盖点起重定向整个后缀。
+`expand_series` 接受一个 UID 的系列。候选由 RRULE 前缀（没有 RRULE 时为 DTSTART）与 master 的全部 RDATE 合并，按原始 recurrence slot 去重，再应用 EXDATE、改期、取消和 THISANDFUTURE，最后按实际开始排序。
 
-S26 收紧的语义（各有差分钉住）：系列 master 取自**组自身 UID**——uid=a 的 override 先于无关的 uid=b master 到达时，不再误用 b 的系列展开 a 的组；override 无自身 `DTEND` 时继承 master 的时长（此前改期的一小时会议会变成"无结束"）。两条行为已文档化为边界而非意外：裸顶层 `VEVENT`（无 VCALENDAR 包裹）可解析但不产出事件；作用于同槽 override 的 `EXDATE` 即移除该实例。
+RDATE 支持 DATE/DATE-TIME、多值和重复属性行。它可以早于 DTSTART 或晚于 UNTIL，不占 RRULE COUNT，也不会因生成预算而静默截断。相同 slot 优先保留已有 RRULE/DTSTART 表示。EXDATE 优先于同槽 override；RDATE slot 同样可改期、取消并继承时长。
 
-性能关键路径（R1）：同 UID 的 overrides/EXDATE **一次索引**，按序游标应用 THISANDFUTURE——2000 occurrences + 500 overrides 的基准从 20.27ms 降到 1.64ms。改 `series.mbt` 时保住这个结构，别退回逐条扫描。
+PERIOD、空值、VALUE 与值形状不一致明确拒绝。重复集合需要 DTSTART；DATE、floating 与有偏移的 DATE-TIME 不混算。RID 和 override DTSTART 也必须与 master 的 DATE/floating 域一致。这是本库支持范围，不应表述成所有 RFC 合法组合都被支持。
 
-## CalDAV filter 求值（`ical/caldav/filter.mbt`）
+`limit` 不限制合并后的总输出：有限 RDATE 全部加入，EXDATE/取消又可能缩短结果。不能从输出长度推断生成器是否结束。
 
-`calendar-query` 的 `CALDAV:filter` 是一棵 `CompFilter`/`PropFilter` 树（`parse_filter` 从 XML 请求体解析，非法结构回 `FilterError`）：
+## 查询完整性接口
 
-- 嵌套 `comp-filter` 与 `is-not-defined`；
-- `time-range`：对含 RRULE 的组件走 `expand_series` 展开判重叠（RFC 4791 §7.4/§9.9）；S20 起**所有** time-range 路径（含 VTODO/VJOURNAL 区间与 prop-filter）都携带 feed 的时区表——此前只认内置表，feed 私有 TZID 的组件会静默匹配不到；
-- **每项测试作用于同一组件实例**（RFC 4791 §9.7.1，S18）：`VEVENT` 的 time-range 按该组件**自身 UID 的系列**判重叠（master 与 override 同 UID，展开语义不变），不是全资源事件——另一事件的区间重叠不能"代通过"本事件的过滤（双事件资源假阳性已被差分测试钉死）；
-- `prop-filter` 的 `text-match`（两种 collation：默认 `i;ascii-casemap` 折叠大小写、`i;octet` 字节敏感）与 `param-filter`；
-- 求值入口 `Filter::matches(calendar_data)`，对序列化后的 `.ics` 文本判定。
+`expand_series_query` 返回 `SeriesQueryResult`：
 
-**前置条件**按 RFC 4791 §7.8 回 `403` + `DAV:error`：无 filter 或非法 filter → `valid-filter`；起点 ≥ 终点的 time-range 同样回 `valid-filter`（S23——它不可能与任何事重叠，静默匹配空会被读成"区间内无事件"）；不可支持的过滤（如对 `VALARM` 的 time-range，不解析相对 trigger）→ `supported-filter`。XML 本身的嵌套深度上限 64，越界整文档拒绝（S13：曾可栈溢出杀死进程）；text-match 针与 multiget href 解码五个命名实体及 BMP 内的数值字符引用（`&#38;`、`&#x26;`，S13/S28——astral 平面引用保持原样，不匹配而非错配）。
+| 字段 | 用途 |
+|---|---|
+| `occurrences` | 当前生成预算内计算出的实例，加上全部 RDATE |
+| `exhausted` | 原始生成因 COUNT、UNTIL、日期地平线结束，或无 RRULE 的有限起点已生成 |
+| `generated_through` | 原始生成最后的实例；无 RRULE 时为 DTSTART。不含 RDATE，不受 EXDATE 影响 |
+| `has_overrides` | 同 UID 存在覆盖；未移动的前沿不能证明移动后的窗口完整 |
+| `budget_exceeded` | 周期预算耗尽，原始实例数仍未达到请求预算 |
 
-## 错误契约总览
+这些字段用于证明查询，不是“已经完整计算”的统一标记。找到实际重叠实例足以返回匹配；返回不匹配则需要自然耗尽，或无覆盖且原始前沿已覆盖有限查询终点。有覆盖或开放终点时采取保守证明，预算内不能证明就失败。
 
-每个包一个 `suberror`，带标签字段，derive `Eq`：
+## CalDAV 求值与错误
 
-| 包 | 错误 | 典型变体 |
-|---|---|---|
-| `ical/text` | `ParseError` | `BadLine(line_no~, line~, message~)` |
-| `ical/rrule` | `ExpandError` | `Invalid`、`Unsupported` |
-| `ical/caldav` | `FilterError` | `InvalidFilter(message~)`、`UnsupportedFilter(element~)` |
-| `ical/store` | `StoreError` | `BadName(name~)` |
-| `ical/httpd` | `HttpParseError` | `Malformed(message~)`、`ChunkedBody`、`BodyTooLarge(limit~)` |
-| `ical/fetch` | `FetchError` | `BadStatus`（非 200）、`TimedOut`（S20 超时兜底） |
+`Filter::matches(calendar_data)` 可以抛错。资源树先读取，时间只在相关测试需要时解析。SUMMARY 筛选、GET 和 multiget 不依赖重复规则或时区计算能力。
 
-历史教训（S12）：不要让外部依赖的未类型化 `Failure`（如 x/time 的日期越界）泄漏过包边界——越界日期分量必须收敛为带行号的 `BadLine`。给某条错误路径改契约时，连判别式测试一起改（S14 的 400/413 分流就是这么做的）。
+VEVENT time-range 按当前组件自身 UID 取系列，避免另一组件代为通过；成功的空系列不回退 master。非重复 VTODO 使用 RFC 4791 §9.9 的任务状态表；重复 VTODO 等未实现的组件重复计算明确失败。
+
+`report` 区分四种结果：报告成功、未知报告、请求前置条件失败、资源求值失败。
+
+| 情况 | HTTP |
+|---|---|
+| 成功，包括已证明为空 | 207 multistatus |
+| 非法 filter/time-range | 403 `valid-filter` |
+| 不支持的 filter 组件/属性/参数 | 403 `supported-filter` |
+| 不支持的 collation | 403 `supported-collation` |
+| 非法请求 timezone 的已检查结构/字段 | 403 `valid-calendar-data` |
+| 资源解析/时间求值失败，或预算内不能证明查询结论 | 500，安全错误类别；不返回部分 multistatus |
+
+请求 timezone 的转换尚未实现：其存在时，任何 temporal 判断保守失败，纯文本筛选仍可运行。合法性检查不宣称覆盖 observance RRULE 的全部规范语义。VALARM time-range 仍按现有能力契约拒绝为 `supported-filter`。
+
+REPORT 资源求值失败的 500 响应和对应日志只带资源 href 与固定分类，不拼接原始异常、规则或日历正文。相关源文件是 `ical/model/{event,datetime,zone}.mbt`、`ical/rrule/{expand,series}.mbt` 和 `ical/caldav/filter.mbt`。

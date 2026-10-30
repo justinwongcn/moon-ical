@@ -24,18 +24,110 @@ pub fn expand_series(
   events : Array[@model.Event],
   limit~ : Int32 = 200,
 ) -> Array[Occurrence] raise {
+  let result = expand_series_query(events, limit~)
+  if result.budget_exceeded {
+    raise ExpandError::Invalid(
+      message="recurrence expansion exceeded 10000 periods without ending",
+    )
+  }
+  result.occurrences
+}
+
+///|
+/// A generated prefix with completeness independent of exclusions and overrides.
+/// RDATE values are always included in full and never establish the RRULE frontier.
+pub struct SeriesQueryResult {
+  occurrences : Array[Occurrence]
+  exhausted : Bool
+  generated_through : @model.IcalDateTime?
+  has_overrides : Bool
+  /// The period safety budget ended before the requested raw instance budget.
+  budget_exceeded : Bool
+}
+
+///|
+/// Query one UID's series. `limit` budgets raw RRULE instances, not output size.
+/// `exhausted` means the generator ended naturally; false requires a larger
+/// budget or a range proof. With overrides, require exhaustion for that proof.
+pub fn expand_series_query(
+  events : Array[@model.Event],
+  limit~ : Int32 = 200,
+) -> SeriesQueryResult raise {
   let master = find_master(events)
   match master {
-    None => []
+    None =>
+      {
+        occurrences: [],
+        exhausted: true,
+        generated_through: None,
+        has_overrides: false,
+        budget_exceeded: false,
+      }
     Some(base) =>
       match base.dtstart {
-        None => []
-        Some(dtstart) => {
-          let generated = match base.rrule {
-            Some(text) => expand(parse_rule(text), dtstart, limit~)
-            None => [dtstart]
+        None => {
+          if base.rdates.length() > 0 || base.rrule is Some(_) {
+            raise ExpandError::Invalid(message="recurrence requires DTSTART")
           }
+          {
+            occurrences: [],
+            exhausted: true,
+            generated_through: None,
+            has_overrides: false,
+            budget_exceeded: false,
+          }
+        }
+        Some(dtstart) => {
           let uid = base.uid.unwrap_or("")
+          for event in events {
+            if event.uid.unwrap_or("") != uid {
+              continue
+            }
+            for value in [event.recurrence_id, event.dtstart] {
+              match value {
+                Some(value) =>
+                  if value.all_day != dtstart.all_day ||
+                    value.is_floating() != dtstart.is_floating() {
+                    raise ExpandError::Invalid(
+                      message="override value type must agree with DTSTART",
+                    )
+                  }
+                None => ()
+              }
+            }
+          }
+          let (raw, exhausted) = match base.rrule {
+            Some(text) => expand_generated(parse_rule(text), dtstart, limit~)
+            None => ([dtstart], true)
+          }
+          let budget_exceeded = !exhausted && limit > 0 && raw.length() < limit
+          let generated_through = if raw.length() > 0 {
+            Some(raw[raw.length() - 1])
+          } else {
+            None
+          }
+          let generated = raw.copy()
+          let keys : Map[Int64, Unit] = Map([])
+          for slot in raw {
+            keys[slot.instant_seconds()] = ()
+          }
+          for slot in base.rdates {
+            if slot.all_day != dtstart.all_day ||
+              slot.is_floating() != dtstart.is_floating() {
+              raise ExpandError::Invalid(
+                message="RDATE value type must agree with DTSTART",
+              )
+            }
+            let key = slot.instant_seconds()
+            if !keys.contains(key) {
+              keys[key] = ()
+              generated.push(slot)
+            }
+          }
+          generated.sort_by((a, b) => a.compare(b))
+          let has_overrides = events.any(event => {
+            event.uid.unwrap_or("") == uid && event.recurrence_id is Some(_)
+          })
           let index = SeriesIndex::build(events, base, uid)
           let duration = match base.dtend {
             Some(finish) =>
@@ -106,7 +198,13 @@ pub fn expand_series(
             }
           }
           out.sort_by((a, b) => a.start.compare(b.start))
-          out
+          {
+            occurrences: out,
+            exhausted,
+            generated_through,
+            has_overrides,
+            budget_exceeded,
+          }
         }
       }
   }

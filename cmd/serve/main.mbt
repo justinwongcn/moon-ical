@@ -579,6 +579,17 @@ async fn report_request(
     @caldav.ReportOutcome::Report(body~) => dav_response(conn, request, body)
     @caldav.ReportOutcome::UnsupportedReport =>
       reply(conn, request, 400, "Bad Request", body="unsupported REPORT")
+    @caldav.ReportOutcome::EvaluationFailed(reason~) => {
+      @stdio.stderr.write("REPORT evaluation failed: \{reason}\n")
+      reply(
+        conn,
+        request,
+        500,
+        "Internal Server Error",
+        headers=[("Content-Type", "text/plain; charset=utf-8")],
+        body=reason,
+      )
+    }
     @caldav.ReportOutcome::PreconditionFailed(body~) =>
       reply(
         conn,

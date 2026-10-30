@@ -2,7 +2,11 @@
 /// Parse a full property line the way the sync layer will.
 fn dt(line : String) -> @model.IcalDateTime raise {
   let cl = @text.parse_content_line(line, 1)
-  @model.parse_date_time(cl, @model.ZoneTable::builtin_common())
+  let zones = @model.ZoneTable::builtin_common()
+  zones.insert("Asia/Shanghai", 28800)
+  zones.insert("Asia/Kolkata", 19800)
+  zones.insert("America/New_York", -18000)
+  @model.parse_date_time(cl, zones)
 }
 
 ///|

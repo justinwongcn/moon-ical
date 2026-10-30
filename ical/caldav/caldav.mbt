@@ -95,6 +95,7 @@ pub(all) enum ReportOutcome {
   UnsupportedReport
   /// A precondition failed; `body` is the `DAV:error` document to send.
   PreconditionFailed(body~ : String)
+  EvaluationFailed(reason~ : String)
 } derive(Debug, Eq)
 
 ///|
@@ -205,6 +206,10 @@ fn query_report(
   let filter = parse_filter(body) catch {
     FilterError::InvalidFilter(_) =>
       return PreconditionFailed(body=error_document("<C:valid-filter/>"))
+    FilterError::InvalidCalendarData =>
+      return PreconditionFailed(body=error_document("<C:valid-calendar-data/>"))
+    FilterError::UnsupportedCollation =>
+      return PreconditionFailed(body=error_document("<C:supported-collation/>"))
     FilterError::UnsupportedFilter(element~) =>
       return PreconditionFailed(
         body=error_document(
@@ -215,7 +220,15 @@ fn query_report(
   let selection = selection_of(root).unwrap_or(AllProp)
   let entries : Array[String] = []
   for resource in resources {
-    if filter.matches(resource.calendar_data) {
+    // A failed evaluation is not an empty result: propagate it instead of
+    // silently dropping the resource from the answer.
+    let matched = filter.matches(resource.calendar_data) catch {
+      err =>
+        return EvaluationFailed(
+          reason="\{resource.href}: \{evaluation_reason(err)}",
+        )
+    }
+    if matched {
       entries.push(
         propfind_response(
           resource.href,

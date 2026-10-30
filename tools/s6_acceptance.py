@@ -54,7 +54,8 @@ def wait_for_port():
 def main():
     subprocess.run(["moon", "build", "cmd/serve", "--target", "native"], cwd=ROOT, check=True)
     data_dir = tempfile.mkdtemp(prefix="moon-ical-s6-")
-    log = open(Path(data_dir) / "server.log", "w", encoding="utf-8")
+    log_dir = tempfile.mkdtemp(prefix="moon-ical-s6-log-")
+    log = open(Path(log_dir) / "server.log", "w", encoding="utf-8")
     server = subprocess.Popen([str(EXE), data_dir, str(PORT)], stdout=log, stderr=subprocess.STDOUT)
     try:
         if not wait_for_port():

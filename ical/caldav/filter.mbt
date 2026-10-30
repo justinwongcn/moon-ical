@@ -90,6 +90,7 @@ pub extend CompFilter with Eq::{not_equal, equal}
 /// and §7.4 requires a time range to be resolved against recurrence.
 pub(all) struct Filter {
   root : CompFilter
+  request_timezone : Bool
 } derive(Debug, Eq)
 
 ///|
@@ -109,6 +110,8 @@ pub extend Filter with Eq::{not_equal, equal}
 pub(all) suberror FilterError {
   InvalidFilter(message~ : String)
   UnsupportedFilter(element~ : String)
+  UnsupportedCollation
+  InvalidCalendarData
 } derive(Debug, Eq)
 
 ///|
@@ -123,6 +126,8 @@ pub impl Show for FilterError with fn output(self, logger) {
     InvalidFilter(message=m) => logger.write_string("invalid filter: \{m}")
     UnsupportedFilter(element=e) =>
       logger.write_string("unsupported filter element: \{e}")
+    UnsupportedCollation => logger.write_string("unsupported collation")
+    InvalidCalendarData => logger.write_string("invalid request timezone")
   }
 }
 
@@ -143,6 +148,10 @@ pub fn parse_filter(body : String) -> Filter raise FilterError {
       raise FilterError::InvalidFilter(
         message="report body is not an XML element",
       )
+  }
+  match find_descendant(document, "timezone") {
+    Some(timezone) => validate_request_timezone(timezone.text)
+    None => ()
   }
   let element = match find_descendant(document, "filter") {
     Some(found) => found
@@ -169,11 +178,67 @@ pub fn parse_filter(body : String) -> Filter raise FilterError {
     }
   }
   match root {
-    Some(top) => { root: top, }
+    Some(top) =>
+      {
+        root: top,
+        request_timezone: find_descendant(document, "timezone") is Some(_),
+      }
     None =>
       raise FilterError::InvalidFilter(
         message="CALDAV:filter without a comp-filter",
       )
+  }
+}
+
+///|
+// RFC 4791 §7.8: request timezone must be one valid VTIMEZONE. Dynamic
+// observances are legal even though temporal conversion is not implemented.
+fn validate_request_timezone(text : String) -> Unit raise FilterError {
+  let roots = @model.parse_calendar(decode_xml_entities(text)) catch {
+    _ => raise FilterError::InvalidCalendarData
+  }
+  if roots.length() != 1 ||
+    roots[0].kind != "VCALENDAR" ||
+    roots[0].properties_named("VERSION").length() != 1 ||
+    roots[0].property("VERSION").map(line => line.value) != Some("2.0") {
+    raise FilterError::InvalidCalendarData
+  }
+  let zones = roots[0].children
+  if zones.length() != 1 ||
+    zones[0].kind != "VTIMEZONE" ||
+    zones[0].properties_named("TZID").length() != 1 ||
+    zones[0].property("TZID").map(line => line.value) == Some("") ||
+    zones[0].children.length() == 0 {
+    raise FilterError::InvalidCalendarData
+  }
+  for observance in zones[0].children {
+    if observance.kind != "STANDARD" && observance.kind != "DAYLIGHT" {
+      raise FilterError::InvalidCalendarData
+    }
+    for name in ["DTSTART", "TZOFFSETFROM", "TZOFFSETTO"] {
+      if observance.properties_named(name).length() != 1 {
+        raise FilterError::InvalidCalendarData
+      }
+      let line = match observance.property(name) {
+        Some(line) => line
+        None => raise FilterError::InvalidCalendarData
+      }
+      if name == "DTSTART" {
+        if line.value.length() != 15 ||
+          line.value.has_suffix("Z") ||
+          line.param("TZID") is Some(_) ||
+          (line.param("VALUE") is Some(value) && value != "DATE-TIME") {
+          raise FilterError::InvalidCalendarData
+        }
+        let _ = @model.parse_date_time(line, @model.ZoneTable::empty()) catch {
+          _ => raise FilterError::InvalidCalendarData
+        }
+      } else {
+        let _ = @model.parse_utc_offset(line.value, line_no=0, raw=line.value) catch {
+          _ => raise FilterError::InvalidCalendarData
+        }
+      }
+    }
   }
 }
 
@@ -288,9 +353,7 @@ fn parse_param_filter(element : XmlElement) -> ParamFilter raise FilterError {
 fn parse_text_match(element : XmlElement) -> TextMatch raise FilterError {
   let collation = element.attrs.get("collation").unwrap_or("")
   if !is_supported_collation(collation) {
-    raise FilterError::UnsupportedFilter(
-      element="<C:text-match collation=\"\{collation}\"/>",
-    )
+    raise FilterError::UnsupportedCollation
   }
   let negate = match element.attrs.get("negate-condition") {
     Some(value) => value.to_lower() == "yes"
@@ -338,6 +401,11 @@ fn parse_instant(text : String) -> Int64 raise FilterError {
         message="malformed time-range bound: \{text}",
       )
   }
+  if !text.has_suffix("Z") || parsed.all_day {
+    raise FilterError::InvalidFilter(
+      message="time-range bound must be UTC DATE-TIME",
+    )
+  }
   parsed.instant_seconds()
 }
 
@@ -371,20 +439,52 @@ fn is_supported_collation(collation : String) -> Bool {
 const SERIES_INITIAL_LIMIT : Int32 = 32
 
 ///|
-/// The ceiling the adaptive expansion stops doubling at. A rule that still
-/// has not reached the range by here is far denser than any real calendar.
+/// Maximum query work. Reaching it without coverage or exhaustion is a
+/// checked server failure, never evidence of a successful empty result.
 const SERIES_LIMIT_CAP : Int32 = 4096
 
 ///|
-/// The component tree, typed events, and resolved zones of one calendar
-/// object resource. The zones are the feed's own `VTIMEZONE` over the
-/// built-in guesses — the same table `parse_events` builds — because a
-/// `TZID` the feed declares privately must resolve on every path that
-/// judges this resource, not only on the VEVENT one.
+/// Lossless component trees only. Typed events and zones are interpreted
+/// on demand so a SUMMARY search does not need recurrence or timezone support.
 priv struct ResourceView {
   roots : Array[@model.Component]
-  events : Array[@model.Event]
-  zones : @model.ZoneTable
+  request_timezone : Bool
+}
+
+///|
+priv suberror EvaluationError {
+  CannotEvaluate(String)
+}
+
+///|
+impl Show for EvaluationError with fn output(self, logger) {
+  match self {
+    CannotEvaluate(reason) => logger.write_string(reason)
+  }
+}
+
+///|
+// Never expose a parser's raw line, rule, or exception payload over HTTP
+// or in logs: those may contain private calendar data.
+fn evaluation_reason(err : Error) -> String {
+  match err {
+    EvaluationError::CannotEvaluate(_) =>
+      "unsupported temporal evaluation or incomplete recurrence coverage"
+    @text.ParseError::BadLine(..) =>
+      "invalid or unsupported calendar date or structure"
+    @text.ParseError::BadRule(..) => "invalid or unsupported recurrence rule"
+    @rrule.ExpandError::Invalid(..) => "recurrence evaluation failed"
+    @rrule.ExpandError::Unsupported(..) => "unsupported recurrence feature"
+    _ => "calendar evaluation failed"
+  }
+}
+
+///|
+fn temporal_zones(view : ResourceView) -> @model.ZoneTable raise {
+  if view.request_timezone {
+    raise CannotEvaluate("request CALDAV:timezone is not implemented")
+  }
+  @model.ZoneTable::with_builtin(@model.build_zone_table(view.roots))
 }
 
 ///|
@@ -399,33 +499,15 @@ priv struct Interval {
 ///|
 /// Whether one calendar object resource matches this filter.
 ///
-/// A resource that cannot be parsed does not match: the filter is a search,
-/// and an unreadable resource cannot be shown to contain a match.
-pub fn Filter::matches(self : Filter, calendar_data : String) -> Bool {
-  let view = resource_view(calendar_data)
+/// A failed evaluation is not evidence of an empty search. Dates and rules
+/// are parsed only when a temporal test needs them; text searches remain
+/// usable even when an unrelated recurrence cannot be interpreted.
+pub fn Filter::matches(self : Filter, calendar_data : String) -> Bool raise {
+  let view = {
+    roots: @model.parse_calendar(calendar_data),
+    request_timezone: self.request_timezone,
+  }
   comp_matches(self.root, view.roots, view)
-}
-
-///|
-fn resource_view(calendar_data : String) -> ResourceView {
-  let roots : Array[@model.Component] = @model.parse_calendar(calendar_data) catch {
-    _ => []
-  }
-  let zones = @model.ZoneTable::with_builtin(@model.build_zone_table(roots))
-  let events : Array[@model.Event] = []
-  for root in roots {
-    let parsed : Array[@model.Event]? = Some(root.events(zones~)) catch {
-      _ => None
-    }
-    match parsed {
-      Some(found) =>
-        for event in found {
-          events.push(event)
-        }
-      None => ()
-    }
-  }
-  { roots, events, zones, }
 }
 
 ///|
@@ -439,7 +521,7 @@ fn comp_matches(
   filter : CompFilter,
   scope : Array[@model.Component],
   view : ResourceView,
-) -> Bool {
+) -> Bool raise {
   if filter.is_not_defined {
     return !scope.any(component => component.kind == filter.name)
   }
@@ -456,25 +538,23 @@ fn comp_tests_pass(
   filter : CompFilter,
   component : @model.Component,
   view : ResourceView,
-) -> Bool {
-  match filter.time_range {
-    Some(range) =>
-      if !component_overlaps(component, range, view) {
-        return false
-      }
-    None => ()
+) -> Bool raise {
+  // Cheap/text predicates can prove a non-match without interpreting an
+  // unrelated unsupported rule or date on this component.
+  for prop in filter.props {
+    if !prop_matches(prop, component, view) {
+      return false
+    }
   }
   for child in filter.comps {
     if !comp_matches(child, component.children, view) {
       return false
     }
   }
-  for prop in filter.props {
-    if !prop_matches(prop, component, view.zones) {
-      return false
-    }
+  match filter.time_range {
+    Some(range) => component_overlaps(component, range, view)
+    None => true
   }
-  true
 }
 
 ///|
@@ -493,14 +573,34 @@ fn component_overlaps(
   component : @model.Component,
   range : TimeRange,
   view : ResourceView,
-) -> Bool {
+) -> Bool raise {
   if component.kind == "VEVENT" {
-    let series = view.events.filter(event => {
-      event.uid.unwrap_or("") == component_uid(component)
-    })
+    let zones = temporal_zones(view)
+    let series : Array[@model.Event] = []
+    for root in view.roots {
+      for child in root.children {
+        if child.kind == "VEVENT" &&
+          component_uid(child) == component_uid(component) {
+          match child.event(zones~) {
+            Some(event) => series.push(event)
+            None => ()
+          }
+        }
+      }
+    }
     return events_overlap(series, range)
   }
-  match component_interval(component, view.zones) {
+  if component.property("RRULE") is Some(_) ||
+    component.property("RDATE") is Some(_) ||
+    component.property("RECURRENCE-ID") is Some(_) {
+    raise CannotEvaluate(
+      "recurring \{component.kind} time-range is not implemented",
+    )
+  }
+  if component.kind == "VTODO" {
+    return todo_overlaps(component, range, temporal_zones(view))
+  }
+  match component_interval(component, temporal_zones(view)) {
     Some(interval) =>
       interval_overlaps(
         interval.start,
@@ -509,6 +609,67 @@ fn component_overlaps(
         range,
       )
     None => false
+  }
+}
+
+///|
+// RFC 4791 §9.9 VTODO table, transcribed in row order. It deliberately
+// differs from VEVENT: duration finish and due-only end are inclusive.
+fn todo_overlaps(
+  component : @model.Component,
+  range : TimeRange,
+  zones : @model.ZoneTable,
+) -> Bool raise {
+  let start = component
+    .property("DTSTART")
+    .map(line => @model.parse_date_time(line, zones).instant_seconds())
+  let duration = component
+    .property("DURATION")
+    .map(line => @model.parse_duration(line.value, line_no=0, raw=line.value))
+  let due = component
+    .property("DUE")
+    .map(line => @model.parse_date_time(line, zones).instant_seconds())
+  if duration is Some(_) && (start is None || due is Some(_)) {
+    raise CannotEvaluate("invalid VTODO duration state")
+  }
+  match (start, duration, due) {
+    (Some(s), Some(d), None) =>
+      at_or_before(range.start, s + d) &&
+      (after(range.end, s) || at_or_after(range.end, s + d))
+    (Some(s), None, Some(d)) => {
+      if d < s {
+        raise CannotEvaluate("invalid VTODO due before start")
+      }
+      (before(range.start, d) || at_or_before(range.start, s)) &&
+      (after(range.end, s) || at_or_after(range.end, d))
+    }
+    (Some(s), None, None) => at_or_before(range.start, s) && after(range.end, s)
+    (None, None, Some(d)) => before(range.start, d) && at_or_after(range.end, d)
+    _ => {
+      let completed = component
+        .property("COMPLETED")
+        .map(line => @model.parse_date_time(line, zones).instant_seconds())
+      let created = component
+        .property("CREATED")
+        .map(line => @model.parse_date_time(line, zones).instant_seconds())
+      match (completed, created) {
+        (Some(done), Some(c)) =>
+          (at_or_before(range.start, c) || at_or_before(range.start, done)) &&
+          (at_or_after(range.end, c) || at_or_after(range.end, done))
+        (Some(done), None) =>
+          at_or_before(range.start, done) && at_or_after(range.end, done)
+        (None, Some(c)) => after(range.end, c)
+        (None, None) => true
+      }
+    }
+  }
+}
+
+///|
+fn at_or_after(limit : Int64?, value : Int64) -> Bool {
+  match limit {
+    Some(bound) => bound >= value
+    None => true
   }
 }
 
@@ -526,7 +687,10 @@ fn component_uid(component : @model.Component) -> String {
 
 ///|
 /// Whether any occurrence of any series in this resource overlaps the range.
-fn events_overlap(events : Array[@model.Event], range : TimeRange) -> Bool {
+fn events_overlap(
+  events : Array[@model.Event],
+  range : TimeRange,
+) -> Bool raise {
   let visited : Map[String, Unit] = Map([])
   for event in events {
     let uid = event.uid.unwrap_or("")
@@ -535,30 +699,8 @@ fn events_overlap(events : Array[@model.Event], range : TimeRange) -> Bool {
     }
     visited[uid] = ()
     let group = events.filter(item => item.uid.unwrap_or("") == uid)
-    let occurrences = series_occurrences(group, range)
-    if occurrences.length() == 0 {
-      // No series to expand — a bare event with no RRULE, or a rule this
-      // build cannot expand. Its own dates still say whether it overlaps.
-      match master_interval(group) {
-        Some(interval) =>
-          if interval_overlaps(
-              interval.start,
-              interval.finish,
-              interval.all_day,
-              range,
-            ) {
-            return true
-          }
-        None => ()
-      }
-    } else {
-      for occurrence in occurrences {
-        let start = occurrence.start.instant_seconds()
-        let finish = occurrence.end.map(end => end.instant_seconds())
-        if interval_overlaps(start, finish, occurrence.start.all_day, range) {
-          return true
-        }
-      }
+    if series_overlaps(group, range) {
+      return true
     }
   }
   false
@@ -567,63 +709,54 @@ fn events_overlap(events : Array[@model.Event], range : TimeRange) -> Bool {
 ///|
 /// Expand one UID's series far enough to answer a time range.
 ///
-/// [`@rrule.expand_series`] takes a limit because a rule may be unbounded, so
-/// the limit is doubled until the series either runs out or reaches the
-/// bound the range cares about. Without this a long series would be judged
-/// only on its first `limit` instances and a match past them would be lost.
-fn series_occurrences(
+/// A witnessed overlap proves true. A negative result requires exhaustion
+/// or an unshifted RRULE generation frontier covering the query end; far
+/// RDATE values and output lengths cannot prove that intermediate slots were
+/// visited. Overrides conservatively require exhaustion for a negative.
+fn series_overlaps(
   events : Array[@model.Event],
   range : TimeRange,
-) -> Array[@rrule.Occurrence] {
-  let bound = match range.end {
-    Some(end) => Some(end)
-    None => range.start
-  }
+) -> Bool raise {
   let mut limit = SERIES_INITIAL_LIMIT
-  let mut out : Array[@rrule.Occurrence] = []
   for ;; {
-    let parsed : Array[@rrule.Occurrence]? = Some(
-      @rrule.expand_series(events, limit~),
-    ) catch {
-      _ => None
-    }
-    out = match parsed {
-      Some(found) => found
-      None => []
-    }
-    let exhausted = out.length() < limit
-    let covered = match bound {
-      None => true
-      Some(target) =>
-        out.length() > 0 &&
-        out[out.length() - 1].start.instant_seconds() >= target
-    }
-    if exhausted || covered || limit >= SERIES_LIMIT_CAP {
-      break
-    }
-    limit = limit * 4
-  }
-  out
-}
-
-///|
-/// The interval of the master event of a group — the one without a
-/// `RECURRENCE-ID`, which is the series definition rather than an override.
-fn master_interval(events : Array[@model.Event]) -> Interval? {
-  for event in events {
-    if event.recurrence_id is None {
-      match event.dtstart {
-        Some(start) =>
-          return Some({
-            start: start.instant_seconds(),
-            finish: event.dtend.map(end => end.instant_seconds()),
-            all_day: start.all_day,
-          })
-        None => ()
+    let result = @rrule.expand_series_query(events, limit~)
+    for occurrence in result.occurrences {
+      if interval_overlaps(
+          occurrence.start.instant_seconds(),
+          occurrence.end.map(end => end.instant_seconds()),
+          occurrence.start.all_day,
+          range,
+        ) {
+        return true
       }
     }
+    let covered = if result.has_overrides {
+      false
+    } else {
+      match (range.end, result.generated_through) {
+        (Some(bound), Some(frontier)) => frontier.instant_seconds() >= bound
+        _ => false
+      }
+    }
+    if result.exhausted || covered {
+      return false
+    }
+    if result.budget_exceeded {
+      raise CannotEvaluate(
+        "recurrence period budget exhausted without proving coverage",
+      )
+    }
+    if limit >= SERIES_LIMIT_CAP {
+      raise CannotEvaluate(
+        "recurrence query exceeded \{SERIES_LIMIT_CAP} instances without proving coverage",
+      )
+    }
+    limit = if limit * 4 > SERIES_LIMIT_CAP {
+      SERIES_LIMIT_CAP
+    } else {
+      limit * 4
+    }
   }
-  None
 }
 
 ///|
@@ -634,22 +767,17 @@ fn master_interval(events : Array[@model.Event]) -> Interval? {
 fn component_interval(
   component : @model.Component,
   zones : @model.ZoneTable,
-) -> Interval? {
+) -> Interval? raise {
   let dtstart = component
     .property("DTSTART")
     .bind(line => try_date(line, zones))
   let dtend = component.property("DTEND").bind(line => try_date(line, zones))
   let due = component.property("DUE").bind(line => try_date(line, zones))
-  // A DURATION instead of an explicit end: the same alternative RFC
-  // 5545 §3.8.5.3 offers the VEVENT path. A malformed duration reads as
-  // "no end" here — the search stays lenient where the event view is
-  // loud.
+  // Malformed duration is a checked failure, not a missing end.
   let duration : Int64? = component
     .property("DURATION")
     .bind(line => {
-      Some(@model.parse_duration(line.value, line_no=0, raw=line.value)) catch {
-        _ => None
-      }
+      Some(@model.parse_duration(line.value, line_no=0, raw=line.value))
     })
   match dtstart {
     Some(start) =>
@@ -689,8 +817,8 @@ fn component_interval(
 fn prop_matches(
   filter : PropFilter,
   component : @model.Component,
-  zones : @model.ZoneTable,
-) -> Bool {
+  view : ResourceView,
+) -> Bool raise {
   let lines = component.properties_named(filter.name)
   if filter.is_not_defined {
     return lines.length() == 0
@@ -699,7 +827,7 @@ fn prop_matches(
     return false
   }
   for line in lines {
-    if prop_line_matches(filter, line, zones) {
+    if prop_line_matches(filter, line, view) {
       return true
     }
   }
@@ -710,11 +838,11 @@ fn prop_matches(
 fn prop_line_matches(
   filter : PropFilter,
   line : @text.ContentLine,
-  zones : @model.ZoneTable,
-) -> Bool {
+  view : ResourceView,
+) -> Bool raise {
   match filter.time_range {
     Some(range) =>
-      match try_date(line, zones) {
+      match try_date(line, temporal_zones(view)) {
         Some(value) =>
           if !interval_overlaps(
               value.instant_seconds(),
@@ -834,8 +962,6 @@ fn at_or_before(limit : Int64?, value : Int64) -> Bool {
 fn try_date(
   line : @text.ContentLine,
   zones : @model.ZoneTable,
-) -> @model.IcalDateTime? {
-  Some(@model.parse_date_time(line, zones)) catch {
-    _ => None
-  }
+) -> @model.IcalDateTime? raise {
+  Some(@model.parse_date_time(line, zones))
 }

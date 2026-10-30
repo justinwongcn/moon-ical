@@ -1,70 +1,89 @@
 # moon-ical
 
-An [iCalendar (RFC 5545)](https://www.rfc-editor.org/rfc/rfc5545) library and
-a minimal [CalDAV (RFC 4791)](https://www.rfc-editor.org/rfc/rfc4791) server,
-written in pure MoonBit. It parses `.ics` input into typed events, expands
-recurring series, and serves the result over CalDAV so ordinary calendar
-clients can discover and edit it.
+A pure MoonBit [iCalendar](https://www.rfc-editor.org/rfc/rfc5545) library
+with a minimal [CalDAV](https://www.rfc-editor.org/rfc/rfc4791) server.
+It reads and writes component trees, calculates a defined subset of recurring
+events, and provides discovery and editing for stored calendar resources.
+It does not calculate every valid iCalendar input.
 
-## Features
-
-- Parses the messy corners of iCalendar: line unfolding, quoted parameters,
-  TEXT escaping, nested components. Unknown properties round-trip untouched.
-- Handles UTC, floating, `TZID`, and all-day values. A `VTIMEZONE` embedded
-  in the feed wins; otherwise zones fall back to a documented table of
-  common fixed offsets.
-- Expands `DAILY`, `WEEKLY`, `MONTHLY`, and `YEARLY` recurrence, with
-  `INTERVAL`, `COUNT`, `UNTIL`, ordinal `BYDAY`, signed `BYMONTHDAY`,
-  `BYMONTH`, `BYSETPOS`, and `WKST`.
-- Merges series-level exceptions: `EXDATE`, `RECURRENCE-ID` overrides that
-  move or cancel an instance, and `RANGE=THISANDFUTURE`.
-- Writes .ics back out with CRLF line endings, folded at 75 octets without
-  cutting a UTF-8 sequence in half.
-- A native CalDAV server: vdir storage, content-addressed ETags, discovery,
-  `PROPFIND`, `REPORT`, `MKCALENDAR`, and conditional PUT/DELETE.
-- `calendar-query` really evaluates its `CALDAV:filter`, including nested
-  component filters, `is-not-defined`, `text-match`, parameter filters, and
-  `time-range` resolved against recurrence. Failed preconditions come back
-  as `403` per RFC 4791 §7.8.
-- `MKCALENDAR` creates a collection under `/cal/<name>/` that holds its own
-  events, shows up in `PROPFIND`, and can be deleted.
-
-## Install
+## Version
 
 ```bash
 moon add justinwongcn/moon-ical@0.4.0
 ```
 
-0.4.0 is the version currently published on mooncakes. 0.5.0 is still in
-development and will land once the new API and the end-to-end checks are
-done.
+0.4.0 is the published version. This working tree is **unreleased 0.5.0**.
+The RDATE, strict time-zone, and checked-query behavior below belongs to
+0.5.0; installing 0.4.0 does not provide those changes.
+
+## What it handles
+
+- Line unfolding, quoted parameters, TEXT escaping, and nested components.
+  Unknown properties remain in the component tree and survive tree round trips.
+- UTC, floating times, all-day dates, and explicitly bound fixed-offset TZIDs.
+  Unsupported time-zone definitions fail when a typed date references them.
+- DAILY, WEEKLY, MONTHLY, and YEARLY recurrence, with INTERVAL, COUNT, UNTIL,
+  ordinal BYDAY, signed BYMONTHDAY, BYMONTH, BYSETPOS, and WKST.
+- DATE/DATE-TIME RDATE values, merged with recurrence slots and deduplicated.
+  EXDATE removes instances; RECURRENCE-ID can move or cancel them;
+  RANGE=THISANDFUTURE shifts later instances. DURATION supplies an end when
+  DTEND is absent.
+- CRLF serialization, folding within 75 octets without splitting UTF-8,
+  and parameter quoting.
+- A native server with vdir storage, content-addressed ETags, discovery,
+  PROPFIND, calendar-query/multiget REPORT, MKCALENDAR, and conditional
+  PUT/DELETE. The library also parses MKCALENDAR properties; the server does
+  not persist them.
+
+Preserving a component tree is separate from interpreting its dates. For
+example, a tree containing PERIOD or dynamic VTIMEZONE data can be read and
+written, while typed event parsing may reject it.
 
 ## Library usage
 
-```mbt nocheck
+```mbt check
 ///|
 test {
-  let events = @moon_ical.parse_events(
+  let events = @moon-ical.parse_events(
     "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:demo\r\n" +
     "DTSTART:20260901T090000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\n" +
     "END:VEVENT\r\nEND:VCALENDAR\r\n",
   )
-  let occurrences = @moon_ical.expand_series(events)
+  let occurrences = @moon-ical.expand_series(events)
   assert_eq(occurrences.length(), 3)
   assert_eq(occurrences[2].start.to_string(), "2026-09-03T09:00:00Z")
 }
 ```
 
-The library is also split into focused subpackages: `ical/text`, `ical/model`,
-`ical/rrule`, `ical/serialize`, and `ical/caldav`. The root package re-exports
-the complete parse, recurrence, and serialization workflows. Lower-level
-primitives (text, date-time, XML, HTTP preconditions, CalDAV response
-helpers) stay in their own subpackages.
+The root package exports parse, recurrence, and serialization workflows.
+Lower-level APIs live in `ical/text`, `ical/model`, `ical/rrule`,
+`ical/serialize`, and `ical/caldav`. Since 0.2.0, the root facade no longer
+exports the low-level text and protocol helpers that 0.1.0 exposed.
 
-Since 0.2.0 the root facade no longer re-exports the low-level API that
-0.1.0 exposed. Code that needs it can import `ical/text`, `ical/model`,
-`ical/serialize`, or `ical/caldav` directly; complete workflows can keep
-using the root package.
+### 0.5.0 calculation contract
+
+RDATE accepts DATE or DATE-TIME, including repeated lines and comma lists.
+PERIOD and mismatched value types are errors. Recurrence needs DTSTART;
+RDATE, RECURRENCE-ID, and override starts must use a compatible DATE/floating
+domain. RDATE values are independent of RRULE COUNT/UNTIL.
+
+`limit` budgets raw RRULE instances, not the size of the merged result:
+RDATE is included in full, while exclusions may shorten the result.
+`expand` and `expand_series` fail if the 10000-period safety budget ends
+before natural exhaustion or the requested instance budget is filled.
+For completeness information, import `ical/rrule` and use
+`expand_series_query`; its raw frontier excludes RDATE and is not enough
+to prove a moved override's query window complete.
+
+`ZoneTable::builtin_common()` now contains UTC/GMT/Z aliases only. Regional
+names no longer receive guessed standard offsets. Use UTC, a provably fixed
+VTIMEZONE, or an explicit `ZoneTable::insert` binding. An explicit binding
+means the caller is choosing a fixed offset, not enabling DST support.
+Invalid or dynamic feed declarations block same-name fallback bindings.
+
+`Filter::matches` now raises on evaluation failure. `ReportOutcome` adds
+`EvaluationFailed`; servers must map it separately from filter preconditions.
+Direct `Filter` record construction also needs `request_timezone`.
 
 ## Run
 
@@ -74,10 +93,30 @@ moon run demo --target native -- https://example.com/calendar.ics
 moon run cmd/serve --target native -- ./caldata 8437
 ```
 
-The calendar home is `http://127.0.0.1:8437/cal/`, and discovery starts at
-`/.well-known/caldav`. The server speaks plain HTTP only, with no TLS or
-authentication of its own. Put a reverse proxy that provides both in front
-of it before exposing it beyond a trusted host.
+The demo prints typed events; it does not expand occurrences. Discovery starts
+at `/.well-known/caldav`, and the calendar home is
+`http://127.0.0.1:8437/cal/`. The server has no authentication or TLS. Use a
+reverse proxy providing both before exposing it beyond a trusted host.
+
+Keep server logs outside the calendar data directory: the store treats files
+there as resources.
+
+## Query behavior
+
+`calendar-query` applies component, property, parameter, and time-range filters.
+Temporal tests parse only the dates they need. Unsupported recurrence or time
+zones do not prevent a SUMMARY-only search, GET, or multiget.
+
+A successful empty series stays empty. The server does not restore its master
+or return a successful empty result when it cannot prove the queried window
+has been covered. Evaluation failure returns **500**, with a resource href
+and a fixed error category, not the raw calendar line or exception. It does
+not return a partial multistatus.
+
+Request preconditions return **403** with the applicable `valid-filter`,
+`supported-filter`, or `supported-collation` element. Invalid checked request
+timezone fields return `valid-calendar-data`. Resource calculation failures
+are not mislabeled as unsupported filters.
 
 ## Verification
 
@@ -86,82 +125,77 @@ moon check --target all --deny-warn
 moon test --target all --deny-warn
 moon fmt --check
 moon info
-python tools/s5_acceptance.py
-python tools/s6_acceptance.py
+python -I tools/s5_acceptance.py
+python -I tools/s6_acceptance.py
 ```
 
-Right now that's 225 wasm, 208 wasm-gc, 225 JavaScript, and 235 native
-tests, plus 24 HTTP storage checks and 47 live CalDAV checks driven by curl.
+On 2026-10-31, the working tree passed 251 wasm, 234 wasm-gc, 251 JavaScript,
+and 261 native tests, including the checked example above.
+S5 passed 24 checks and S6 passed 47. Both scripts start and stop isolated
+servers. A separate `tools/s6_evaluation_acceptance.mbtx` driver checks RDATE,
+query completeness, fixed/dynamic zones, and private-data sentinels in HTTP
+responses and logs. Run it against an empty isolated server as described in
+[OpenWiki server notes](openwiki/server.md).
 
-The suite is written to fail when a capability is missing: every
-input-driven behavior has a pair of requests that differ in exactly that
-input and must produce different answers. The rule and the
-capability→evidence matrix are in
-[docs/development.html](docs/development.html) §11.
+New input-driven behavior needs differential tests, empty-result checks,
+and specific failure assertions. The capability-to-evidence matrix is in
+[the development handbook](docs/development.html#s11).
 
 ## Client interoperability
 
-| Client or driver | Discovery | Read/list | Create/update/delete | Result |
+| Client or driver | Discovery | Read/list | Create/update/delete | Evidence |
 |---|---:|---:|---:|---|
-| Real curl over TCP | Yes | Yes | Yes | 71/71 live checks pass |
-| Thunderbird 155.0.1 (Windows) | Yes | Yes | Yes | Passed against localhost: seed read, create, in-place update, and delete verified in vdir |
+| curl over TCP | Yes | Yes | Yes | S5 24/24 and S6 47/47; a separate evaluation driver also passes |
+| Thunderbird 155.0.1 (Windows) | Yes | Yes | Yes | Earlier localhost session verified seed read, create, in-place update, and delete in vdir |
 | DAVx5 | Not run | Not run | Not run | Android device required |
 | Apple Calendar | Not run | Not run | Not run | macOS/iOS device required |
 
-A row only counts as passed after a real session with that client. The curl
-numbers are protocol smoke tests and do not stand in for client
-interoperability.
-
-## 0.1.0 release scope (frozen)
-
-The hackathon release (0.1.0) is feature-frozen at the reusable iCalendar
-library, the minimal CalDAV server, the live curl acceptance suites, and the
-verified Thunderbird CRUD interop. DAVx5 and Apple Calendar would be nice to
-add but aren't release requirements. Cloud-account sync for Google Calendar,
-iCloud, Yahoo, and Outlook/Microsoft Graph is post-hackathon work.
+The Thunderbird session has not been repeated for the 0.5.0 changes. It did
+not exercise MKCALENDAR or temporal filtering. Client CRUD does not prove
+complete protocol or calendar semantics.
 
 ## Boundaries
 
-- No full IANA tzdb. Named zones come from the feed's `VTIMEZONE` first, then
-  a common fixed-offset table; recurring wall times keep their resolved
-  offset across DST.
-- No CalDAV scheduling (iTIP/iMIP), ACL system, built-in TLS, or CalDAV
-  client.
-- No provider adapters or cloud-account synchronization for Google Calendar,
-  iCloud, Yahoo, or Outlook/Microsoft Graph.
-- Request bodies need a `Content-Length`; chunked uploads get `411`.
-- Sub-daily RRULE frequencies and `BYWEEKNO`, `BYYEARDAY`, `BYHOUR`,
-  `BYMINUTE`, and `BYSECOND` are rejected as parse errors.
+- No IANA tzdb or dynamic VTIMEZONE conversion. Typed dates referencing an
+  unbound regional TZID or unsupported declaration fail rather than use a
+  guessed seasonal offset. Raw component trees remain available.
+- No sub-daily FREQ or BYWEEKNO/BYYEARDAY/BYHOUR/BYMINUTE/BYSECOND. These
+  rules are rejected; temporal REPORT evaluation fails explicitly.
+- No RDATE VALUE=PERIOD expansion. DATE/DATE-TIME is supported in 0.5.0.
+- Request timezone conversion is not implemented. A request containing it
+  fails when any temporal test is evaluated; text-only queries can succeed.
+  Its validation checks structure and required fields, not all observance
+  RRULE semantics.
+- Repeated components other than VEVENT are not expanded for time-range.
+  Nonrecurring VTODO uses its RFC 4791 task-state table. VALARM time-range
+  is refused with `supported-filter`; relative triggers are not resolved.
+- Time-range queries use up to 4096 raw RRULE instances per UID series;
+  finite RDATE values are added separately. A proven match can
+  succeed; an unproven negative result fails. Overrides require conservative
+  completeness checks rather than an unshifted frontier.
+- Floating times retain the library's existing comparison convention; it
+  does not choose a user's local time zone.
+- No CalDAV scheduling, ACL system, built-in TLS, provider adapters, cloud
+  account synchronization, or CalDAV client.
 - `PROPFIND` and `REPORT` honor the requested `DAV:prop` set: answers are
   trimmed to it, unanswerable names get their own 404 propstat, and
   `calendar-data` (not a WebDAV property) is report-only — in `PROPFIND`
   it answers 404. Matching is by local name, and the 404 echo carries the
   `DAV:` prefix regardless of the request's.
-- `MKCALENDAR` creates the collection but ignores the properties in its
-  request body (`displayname`, `calendar-color`); the collection's name is
-  its display name.
-- A bare top-level `VEVENT` with no `VCALENDAR` wrapper parses into a
-  component tree, but `parse_events` yields no events from it. The tree is
-  still inspectable via `parse_components`.
-- An `EXDATE` at the same instant as a `RECURRENCE-ID` override removes that
-  instance; the override doesn't resurrect it.
-- The request XML parser is a shape parser: a DOCTYPE is skipped to its
-  first `>`, and given two top-level elements only the first is read.
-  Numeric character references decode up to the BMP (`&#38;` equals
-  `&amp;`); astral-plane references stay verbatim.
-- The server accepts an unbounded number of concurrent connections; it
-  binds `127.0.0.1` unless you change the listen address.
-- After refusing an oversized or chunked body the server drains up to
-  10 MB before closing; an upload still running past that loses the
-  refusal response to the close-time reset.
-- `/cal/` is both the calendar home and the default collection. A collection
-  created by `MKCALENDAR` sits beside the existing events instead of moving
-  them, so a client already pointed at `/cal/` keeps working.
-- A `time-range` on `VALARM` is refused with `supported-filter`; relative
-  triggers are not resolved.
-- `DURATION` is parsed as the alternative end (exact seconds; day and week components count nominally, which coincides under the fixed-offset zones). `RDATE` and `VALUE=PERIOD` are not parsed, so additional recurring instances are ignored.
+- MKCALENDAR creates a collection but does not persist request properties.
+- Request bodies need Content-Length; chunked uploads get 411. After an
+  oversized or chunked body, draining stops at 10 MB; a longer running upload
+  can lose the refusal response to the close-time reset.
+- The XML shape parser matches local element names without full namespace
+  URI validation, skips DOCTYPE to its first `>`, and reads only the first
+  top-level element. Numeric references decode within the BMP;
+  astral-plane references stay verbatim.
+- Concurrent connections are not capped. The default bind is 127.0.0.1.
+- `/cal/` is both home and default collection. MKCALENDAR collections sit
+  beside existing events. A bare top-level VEVENT yields no typed events.
+- EXDATE at an override's original slot removes it; the override does not
+  resurrect that instance.
 
-Architecture notes and the milestone record are in
-[docs/development.html](docs/development.html); third-party corpus sources
-are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). This is an
-independent MoonBit implementation, licensed under Apache-2.0.
+See [OpenWiki](openwiki/quickstart.md) for the package map and calculation
+contracts. This is an independent implementation under Apache-2.0;
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) records the test corpus source.

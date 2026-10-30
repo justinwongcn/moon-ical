@@ -156,8 +156,7 @@ CASES = [
 ]
 
 def wall(d: date) -> str:
-    # IcalDateTime::to_string of a 09:00 America/New_York occurrence: the
-    # builtin zone table resolves the zone to its standard-time offset.
+    # Explicit fixed -05:00 calendar-arithmetic test binding, not DST.
     return f"{d.isoformat()}T09:00:00-05:00"
 
 
@@ -168,9 +167,8 @@ HEADER = """///|
 /// paired with the occurrence list graham's own tests assert. The
 /// expectations were lifted mechanically from that file by
 /// `tools/gen_s3_corpus_test.py` — they are graham's numbers, not ours.
-/// All `DTSTART`s are 09:00 `America/New_York`, which the builtin zone
-/// table resolves to its standard-time offset (-05:00); the DST
-/// boundary is documented in the README.
+/// All `DTSTART`s use an explicitly bound fixed -05:00 test zone.
+/// These expectations verify calendar recurrence arithmetic, not New York DST.
 ///
 /// 23 cases cover the first tier: no ordinal `BYDAY`, no negative
 /// `BYMONTHDAY`, no `BYSETPOS` — those raise `ExpandError::Unsupported`
@@ -197,14 +195,15 @@ DRIVER = """  ]
 }
 
 ///|
-/// A `DTSTART;TZID=America/New_York:...` value, resolved through the
-/// builtin zone table the way `parse_events` resolves one.
+/// Explicit fixed standard-offset binding for the calendar-arithmetic corpus.
 fn ny_dtstart(text : String) -> @model.IcalDateTime raise {
   let line = @text.parse_content_line(
     "DTSTART;TZID=America/New_York:\\{text}",
     1,
   )
-  @model.parse_date_time(line, @model.ZoneTable::builtin_common())
+  let zones = @model.ZoneTable::empty()
+  zones.insert("America/New_York", -18000)
+  @model.parse_date_time(line, zones)
 }
 
 ///|

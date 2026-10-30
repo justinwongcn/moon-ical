@@ -28,6 +28,8 @@ pub fn xml_escape(String) -> String
 pub(all) suberror FilterError {
   InvalidFilter(message~ : String)
   UnsupportedFilter(element~ : String)
+  UnsupportedCollation
+  InvalidCalendarData
 } derive(Eq, @debug.Debug)
 pub fn FilterError::equal(Self, Self) -> Bool
 pub fn FilterError::not_equal(Self, Self) -> Bool
@@ -69,9 +71,10 @@ pub fn DavResource::to_repr(Self) -> @debug.Repr
 
 pub(all) struct Filter {
   root : CompFilter
+  request_timezone : Bool
 } derive(Eq, @debug.Debug)
 pub fn Filter::equal(Self, Self) -> Bool
-pub fn Filter::matches(Self, String) -> Bool
+pub fn Filter::matches(Self, String) -> Bool raise
 pub fn Filter::not_equal(Self, Self) -> Bool
 pub fn Filter::to_repr(Self) -> @debug.Repr
 
@@ -125,6 +128,7 @@ pub(all) enum ReportOutcome {
   Report(body~ : String)
   UnsupportedReport
   PreconditionFailed(body~ : String)
+  EvaluationFailed(reason~ : String)
 } derive(Eq, @debug.Debug)
 pub fn ReportOutcome::equal(Self, Self) -> Bool
 pub fn ReportOutcome::not_equal(Self, Self) -> Bool

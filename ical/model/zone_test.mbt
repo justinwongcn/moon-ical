@@ -2,9 +2,9 @@
 test "built-in table resolves common zone names" {
   let t = @model.ZoneTable::builtin_common()
   assert_eq(t.lookup("UTC"), Some(0))
-  assert_eq(t.lookup("Asia/Shanghai"), Some(8 * 3600))
-  assert_eq(t.lookup("america/new_york"), Some(-5 * 3600))
-  assert_eq(t.lookup("Europe/Berlin"), Some(1 * 3600))
+  assert_eq(t.lookup("Asia/Shanghai"), None)
+  assert_eq(t.lookup("america/new_york"), None)
+  assert_eq(t.lookup("Europe/Berlin"), None)
 }
 
 ///|
@@ -60,7 +60,8 @@ test "offsets without a sign or digits are rejected" {
 test "a feed's own VTIMEZONE is picked up" {
   let roots = @model.parse_components([
     "BEGIN:VCALENDAR", "BEGIN:VTIMEZONE", "TZID:/google.com/ntp/Made-Up", "BEGIN:STANDARD",
-    "TZOFFSETTO:+0930", "END:STANDARD", "END:VTIMEZONE", "END:VCALENDAR",
+    "DTSTART:19700101T000000", "TZOFFSETFROM:+0930", "TZOFFSETTO:+0930", "END:STANDARD",
+    "END:VTIMEZONE", "END:VCALENDAR",
   ])
   let table = @model.build_zone_table(roots)
   assert_eq(table.lookup("/google.com/ntp/made-up"), Some(9 * 3600 + 30 * 60))
@@ -71,7 +72,8 @@ test "only the STANDARD segment is read, and a bad offset is skipped" {
   let roots = @model.parse_components([
     "BEGIN:VCALENDAR", "BEGIN:VTIMEZONE", "TZID:ONE-ZONE", "BEGIN:STANDARD", "TZOFFSETTO:nonsense",
     "END:STANDARD", "END:VTIMEZONE", "BEGIN:VTIMEZONE", "TZID:GOOD-ZONE", "BEGIN:STANDARD",
-    "TZOFFSETTO:-0300", "END:STANDARD", "END:VTIMEZONE", "END:VCALENDAR",
+    "DTSTART:19700101T000000", "TZOFFSETFROM:-0300", "TZOFFSETTO:-0300", "END:STANDARD",
+    "END:VTIMEZONE", "END:VCALENDAR",
   ])
   let table = @model.build_zone_table(roots)
   // The broken VTIMEZONE must not hide the healthy one.
@@ -83,7 +85,8 @@ test "only the STANDARD segment is read, and a bad offset is skipped" {
 test "a feed zone overrides the built-in guess for the same name" {
   let roots = @model.parse_components([
     "BEGIN:VCALENDAR", "BEGIN:VTIMEZONE", "TZID:Asia/Shanghai", "BEGIN:STANDARD",
-    "TZOFFSETTO:+0700", "END:STANDARD", "END:VTIMEZONE", "END:VCALENDAR",
+    "DTSTART:19700101T000000", "TZOFFSETFROM:+0700", "TZOFFSETTO:+0700", "END:STANDARD",
+    "END:VTIMEZONE", "END:VCALENDAR",
   ])
   let merged = @model.ZoneTable::with_builtin(@model.build_zone_table(roots))
   assert_eq(merged.lookup("Asia/Shanghai"), Some(7 * 3600))
@@ -93,7 +96,8 @@ test "a feed zone overrides the built-in guess for the same name" {
 test "a private TZID parses a date-time once the feed declared it" {
   let roots = @model.parse_components([
     "BEGIN:VCALENDAR", "BEGIN:VTIMEZONE", "TZID:China Standard Time", "BEGIN:STANDARD",
-    "TZOFFSETTO:+0800", "END:STANDARD", "END:VTIMEZONE", "END:VCALENDAR",
+    "DTSTART:19700101T000000", "TZOFFSETFROM:+0800", "TZOFFSETTO:+0800", "END:STANDARD",
+    "END:VTIMEZONE", "END:VCALENDAR",
   ])
   let zones = @model.ZoneTable::with_builtin(@model.build_zone_table(roots))
   let cl = @text.parse_content_line(

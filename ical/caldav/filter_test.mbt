@@ -213,22 +213,24 @@ test "a VTODO is not selected by a VEVENT filter" {
 }
 
 ///|
-test "an unreadable resource never matches" {
-  assert_false(matches(event_filter(""), "not an iCalendar document"))
+test "an unreadable resource is a checked evaluation failure" {
+  try matches(event_filter(""), "not an iCalendar document") catch {
+    _ => ()
+  } noraise {
+    _ => fail("unreadable data must not become a successful empty result")
+  }
 }
 
 ///|
-test "an unsupported collation is reported as supported-filter" {
+test "an unsupported collation has its own precondition" {
   let body = "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\">" +
     "<C:filter><C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\">" +
     "<C:prop-filter name=\"SUMMARY\">" +
     "<C:text-match collation=\"i;unknown\">x</C:text-match>" +
     "</C:prop-filter></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>"
   try @caldav.parse_filter(body) catch {
-    @caldav.FilterError::UnsupportedFilter(element~) =>
-      assert_true(element.contains("i;unknown"))
-    @caldav.FilterError::InvalidFilter(message~) =>
-      fail("expected supported-filter, got invalid-filter: \{message}")
+    @caldav.FilterError::UnsupportedCollation => ()
+    err => fail("expected supported-collation, got \{err}")
   } noraise {
     _ => fail("expected the filter to be refused")
   }
@@ -255,8 +257,7 @@ test "a malformed filter is reported as invalid-filter" {
   for body in cases {
     try @caldav.parse_filter(body) catch {
       @caldav.FilterError::InvalidFilter(_) => ()
-      @caldav.FilterError::UnsupportedFilter(element~) =>
-        fail("expected invalid-filter, got supported-filter: \{element}")
+      err => fail("expected invalid-filter, got \{err}")
     } noraise {
       _ => fail("expected the filter to be refused: \{body}")
     }
@@ -380,7 +381,7 @@ test "a VTODO time-range resolves the feed's own VTIMEZONE" {
   // silently matched nothing. The feed's own declaration (+0900) puts
   // this DTSTART at 2026-01-15 01:00 UTC, inside the range.
   let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" +
-    "BEGIN:VTIMEZONE\r\nTZID:My-Zone\r\nBEGIN:STANDARD\r\nTZOFFSETTO:+0900\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n" +
+    "BEGIN:VTIMEZONE\r\nTZID:My-Zone\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\nTZOFFSETFROM:+0900\r\nTZOFFSETTO:+0900\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n" +
     "BEGIN:VTODO\r\nUID:t\r\nDTSTART;TZID=My-Zone:20260115T100000\r\nDUE;TZID=My-Zone:20260115T110000\r\nEND:VTODO\r\n" +
     "END:VCALENDAR\r\n"
   let vtodo_range = "<C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VTODO\">" +
@@ -389,9 +390,13 @@ test "a VTODO time-range resolves the feed's own VTIMEZONE" {
   assert_true(matches(vtodo_range, ics))
   // The differential: with the zone no longer declared by the feed, the
   // same todo cannot be judged and matches nothing.
-  assert_false(
-    matches(vtodo_range, ics.replace(old="TZID:My-Zone", new="TZID:Gone")),
-  )
+  try
+    matches(vtodo_range, ics.replace(old="TZID:My-Zone", new="TZID:Gone"))
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("unknown TZID must not become a successful empty result")
+  }
 }
 
 ///|

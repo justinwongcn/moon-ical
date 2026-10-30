@@ -63,12 +63,9 @@ pub fn IcalDateTime::is_floating(self : IcalDateTime) -> Bool {
 /// time, UTC offset, zone spelling, and all-day flag all carry over
 /// unchanged.
 ///
-/// This is how a recurrence expansion moves a `DTSTART` through its
-/// occurrences. The offset is deliberately frozen at `self`'s value: the
-/// fixed-offset `ZoneTable` has no DST history (seam S2 in
-/// docs/upstream-seams.md), so a series crossing a DST change keeps the
-/// `DTSTART` offset rather than guessing — the boundary README documents
-/// this. Raises if `date` is not a valid calendar day.
+/// Recurrence arithmetic preserves the explicitly fixed binding. Dynamic
+/// TZIDs are rejected during parsing rather than approximated here.
+/// Raises if `date` is not a valid calendar day.
 pub fn IcalDateTime::on_date(
   self : IcalDateTime,
   date : @time.PlainDate,
@@ -155,8 +152,24 @@ pub fn parse_date_time(
   zones : ZoneTable,
   line_no~ : Int32 = 0,
 ) -> IcalDateTime raise {
-  let value_is_date = match line.param("VALUE") {
-    Some(v) => String::to_upper(v) == "DATE"
+  let value_is_date = match line.param("VALUE").map(v => v.to_upper()) {
+    Some("DATE") => true
+    Some("DATE-TIME") => {
+      if line.value.length() == 8 {
+        raise @text.ParseError::BadLine(
+          line_no~,
+          line=line.value,
+          message="VALUE=DATE-TIME with a date value",
+        )
+      }
+      false
+    }
+    Some(value) =>
+      raise @text.ParseError::BadLine(
+        line_no~,
+        line=line.value,
+        message="unsupported date-time VALUE: \{value}",
+      )
     None => false
   }
   parse_value(
@@ -246,6 +259,13 @@ fn parse_value(
     )
   }
   // An 8-digit value is a DATE. Anything longer needs the T separator.
+  if tzid is Some(_) && (n == 8 || n > 15) {
+    raise @text.ParseError::BadLine(
+      line_no~,
+      line=raw,
+      message="TZID is not allowed on DATE or a date-time with a designator",
+    )
+  }
   if n == 8 {
     let (y, m, d) = read_date(v, line_no, raw)
     IcalDateTime::{
@@ -281,7 +301,16 @@ fn parse_value(
     if tail == 0 {
       // No designator: a TZID parameter gave the zone, or the value floats.
       match tzid {
-        Some(id) =>
+        Some(id) => {
+          match zones.rejection_reason(id) {
+            Some(reason) =>
+              raise @text.ParseError::BadLine(
+                line_no~,
+                line=raw,
+                message="unsupported TZID: \{id}: \{reason}",
+              )
+            None => ()
+          }
           match zones.lookup(id) {
             Some(seconds) =>
               IcalDateTime::{
@@ -294,9 +323,10 @@ fn parse_value(
               raise @text.ParseError::BadLine(
                 line_no~,
                 line=raw,
-                message="unknown TZID: \{id}",
+                message="unknown TZID: \{id} (no explicit fixed binding)",
               )
           }
+        }
         None =>
           IcalDateTime::{
             wall,

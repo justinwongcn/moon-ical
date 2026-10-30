@@ -28,10 +28,8 @@ pub impl Show for ExpandError with fn output(self, logger) {
 pub extend ExpandError with Show::{to_string, output}
 
 ///|
-/// A safety bound on how many rule periods `expand` walks before giving
-/// up, so a rule whose `BY*` clauses can never match (say
-/// `BYMONTH=2;BYMONTHDAY=30`) terminates with an empty result instead of
-/// spinning forever.
+/// A safety bound on walked periods. Reaching it without natural termination
+/// or the requested instance limit is an explicit failure, even for empty output.
 const MAX_PERIODS : Int32 = 10_000
 
 ///|
@@ -52,9 +50,8 @@ const MAX_PLAIN_YEAR : Int64 = 9999
 ///
 /// Occurrences are wall-clock arithmetic: every occurrence carries the
 /// `DTSTART`'s clock time, UTC offset, zone spelling, and all-day flag
-/// unchanged (see [`@model.IcalDateTime::on_date`]), so a series crossing
-/// a DST change keeps the `DTSTART` offset — the documented `ZoneTable`
-/// boundary, not a silent guess. A `DTSTART` that does not match the rule
+/// unchanged (see [`@model.IcalDateTime::on_date`]). The binding is explicitly
+/// fixed; dynamic TZIDs are rejected during parsing. A `DTSTART` that does not match the rule
 /// is not forced into the series: the first occurrence is the first
 /// matching date, exactly as the reference corpus behaves.
 ///
@@ -86,13 +83,28 @@ pub fn expand(
   dtstart : @model.IcalDateTime,
   limit~ : Int32 = 200,
 ) -> Array[@model.IcalDateTime] raise {
+  let (out, exhausted) = expand_generated(rule, dtstart, limit~)
+  if !exhausted && limit > 0 && out.length() < limit {
+    raise ExpandError::Invalid(
+      message="recurrence expansion exceeded \{MAX_PERIODS} periods without ending",
+    )
+  }
+  out
+}
+
+///|
+fn expand_generated(
+  rule : Rule,
+  dtstart : @model.IcalDateTime,
+  limit~ : Int32,
+) -> (Array[@model.IcalDateTime], Bool) raise {
   check_expandable(rule, dtstart)
   if limit <= 0 {
     // A cap of zero or less caps everything. The semantic checks above
     // still ran, so an invalid rule is reported rather than silently
     // empty — only the count is clamped. (Before S14 the first candidate
     // was pushed before the limit was consulted and limit=0 returned it.)
-    return []
+    return ([], false)
   }
   let normalized = NormalizedRule::new(rule)
   let rule = normalized.rule
@@ -103,6 +115,7 @@ pub fn expand(
   }
   let out : Array[@model.IcalDateTime] = []
   let mut done = false
+  let mut exhausted = false
   let mut period = 0
   while !done && period < MAX_PERIODS {
     let candidates : Array[@time.PlainDate] = match
@@ -115,6 +128,7 @@ pub fn expand(
       // Int32 product wrapping negative on WEEKLY/DAILY).
       None => {
         done = true
+        exhausted = true
         []
       }
       Some(days) => days
@@ -132,13 +146,18 @@ pub fn expand(
         // Candidates are chronological, so everything after this
         // occurrence is past UNTIL too — the series is finished.
         done = true
+        exhausted = true
         break
+      }
+      if out.length() > 0 && out[out.length() - 1].compare(occ) == 0 {
+        continue
       }
       out.push(occ)
       match rule.count {
         Some(cap) =>
           if out.length() >= cap {
             done = true
+            exhausted = true
             break
           }
         None => ()
@@ -150,25 +169,9 @@ pub fn expand(
     }
     period = period + 1
   }
-  // Walking the whole period budget without ending means the rule never
-  // stopped and the cap cut it off. For a rule that has already produced
-  // instances without reaching the caller's limit, that result is a
-  // truncated lie — a sparse series (a leap-day rule, say) silently
-  // missing most of its instances — so it answers with the error the
-  // package already has. A walk that produced nothing answers empty:
-  // "no instances in budget" is the whole truth for a rule whose clauses
-  // never match, and one bounded by COUNT or UNTIL, or one that filled
-  // the limit, ended honestly above.
-  if !done &&
-    out.length() > 0 &&
-    out.length() < limit &&
-    rule.count is None &&
-    rule.until is None {
-    raise ExpandError::Invalid(
-      message="recurrence expansion exceeded \{MAX_PERIODS} periods without ending",
-    )
-  }
-  out
+  // Period-budget exhaustion is independent of whether any candidates matched.
+  // Strict callers reject a short prefix; queries expose the incomplete state.
+  (out, exhausted)
 }
 
 ///|
@@ -255,7 +258,16 @@ fn candidates_for(
   }
   match all {
     None => None
-    Some(days) => Some(apply_setpos(days, rule.bysetpos))
+    Some(days) => {
+      days.sort_by((a, b) => Compare::compare(a, b))
+      let unique : Array[@time.PlainDate] = []
+      for day in days {
+        if unique.length() == 0 || unique[unique.length() - 1] != day {
+          unique.push(day)
+        }
+      }
+      Some(apply_setpos(unique, rule.bysetpos))
+    }
   }
 }
 

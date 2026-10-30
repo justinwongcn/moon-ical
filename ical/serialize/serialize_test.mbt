@@ -61,6 +61,7 @@ fn roundtrip_feed() -> String {
   "BEGIN:VCALENDAR\r\n" +
   "VERSION:2.0\r\n" +
   "PRODID:-//moon-ical//test//EN\r\n" +
+  "BEGIN:VTIMEZONE\r\nTZID:Asia/Shanghai\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\nTZOFFSETFROM:+0800\r\nTZOFFSETTO:+0800\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n" +
   "BEGIN:VEVENT\r\n" +
   "UID:roundtrip-1@moon-ical\r\n" +
   "DTSTART;TZID=Asia/Shanghai:20260910T093000\r\n" +
@@ -86,6 +87,17 @@ fn roundtrip_feed() -> String {
   "SUMMARY:中秋节\r\n" +
   "END:VEVENT\r\n" +
   "END:VCALENDAR"
+}
+
+///|
+test "raw unsupported PERIOD and dynamic VTIMEZONE survive serialization" {
+  let roots = @model.parse_calendar(
+    "BEGIN:VCALENDAR\r\nBEGIN:VTIMEZONE\r\nTZID:dynamic\r\nBEGIN:DAYLIGHT\r\nTZOFFSETFROM:+0100\r\nTZOFFSETTO:+0200\r\nEND:DAYLIGHT\r\nEND:VTIMEZONE\r\nBEGIN:VEVENT\r\nRDATE;VALUE=PERIOD:19960404T010000Z/PT3H\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+  )
+  assert_eq(
+    @model.parse_calendar(@serialize.serialize_components(roots)),
+    roots,
+  )
 }
 
 ///|

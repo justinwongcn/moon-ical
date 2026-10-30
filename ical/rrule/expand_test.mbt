@@ -1,4 +1,12 @@
 ///|
+// Explicit standard-offset test binding; this does not model New York DST.
+fn fixed_ny(line : @text.ContentLine) -> @model.IcalDateTime raise {
+  let zones = @model.ZoneTable::empty()
+  zones.insert("America/New_York", -18000)
+  @model.parse_date_time(line, zones)
+}
+
+///|
 /// Run `expand` and report its error message, or "no-error" on success.
 fn expand_error_of(rule : String, dtstart : @model.IcalDateTime) -> String {
   try {
@@ -102,7 +110,7 @@ test "UNTIL bounds the series inclusively by instant" {
   let line = @text.parse_content_line(
     "DTSTART;TZID=America/New_York:20000131T090000", 1,
   )
-  let ny = @model.parse_date_time(line, @model.ZoneTable::builtin_common())
+  let ny = fixed_ny(line)
   assert_eq(ny.utc_offset, Some(-5 * 3600))
   let rule = @rrule.parse_rule("FREQ=DAILY;UNTIL=20000201T140000Z")
   let got = @rrule.expand(rule, ny)
@@ -133,8 +141,13 @@ test "a rule whose dates never exist terminates with an empty series" {
     @model.ZoneTable::empty(),
   )
   let rule = @rrule.parse_rule("FREQ=MONTHLY;BYMONTH=2;BYMONTHDAY=30")
-  let got = @rrule.expand(rule, dtstart)
-  assert_eq(got.length(), 0)
+  try @rrule.expand(rule, dtstart) catch {
+    @rrule.ExpandError::Invalid(message~) =>
+      assert_true(message.contains("exceeded 10000 periods"))
+    _ => fail("expected Invalid")
+  } noraise {
+    _ => fail("budget exhaustion is not a complete empty result")
+  }
 }
 
 ///|
@@ -215,7 +228,7 @@ test "WKST defaults to Monday and only matters near a week boundary" {
   let line = @text.parse_content_line(
     "DTSTART;TZID=America/New_York:19970805T090000", 1,
   )
-  let dtstart = @model.parse_date_time(line, @model.ZoneTable::builtin_common())
+  let dtstart = fixed_ny(line)
   let rule = @rrule.parse_rule("FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=TU,SU")
   let got = @rrule.expand(rule, dtstart)
   assert_eq(got.map(o => o.to_string()), [
@@ -400,5 +413,8 @@ test "an unbounded walk past the period budget is an error, not a quiet prefix" 
   )
   assert_eq(result_of("FREQ=WEEKLY;BYMONTHDAY=-1;COUNT=7", 5000), "ok:7")
   assert_eq(result_of("FREQ=WEEKLY;BYMONTHDAY=-1", 50), "ok:50")
-  assert_eq(result_of("FREQ=MONTHLY;BYMONTHDAY=30;BYMONTH=2", 50), "ok:0")
+  assert_eq(
+    result_of("FREQ=MONTHLY;BYMONTHDAY=30;BYMONTH=2", 50),
+    "err:invalid recurrence rule: recurrence expansion exceeded 10000 periods without ending",
+  )
 }

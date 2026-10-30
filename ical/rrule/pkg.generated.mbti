@@ -12,6 +12,8 @@ pub fn expand(Rule, @model.IcalDateTime, limit? : Int32) -> Array[@model.IcalDat
 
 pub fn expand_series(Array[@model.Event], limit? : Int32) -> Array[Occurrence] raise
 
+pub fn expand_series_query(Array[@model.Event], limit? : Int32) -> SeriesQueryResult raise
+
 pub fn parse_rule(String) -> Rule raise
 
 // Errors
@@ -70,6 +72,14 @@ pub struct Rule {
 pub fn Rule::equal(Self, Self) -> Bool
 pub fn Rule::not_equal(Self, Self) -> Bool
 pub fn Rule::to_repr(Self) -> @debug.Repr
+
+pub struct SeriesQueryResult {
+  occurrences : Array[Occurrence]
+  exhausted : Bool
+  generated_through : @model.IcalDateTime?
+  has_overrides : Bool
+  budget_exceeded : Bool
+}
 
 // Type aliases
 

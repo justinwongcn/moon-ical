@@ -25,7 +25,57 @@
   building a copy, and the allprop/propname responses stream straight
   into one builder. Internal only — no public interface changes.
 
+- Compute the recurrence set from RRULE/DTSTART plus all master RDATE
+  DATE/DATE-TIME values, deduplicate slots, then apply EXDATE and overrides.
+  RDATE does not consume RRULE COUNT and may precede DTSTART or follow UNTIL.
+  PERIOD, malformed recurrence values, missing recurrence DTSTART, and mixed
+  DATE/floating/absolute recurrence domains are refused rather than guessed.
+- Require explicit fixed TZID bindings. Built-in aliases are now UTC/GMT/Z
+  only; regional names no longer inherit a guessed standard offset. Embedded
+  VTIMEZONE declarations must prove a fixed offset. Dynamic, invalid, or
+  conflicting declarations shadow same-name defaults and fail when referenced;
+  unreferenced declarations remain available in the component tree.
+- Sort and deduplicate raw candidates before BYSETPOS and COUNT. Period-budget
+  exhaustion now fails even for COUNT/UNTIL-bounded or zero-output walks when
+  they have not ended or filled the requested generation limit. This corrects
+  the narrower budget check described under 0.4.0 below.
+- Add `expand_series_query` and `SeriesQueryResult` in `ical/rrule`: raw
+  exhaustion, generated frontier, override presence, and budget shortfall are
+  recorded independently of RDATE, exclusions, and moved output instances.
+  `limit` bounds RRULE generation, not the final union's length.
+- Propagate calendar-query resource evaluation failure through
+  `ReportOutcome::EvaluationFailed` to HTTP 500. No master-interval fallback or
+  partial multistatus is returned; a proven empty recurrence remains empty.
+  SUMMARY-only filtering, GET, and multiget do not require temporal evaluation.
+  The 500 reason and its REPORT log contain a resource href and fixed error
+  category, not raw exceptions, rules, or calendar content.
+- Use the RFC 4791 §9.9 state table for non-recurring VTODO overlap, including
+  DUE, CREATED, and COMPLETED states. Unimplemented non-VEVENT recurrence fails
+  temporal evaluation. Request timezone conversion is still unsupported:
+  its presence makes temporal evaluation fail, while text filtering can work.
+  Invalid checked timezone structure/fields return 403 `valid-calendar-data`;
+  this validation does not claim full observance-RRULE conformance. Unsupported
+  collations return 403 `supported-collation` rather than `supported-filter`.
+- **API changes:** `Event.rdates`, `Component::event`,
+  `ZoneTable::rejection_reason`, `Filter.request_timezone`, new FilterError
+  variants, and `Filter::matches`'s raising contract accompany the query APIs
+  and outcome above. Check source as well as generated interfaces for labeled
+  parameter calling conventions.
+- Verification on 2026-10-31: 251 wasm / 234 wasm-gc / 251 js / 261 native
+  strict tests, S5 24/24 and S6 39/39. The review snapshot was
+  250/233/250/260; the checked README example adds one per target. The separate
+  `tools/s6_evaluation_acceptance.mbtx` live driver covers evaluation errors,
+  RDATE, empty results, budgets, timezone refusal, and response/log privacy;
+  it is not included in the original 63 live checks. These fixes remain
+  uncommitted and unpublished; the earlier Thunderbird session was not rerun.
+
 ## 0.4.0
+
+> Release-history correction: S29–S33 (DURATION, MKCALENDAR parsing, reserved
+> names, first-root handling, and dependency updates) shipped in 0.4.0 on
+> 2026-10-26 despite their planning labels saying “0.5.0”. The budget and
+> master-fallback behavior recorded below describes that release, not the
+> stricter unreleased behavior above.
 
 - Upgrade to moonbitlang/async 0.22.5 and moonbitlang/x 0.5.6 (the
   routine pre-release pass; every strict gate and both live suites

@@ -1,9 +1,9 @@
 ///|
 /// moon-ical demo entry.
 ///
-///   moon run demo
-///       parse the embedded fixture and print the typed events (works on
-///       every target).
+///   moon run demo --target native
+///       parse the embedded fixed-zone fixture and print typed events.
+///       This executable is native-only and does not expand occurrences.
 ///
 ///   moon run demo --target native -- https://chinacalendar.app/ics/china-calendar-2026.ics
 ///       S1.5: fetch a live feed and parse it end-to-end (URL → events).
@@ -13,7 +13,7 @@ async fn main {
   if url != "" {
     println("fetching \{url} …")
     let text = @fetch.fetch_ics(url)
-    println("fetched \{text.length()} bytes\n")
+    println("fetched \{text.length()} UTF-16 code units\n")
     print_report("live: \{url}", @model.parse_events(text))
   } else {
     print_report("embedded fixture", @model.parse_events(fixture()))
@@ -22,8 +22,7 @@ async fn main {
 
 ///|
 /// The first `http(s)://` command-line argument, or "" when absent. Scanning
-/// for the scheme instead of a fixed index keeps this target-agnostic:
-/// `@env.args()` places the program name differently on js and native.
+/// for the scheme avoids depending on the program-name argument position.
 fn requested_url() -> String {
   for arg in @env.args() {
     if arg.has_prefix("http://") || arg.has_prefix("https://") {
@@ -65,8 +64,8 @@ fn print_report(source : String, events : Array[@model.Event]) -> Unit {
 ///|
 /// A realistic embedded feed: a feed-declared VTIMEZONE, folded and escaped
 /// text, a weekly RRULE with exclusions, an all-day event, and an override
-/// instance that moves one occurrence to another day. No I/O — the fixture
-/// path runs on every target.
+/// instance that moves one occurrence to another day. The embedded path
+/// needs no network access; its named zone is explicitly fixed by this feed.
 fn fixture() -> String {
   "BEGIN:VCALENDAR\r\n" +
   "VERSION:2.0\r\n" +

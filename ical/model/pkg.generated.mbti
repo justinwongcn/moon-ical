@@ -35,6 +35,7 @@ pub struct Component {
   children : Array[Component]
 } derive(Eq, @debug.Debug)
 pub fn Component::equal(Self, Self) -> Bool
+pub fn Component::event(Self, zones~ : ZoneTable) -> Event? raise
 pub fn Component::events(Self, zones~ : ZoneTable) -> Array[Event] raise
 pub fn Component::not_equal(Self, Self) -> Bool
 pub fn Component::properties_named(Self, String) -> Array[@text.ContentLine]
@@ -53,6 +54,7 @@ pub struct Event {
   recurrence_range : String?
   status : String?
   exdates : Array[IcalDateTime]
+  rdates : Array[IcalDateTime]
 } derive(@debug.Debug)
 pub fn Event::all_day(Self) -> Bool
 pub fn Event::output(Self, &Logger) -> Unit
@@ -81,11 +83,13 @@ pub impl Show for IcalDateTime
 
 pub struct ZoneTable {
   entries : Map[String, Int32]
+  rejected : Map[String, String]
 } derive(@debug.Debug)
 pub fn ZoneTable::builtin_common() -> Self
 pub fn ZoneTable::empty() -> Self
 pub fn ZoneTable::insert(Self, String, Int32) -> Unit
 pub fn ZoneTable::lookup(Self, String) -> Int32?
+pub fn ZoneTable::rejection_reason(Self, String) -> String?
 pub fn ZoneTable::to_repr(Self) -> @debug.Repr
 pub fn ZoneTable::with_builtin(Self) -> Self
 

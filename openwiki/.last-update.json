@@ -1,6 +1,7 @@
 {
-  "updatedAt": "2026-10-28T18:27:12.000Z",
+  "updatedAt": "2026-10-31T00:00:00.000Z",
   "command": "update",
-  "gitHead": "4fe115d39958d21fef5fc1ebd57d6b945ba67745",
-  "model": "zcode"
+  "gitHead": "54f0cbd",
+  "model": "zcode",
+  "workingTreeChanges": true
 }

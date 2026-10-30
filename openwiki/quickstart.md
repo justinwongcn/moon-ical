@@ -1,14 +1,14 @@
 # moon-ical 快速上手
 
-moon-ical（`justinwongcn/moon-ical`）是一个纯 MoonBit 的 [iCalendar (RFC 5545)](https://www.rfc-editor.org/rfc/rfc5545) 解析 / 重复事件展开库，外加一个最小化的 [CalDAV (RFC 4791)](https://www.rfc-editor.org/rfc/rfc4791) 服务器。它覆盖从 `.ics` 输入到类型化事件、重复展开、再到真实日历客户端可直连的 DAV 日历的完整路径。
+moon-ical（`justinwongcn/moon-ical`）提供纯 MoonBit 的 [iCalendar](https://www.rfc-editor.org/rfc/rfc5545) 组件解析、限定范围的重复事件计算，以及最小 [CalDAV](https://www.rfc-editor.org/rfc/rfc4791) 服务端。组件树可以保留尚未解释的属性；类型化事件和时间查询只处理明确支持的规则与固定时区，无法可靠计算时会报错。范围见 [domain.md](domain.md)。
 
-- **当前状态**：0.3.0 已发布到 mooncakes；0.4.0 开发中（本仓库 HEAD 所在分支）。0.3.0 的主题是 `calendar-query` 真正求值 `CALDAV:filter` 与 `MKCALENDAR` 真正创建集合，以及 S11–S21 两轮复审修复波与依赖升级；0.4.0 自 S22（P3 收口批）起步；S23–S28/R13 复审波与 S29–S33 功能批（DURATION、MKCALENDAR body 解析、存储名加固、依赖例行升级）已落地。
-- **测试规模**：全目标严格闸门全绿 —— wasm 212、wasm-gc 195、JavaScript 212、native 222；另有 24 项 S5 HTTP 存储与 39 项 S6 活体 CalDAV curl 验收。
+- **版本**：0.4.0 已发布到 mooncakes。当前工作区是未发布的 0.5.0，新增 RDATE 集合计算、严格固定时区和查询失败传播；这些变更还未提交。
+- **验证（2026-10-31）**：严格四目标测试为 wasm 251、wasm-gc 234、JavaScript 251、native 261；S5 24 项、S6 39 项活体验收通过。另有 `tools/s6_evaluation_acceptance.mbtx` 检查求值失败、RDATE、时区和响应/日志隐私。
 - **互操作**：Thunderbird 155.0.1（Windows）已完成发现、读取、创建、修改、删除的真实联调；DAVx5 / Apple Calendar 是候选，未跑。
 
 ## 为什么有这个项目
 
-mooncakes.io 生态检索 `caldav` / `webdav` / `webcal` 均无结果，五家竞品（mooncal、mooncalguard、rrule_lab、moon-schedule、moonrrule）全是离线计算库，输入都是调用方喂好的字符串。moon-ical 的差异化在端到端：网络取件 → 解析 → 重复展开 → 客户端可直连的服务端。完整立项证据链见 [docs/development.html](../docs/development.html) §01。
+2026-09-08 的生态调研没有找到 CalDAV 服务端包，检查的五个日历包主要提供离线计算。moon-ical 将网络取件、组件解析、重复计算和服务端存储放在独立包里，调用方可按需求组合。调研记录见 [开发手册](../docs/development.html) §01。
 
 ## 三分钟上手
 
@@ -29,9 +29,10 @@ moon test  --target all --deny-warn
 moon fmt --check
 moon info                    # 然后检查 *.mbti 是否有非预期 diff
 
-# 4) 活体验收（需要先起服务器）
-python tools/s5_acceptance.py
-python tools/s6_acceptance.py
+# 4) 活体验收（脚本各自启动并回收隔离服务器）
+python -I tools/s5_acceptance.py
+python -I tools/s6_acceptance.py
+# 新求值驱动需要单独的隔离服务器与其日志路径，见 server.md
 ```
 
 库用法（根包门面，一次导入拿到完整工作流）：
@@ -48,15 +49,15 @@ test {
 }
 ```
 
-安装已发布版：`moon add justinwongcn/moon-ical@0.3.0`。
+安装已发布版：`moon add justinwongcn/moon-ical@0.4.0`。上面的基本示例适用于发布版；本页所述 RDATE 和严格时区变更需要当前 0.5.0 工作区。
 
 ## 包地图
 
 | 包 | 职责 | 关键入口 |
 |---|---|---|
 | `ical/text` | 物理行 → 逻辑行 → 内容行：折行展开（RFC 5545 §3.1）、引号参数、TEXT 转义/反转义 | `unfold`、`parse_content_line`、`unescape_value` |
-| `ical/model` | 组件树（未知组件保留）、四态时间 `IcalDateTime`、时区表 `ZoneTable`、`Event` 类型化视图 | `parse_calendar`、`parse_events`、`build_zone_table` |
-| `ical/rrule` | RRULE 解析（三档分界）与展开；系列级覆盖合并 | `parse_rule`、`expand`、`expand_series` |
+| `ical/model` | 组件树、类型化事件和 RDATE、受检固定时区绑定 | `parse_calendar`、`parse_events`、`Component::event`、`build_zone_table` |
+| `ical/rrule` | 支持子集的 RRULE 与 RDATE 合并、覆盖、完整性信息 | `parse_rule`、`expand`、`expand_series`、`expand_series_query` |
 | `ical/serialize` | 组件树 → 折行 `.ics` 文本（CRLF、75 octet、UTF-8 不劈开） | `serialize_components` |
 | `ical/fetch` | URL 取件薄层（`@http.get` + 状态检查 + 超时兜底，上游客户端自身无超时） | `fetch_ics` |
 | `ical/httpd` | HTTP/1.1 请求层：手解析请求行/头/体，方法只是 token（WebDAV 方法天然可用） | `read_request`、`respond` |

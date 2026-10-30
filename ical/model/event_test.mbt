@@ -3,6 +3,7 @@
 fn one_event_feed() -> String {
   "BEGIN:VCALENDAR\r\n" +
   "VERSION:2.0\r\n" +
+  "BEGIN:VTIMEZONE\r\nTZID:Asia/Shanghai\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\nTZOFFSETFROM:+0800\r\nTZOFFSETTO:+0800\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n" +
   "PRODID:-//moon-ical//test//EN\r\n" +
   "BEGIN:VEVENT\r\n" +
   "UID:demo-1@moon-ical\r\n" +
@@ -75,7 +76,7 @@ test "EXDATE collects comma-packed and repeated lines in wire order" {
 ///|
 test "an EXDATE with a TZID parameter resolves through it" {
   let events = @model.parse_events(
-    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x\r\nDTSTART;TZID=Asia/Shanghai:20260910T093000\r\nEXDATE;TZID=Asia/Shanghai:20260924T093000\r\nEND:VEVENT\r\nEND:VCALENDAR",
+    "BEGIN:VCALENDAR\r\nBEGIN:VTIMEZONE\r\nTZID:Asia/Shanghai\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\nTZOFFSETFROM:+0800\r\nTZOFFSETTO:+0800\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\nBEGIN:VEVENT\r\nUID:x\r\nDTSTART;TZID=Asia/Shanghai:20260910T093000\r\nEXDATE;TZID=Asia/Shanghai:20260924T093000\r\nEND:VEVENT\r\nEND:VCALENDAR",
   )
   assert_eq(events[0].exdates[0].utc_offset, Some(8 * 3600))
 }
@@ -83,7 +84,7 @@ test "an EXDATE with a TZID parameter resolves through it" {
 ///|
 test "a feed's own VTIMEZONE wins over the built-in guesses" {
   let events = @model.parse_events(
-    "BEGIN:VCALENDAR\r\nBEGIN:VTIMEZONE\r\nTZID:/demo/Custom-Zone\r\nBEGIN:STANDARD\r\nTZOFFSETTO:+0930\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n" +
+    "BEGIN:VCALENDAR\r\nBEGIN:VTIMEZONE\r\nTZID:/demo/Custom-Zone\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\nTZOFFSETFROM:+0930\r\nTZOFFSETTO:+0930\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n" +
     "BEGIN:VEVENT\r\nUID:x\r\nDTSTART;TZID=/demo/Custom-Zone:20260910T093000\r\nEND:VEVENT\r\nEND:VCALENDAR",
   )
   assert_eq(events[0].dtstart.unwrap().utc_offset, Some(9 * 3600 + 30 * 60))
@@ -92,7 +93,7 @@ test "a feed's own VTIMEZONE wins over the built-in guesses" {
 ///|
 test "a RECURRENCE-ID override event keeps both its own and its series time" {
   let events = @model.parse_events(
-    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:series\r\nRECURRENCE-ID;TZID=Asia/Shanghai:20260917T093000\r\nDTSTART;TZID=Asia/Shanghai:20260918T140000\r\nSUMMARY:改期\r\nEND:VEVENT\r\nEND:VCALENDAR",
+    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:series\r\nRECURRENCE-ID:20260917T093000Z\r\nDTSTART:20260918T140000Z\r\nSUMMARY:改期\r\nEND:VEVENT\r\nEND:VCALENDAR",
   )
   let e = events[0]
   assert_eq(e.recurrence_id.unwrap().wall.day(), 17)

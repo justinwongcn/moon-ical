@@ -33,7 +33,7 @@
 - 单头行 > 64KB 或头 > 100 行 → `400`；超限请求体 → `413`（拒绝前先排空连接，否则客户端未读上传的关闭 RST 会吞掉 413 响应——S17，有原始 socket 活体检查钉住；排空上限 10MB，仍在续传的更大上传会失去该拒绝响应——S28 文档化边界）；
 - 非数字 `Content-Length` → `400`（不是 413）；
 - 方法只是 token，PROPFIND/REPORT/MKCALENDAR 天然可读；
-- 响应复用 `@async` 的 `send_response`，内容经 StringBuilder 缓冲（R11 修掉 O(n²) 拼接）。
+- 响应由 `ical/httpd` 写入裸连接，头部经 StringBuilder 组装；不调用上游的 `ServerConnection::send_response`。
 
 ## 存储（`ical/store`，vdir 约定）
 
@@ -49,7 +49,7 @@ moon run cmd/serve --target native -- ./caldata 8437
 ```
 
 - 日历家 `http://127.0.0.1:8437/cal/`；客户端发现从 `/.well-known/caldav` 进。
-- 每个已响应请求记一行 `METHOD path -> status` 访问日志；请求层以下的失败在 500 前把错误打到 stderr（S24——此前 500 无任何痕迹）。刻意就这两路输出：无级别、无配置。
+- 每个响应记一行 `METHOD path -> status`。REPORT 求值失败在 stderr 记录资源 href 与固定错误类别，不输出原始日历正文；其它 handler 错误沿用现有日志路径。日志放在日历数据目录外。
 - **无 TLS、无认证、无 ACL**——这是明确范围：暴露到不可信网络前必须放在带 TLS 和认证的反代后面（README 边界一节）。
 - 服务器只用 native 目标（`@async/fs` 在 js 目标是空壳）。
 
@@ -57,17 +57,20 @@ moon run cmd/serve --target native -- ./caldata 8437
 
 活体验收是起真实服务器后用 curl 打真实 TCP 请求：
 
-- `tools/s5_acceptance.py` — 24 项 HTTP 存储检查：PUT/GET/DELETE 往返、ETag 变化、411、边界头、413 中途上传可达等。
-- `tools/s6_acceptance.py` — 47 项活体 CalDAV：发现链、Depth 差分、`DAV:prop` 选择差分（R1+R2+R3）、filter 区间内外选择、403 前置条件、MKCALENDAR 生命周期、412 路径、裸 URL 301 差分等。
+- `python -I tools/s5_acceptance.py` — 24 项 HTTP 存储检查：PUT/GET/DELETE 往返、ETag 变化、411、边界头、413 中途上传可达等。
+- `python -I tools/s6_acceptance.py` — 47 项活体 CalDAV：发现链、Depth 差分、`DAV:prop` 选择差分（R1+R2+R3）、filter 区间内外选择、403 前置条件、MKCALENDAR 生命周期、412 路径、裸 URL 301 差分等。两脚本自行启动、回收隔离服务；日志不可放进日历数据目录。
+- `moon run tools/s6_evaluation_acceptance.mbtx http://127.0.0.1:8459 <server-log-path>` — 在单独启动的空数据目录服务上检查 RDATE、成功空集、预算失败、动态时区拒绝、错误分类及响应/日志隐私。日志须在数据目录外；执行后停止该服务。此驱动单独记录，不并入原有 71 项计数。
 
-互操作现状以 [README.md](../README.md) 的矩阵为准：curl 71/71 活体通过；Thunderbird 155.0.1 完整 CRUD 已验；DAVx5 / Apple Calendar 未跑。**互操作通过不是协议完整的证据**（R6）——Thunderbird 恰好绕开了 S10 的两条缺陷。
+2026-10-31 三套活体验收通过。互操作现状以 [README.md](../README.md) 的矩阵为准：curl 71/71 活体通过；Thunderbird 155.0.1 的发现/CRUD 是此前的会话证据，没有重新验证本轮语义变更；DAVx5 / Apple Calendar 未跑。**互操作通过不是协议完整的证据**（R6）——客户端会话只证明它使用的路径，Thunderbird 恰好绕开了 S10 的两条缺陷。
 
 ## 服务端已知边界速查
 
 - `PROPFIND`/`REPORT` 的 `DAV:prop` 选择已实现（S34，`parse_propfind`）；剩余的边角：按 local name 匹配（命名空间不敏感）、404 回显带 `DAV:` 前缀、`calendar-data` 的子元素（`expand` 等）不支持而回全量、`allprop` 的 `include` 读为无额外约束；
 - `MKCALENDAR` body 属性已类型化解析（caldav 的 `parse_mkcalendar`，S30），但服务端仍不落盘——是否持久化是嵌入方的部署决策；
 - `sync-collection` / CTag 不支持（400）；
-- `DURATION` 已解析为替代结束（S29，见 [domain.md](domain.md)）；`RDATE`/`VALUE=PERIOD` 不解析，额外的重复实例被忽略；
+- 当前 0.5.0 支持 RDATE DATE/DATE-TIME；PERIOD、动态时区、未绑定地域 TZID 和未支持的重复规则在相关时间求值时失败；
+- `calendar-query` 无法证明匹配窗口完整时返回 500，不返回主事件近似或部分 207；成功空集保持为空，错误正文只含安全类别和资源 href；
+- 请求 timezone 的转换、重复 VTODO 等非 VEVENT 重复计算尚未支持，相关时间查询失败。非法请求 timezone 已检查的字段/结构返回 403 `valid-calendar-data`；
 - `VALARM` 的 time-range 回 `403 supported-filter`；
 - 请求体必须带 `Content-Length`。
 

@@ -11,9 +11,8 @@
 /// says it does (RFC 5545 §3.8.5.3 offers `DURATION` as the alternative
 /// end); carrying both is the spec violation it names and raises.
 ///
-/// Not interpreted yet: merging
-/// override events into an expanded series (S8). `RECURRENCE-ID` is parsed
-/// and kept so a moved or cancelled single instance is already visible.
+/// Recurrence dates and overrides are retained for the rrule package's
+/// series union, exclusions, and override merge.
 pub struct Event {
   uid : String?
   summary : String?
@@ -33,6 +32,8 @@ pub struct Event {
   status : String?
   /// Every `EXDATE` value across repeated property lines, in wire order.
   exdates : Array[IcalDateTime]
+  /// Every DATE or DATE-TIME RDATE in wire order. PERIOD is unsupported.
+  rdates : Array[IcalDateTime]
 } derive(Debug)
 
 ///|
@@ -65,7 +66,7 @@ pub extend Event with Show::{to_string, output}
 ///
 /// `zones` resolves `TZID=` parameters. Pass the table the way [`parse_events`]
 /// builds it — [`ZoneTable::with_builtin`] over [`build_zone_table`] applied to
-/// the same feed — so a feed's own `VTIMEZONE` wins over the built-in guesses.
+/// the same feed — so unsupported feed declarations shadow UTC defaults.
 ///
 /// Only direct children are considered: a `VEVENT` nests directly inside a
 /// `VCALENDAR`, never deeper.
@@ -83,6 +84,18 @@ pub fn Component::events(
 }
 
 ///|
+/// Map this component when it is a VEVENT; other component kinds return None.
+/// Only properties of this event are interpreted, so unrelated unsupported
+/// time zones or event properties do not prevent a selective query.
+pub fn Component::event(self : Component, zones~ : ZoneTable) -> Event? raise {
+  if self.kind == "VEVENT" {
+    Some(event_from_component(self, zones))
+  } else {
+    None
+  }
+}
+
+///|
 /// Parse a complete iCalendar document into its lossless component trees.
 /// Unknown components and properties remain available for inspection and
 /// serialization.
@@ -92,8 +105,8 @@ pub fn parse_calendar(input : String) -> Array[Component] raise {
 
 ///|
 /// Parse a whole iCalendar feed into typed events: unfold the text, build
-/// the component tree, resolve zones (the feed's own `VTIMEZONE` first,
-/// built-in guesses second), then map every `VEVENT`.
+/// the component tree, register fixed zones and unsupported declarations,
+/// then map every `VEVENT`. Referenced unsupported zones raise.
 ///
 /// # Example
 /// ```mbt nocheck
@@ -156,17 +169,20 @@ fn event_from_component(
   let recurrence_range = component
     .property("RECURRENCE-ID")
     .bind(line => line.param("RANGE"))
-  let exdates : Array[IcalDateTime] = []
-  for line in component.properties_named("EXDATE") {
-    let tzid = line.param("TZID")
-    let value_is_date = match line.param("VALUE") {
-      Some(v) => String::to_upper(v) == "DATE"
-      None => false
-    }
-    for value in split_values(line.value) {
-      exdates.push(
-        parse_date_time_value(value, zones, tzid~, value_is_date~, line_no=0),
-      )
+  let exdates = recurrence_dates(component, "EXDATE", zones)
+  let rdates = recurrence_dates(component, "RDATE", zones)
+  for date in exdates + rdates {
+    match dtstart {
+      Some(start) =>
+        if date.all_day != start.all_day ||
+          date.is_floating() != start.is_floating() {
+          raise @text.ParseError::BadLine(
+            line_no=0,
+            line=date.to_string(),
+            message="recurrence date value type must agree with DTSTART",
+          )
+        }
+      None => ()
     }
   }
   {
@@ -181,7 +197,53 @@ fn event_from_component(
     recurrence_range,
     status: text_of(component, "STATUS"),
     exdates,
+    rdates,
   }
+}
+
+///|
+fn recurrence_dates(
+  component : Component,
+  name : String,
+  zones : ZoneTable,
+) -> Array[IcalDateTime] raise {
+  let out : Array[IcalDateTime] = []
+  for line in component.properties_named(name) {
+    let kind = line.param("VALUE").map(v => v.to_upper()).unwrap_or("DATE-TIME")
+    if kind == "PERIOD" {
+      raise @text.ParseError::BadLine(
+        line_no=0,
+        line=line.value,
+        message="unsupported \{name} VALUE=PERIOD",
+      )
+    }
+    if kind != "DATE" && kind != "DATE-TIME" {
+      raise @text.ParseError::BadLine(
+        line_no=0,
+        line=line.value,
+        message="unsupported \{name} VALUE: \{kind}",
+      )
+    }
+    for value in split_values(line.value) {
+      // Materialize the default so bare dates cannot masquerade as DATE-TIME.
+      if kind == "DATE-TIME" && value.length() == 8 {
+        raise @text.ParseError::BadLine(
+          line_no=0,
+          line=value,
+          message="\{name} VALUE=DATE-TIME with a date value",
+        )
+      }
+      out.push(
+        parse_date_time_value(
+          value,
+          zones,
+          tzid=line.param("TZID"),
+          value_is_date=kind == "DATE",
+        ),
+      )
+    }
+  }
+  out
 }
 
 ///|

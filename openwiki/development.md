@@ -21,8 +21,8 @@
 - **可抛错误**：`pub(all) suberror Name { Ctor(field~ : Type) }`；`Error` 是内建 opaque 类型，`impl Error for X` 必失败；展示用 `pub impl Show`。
 - **带标签字段两头都带标签**：构造 `Ctor(a=1)`、匹配 `Ctor(a=x)`。
 - **不要 `String::trim()` 接 `StringView::data()`**：`data()` 返回整个原串，trim 静默消失；照 `ical/text/content_line.mbt` 的 `trim_ascii` 写法来。
-- 可执行包声明 `pkgtype(kind: "executable")`；`async fn main` 需要根包导入 `moonbitlang/async`。
-- 块式组织：`///|` 分隔，每块一句"为什么"文档注释。
+- 当前可执行包使用 `pkgtype(kind: "executable")`；异步入口按依赖配置导入 `moonbitlang/async`。
+- 代码块用 `///|` 分隔；注释说明契约或不明显的理由，避免逐句复述实现。
 
 ## 验证链（每次提交前）
 
@@ -33,7 +33,7 @@ moon test  --target all --deny-warn
 moon info               # 然后检查 *.mbti diff —— 接口变化必须是预期内的
 ```
 
-CI（`.github/workflows/check.yml`）跑的就是这套。意外的 `.mbti` diff 说明改坏了边界；反过来说，**没有 diff 不等于接口没变**（见上面的 `?`/`~` 盲区）。
+CI 使用同类检查。`.mbti` 变化需要与预期契约逐项核对；没有 diff 也不能排除调用约定变化。本轮未提交、未触发远程 CI，验证结果来自本地。
 
 ## 测试地图
 
@@ -42,8 +42,9 @@ CI（`.github/workflows/check.yml`）跑的就是这套。意外的 `.mbti` diff
 | 单元测试 | `*_test.mbt`（黑盒）/ `*_wbtest.mbt`（白盒） | 各包目录内；`moon coverage analyze > uncovered.log` 找盲区 |
 | RFC 语料对拍 | `ical/rrule/*corpus*` + `tools/gen_s3_corpus_test.py` | 期望值从 graham/rrule 套件**机械抽取**，不是实现的回声（R5 的库层范本） |
 | 基准 | `*_bench_test.mbt` | native release；R 系列基线：parse ~15.6ms、multiget ~3.7ms、series ~1.68ms、monthly ~5.5ms；unfold 基准钉住 S25 的线性化（770KB 折行行 1.68s → 6.6ms，修复前是二次方拼接） |
-| 活体验收 | `tools/s5_acceptance.py`（23 项）、`tools/s6_acceptance.py`（39 项） | 起服务器后 curl 打真实 TCP；S5/S6 全绿才算服务端验收 |
-| fixture | `fixtures/recurrence-demo.ics`（`tools/make_recurring_fixture.py` 生成） | RRULE/EXDATE/RECURRENCE-ID/DST 全都有的演示源，驱动 demo/展开/合并/客户端演示 |
+| 活体验收 | S5（24 项）、S6（39 项），另有 `tools/s6_evaluation_acceptance.mbtx` | 真实 TCP 检查；新驱动包括 RDATE、预算、错误分类和日志隐私，使用隔离目录 |
+| fixture | `fixtures/recurrence-demo.ics` 与既有生成器 | 使用显式 DEMO-FIXED-0500，不作为动态纽约时区证据 |
+| 本轮回归 | `recurrence_dates_test`、`fixed_zone_test`、`series_query_test`、`review_regression_test`、`evaluation_test` 与根门面测试 | 集合差分、完整性、明确拒绝、合法空集、HTTP 与隐私路径 |
 
 结果断言优先 `assert_eq` / `assert_true(pattern is ...)`；快照用 derive `Debug` + `debug_inspect`，别用 `Show`。
 
@@ -59,8 +60,10 @@ CI（`.github/workflows/check.yml`）跑的就是这套。意外的 `.mbti` diff
 - **R6 互操作≠完整**：客户端会话只证明它走过的路，矩阵要记"未覆盖"列。
 - **R7 可判否**：验收标准必须写成能判"否"的形式（"REPORT 全绿"不合格）。
 
-**改能力声明前问三句**（§11 结尾）：①矩阵里定位得到判别性证据吗？②证据里有只差输入的一对请求吗？③新增 4xx 拒绝路径有拒绝用例吗？任何一句答不上来，先补证据再改声明。
+**改能力声明前问三句**（§11 结尾）：①矩阵里定位得到判别性证据吗？②证据里有只差输入的一对请求吗？③新增失败路径（包括 500）有对应状态和安全错误内容的用例吗？任何一句答不上来，先补证据再改声明。
 
 ## 里程碑节奏
 
-历史节奏是 `S0–S33`（功能/修复）与 `R1–R13`（复盘/优化），全部完成；0.3.0 已发布，0.4.0 开发中。新工作沿用同一循环：**写测试先行 → 实现 → 验证链 → 一次提交 → 更新 PROGRESS.md 与手册**。范围红线：单步新增超过计划规模 1.5 倍即视为蔓延，砍回去。明确不做的清单（§08）与已知未验证面（§11 诚实清单）在动手前先看一眼，别把边界内的省略当成 bug 修。
+S0–S33 和 R1–R13 是已有历史；0.4.0 已发布，0.5.0 当前工作区尚未发布。本轮先修复、补测试，再独立审核；审核后先更新 OpenWiki，再同步手册与 README。用户要求不提交，所以所有变更留在工作区。通常只有用户要求提交时才使用上面的固定命令。
+
+2026-10-31 全目标严格测试为 251/234/251/261。能力范围与证据对应表见手册 §11；明确拒绝的输入不能在申请材料里改称通用处理。
