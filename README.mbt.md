@@ -9,12 +9,11 @@ It does not calculate every valid iCalendar input.
 ## Version
 
 ```bash
-moon add justinwongcn/moon-ical@0.4.0
+moon add justinwongcn/moon-ical@0.5.0
 ```
 
-0.4.0 is the published version. This working tree is **unreleased 0.5.0**.
-The RDATE, strict time-zone, and checked-query behavior below belongs to
-0.5.0; installing 0.4.0 does not provide those changes.
+0.5.0 is the published version (2026-10-31); it adds the RDATE sets,
+strict fixed time zones, and checked-query evaluation described below.
 
 ## What it handles
 
@@ -161,7 +160,7 @@ complete protocol or calendar semantics.
   guessed seasonal offset. Raw component trees remain available.
 - No sub-daily FREQ or BYWEEKNO/BYYEARDAY/BYHOUR/BYMINUTE/BYSECOND. These
   rules are rejected; temporal REPORT evaluation fails explicitly.
-- No RDATE VALUE=PERIOD expansion. DATE/DATE-TIME is supported in 0.5.0.
+- No RDATE VALUE=PERIOD expansion. DATE/DATE-TIME is supported.
 - Request timezone conversion is not implemented. A request containing it
   fails when any temporal test is evaluated; text-only queries can succeed.
   Its validation checks structure and required fields, not all observance

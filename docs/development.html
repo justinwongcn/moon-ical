@@ -74,7 +74,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   <p class="sub">记录项目范围、架构、里程碑与验收证据。当前状态见 §02，历史步骤见 §04，能力证据见 §11；跨会话交接由本地 docs/PROGRESS.md 负责。</p>
   <div class="meta">
     <span>更新日期 <b>2026-10-31</b></span>
-    <span>进度 <b>S0–S34 / R1–R14 已入库</b>（0.4.0 已发布，0.5.0 发布中）</span>
+    <span>进度 <b>S0–S34 / R1–R14 已入库</b>（0.4.0 与 0.5.0 均已发布 mooncakes）</span>
     <span>工具链 <b>moon 0.1.20261023 / moonc v0.10.17</b>（<span class="mono">rr_moon_mod + rr_moon_pkg</span>；S10 后源码已按新 formatter 迁移 <code>Int→Int32</code>，S10.5 起 <code>.mbti</code> 也直接渲染 <code>Int32</code>）</span>
     <span>依赖 <b>moonbitlang/async@0.22.5 · moonbitlang/x@0.5.6</b></span>
     <span>状态 <b>严格四目标 251/234/251/261；S5 24、S6 39；新 HTTP 求值另计</b></span>
@@ -321,7 +321,7 @@ ical/caldav: Filter::matches(Self, String) -&gt; Bool raise
     <tr><td>可运行示例</td><td>S1 起有 fixture demo，S5 起服务器可 <code>moon run</code>，S7 起真实客户端 demo</td></tr>
     <tr><td>核心路径测试</td><td>S1–S6 各自带测试；S3/S8 附录 A 对拍；S6 curl 序列集成测试</td></tr>
     <tr><td>CI</td><td>S9（<code>moon check/test --target all</code> + <code>fmt</code> + <code>info</code>，参考 moonbit-community/.github 的 check.yml）</td></tr>
-    <tr><td>发布 mooncakes.io</td><td>S9 起已发布；最新发布版 0.4.0（2026-10-26），0.5.0 工作区未发布</td></tr>
+    <tr><td>发布 mooncakes.io</td><td>S9 起已发布；最新发布版 0.5.0（2026-10-31），0.4.0 发布于 2026-10-26</td></tr>
     <tr><td>默认分支 ≥5 真实提交</td><td>S0–S9 每步一提交，自然 ≥10</td></tr>
     <tr><td>申报书（一页 Markdown）</td><td>S9 曾有旧稿；其通用/任意来源承诺已被驳回，不再视为可提交材料。现文件仅范围修订核对素材，待本人定稿</td></tr>
     <tr><td>AI 辅助合规</td><td>工程 AI 辅助须可解释、可测试、来源明确；此前九月表单要求申报书本人撰写，不以 AI 新稿替代本人提交稿</td></tr>

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0 (unreleased)
+## 0.5.0 (2026-10-31)
 
 - Honor the `DAV:prop` selection in `PROPFIND` and `REPORT` bodies: answers
   carry exactly the properties the request named, a property the resource
@@ -75,7 +75,7 @@
 > names, first-root handling, and dependency updates) shipped in 0.4.0 on
 > 2026-10-26 despite their planning labels saying “0.5.0”. The budget and
 > master-fallback behavior recorded below describes that release, not the
-> stricter unreleased behavior above.
+> stricter 0.5.0 behavior above.
 
 - Upgrade to moonbitlang/async 0.22.5 and moonbitlang/x 0.5.6 (the
   routine pre-release pass; every strict gate and both live suites
