@@ -85,7 +85,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   <li><a href="#s01">01 定位与证据链</a></li>
   <li><a href="#s02">02 进度快照</a></li>
   <li><a href="#s03">03 架构与数据流</a></li>
-  <li><a href="#s04">04 里程碑与历史 S0–S34</a></li>
+  <li><a href="#s04">04 里程碑与历史 S0–S73</a></li>
   <li><a href="#s05">05 每步工作流（Definition of Done）</a></li>
   <li><a href="#s06">06 MoonBit 工程约定与踩坑清单</a></li>
   <li><a href="#s07">07 上游接缝登记（活文档）</a></li>
@@ -128,7 +128,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   </tbody>
 </table></div>
 
-<p><b>合计</b>：严格全目标测试为 wasm 270、wasm-gc 253、JavaScript 270、native 280（S37 修复波 +6 差分测试后）；S5 24 项与 S6 47 项真实 curl 活体验收全绿；独立 <code>tools/s6_evaluation_acceptance.mbtx</code> 求值驱动另计（不并入原 71 项）。包表统计当前非测试源码行数（含注释）与测试声明，不等同各目标运行数。0.4.0 已发布到 mooncakes（2026-10-26）。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调；该历史会话未重新验证本轮语义，DAVx5/Apple 未跑。</p>
+<p><b>合计</b>：严格全目标测试为 wasm 310、wasm-gc 310、JavaScript 290、native 321（S72 纠偏波后）；S5 24 项、S6 91 项、S7 31 项（原始 socket 分帧/条件/竞态，<code>tools/s7_http_acceptance.py</code>）真实活体验收全绿；独立 <code>tools/s6_evaluation_acceptance.mbtx</code> 求值驱动另计。包表统计当前非测试源码行数（含注释）与测试声明，不等同各目标运行数。0.4.0（2026-10-26）与 0.5.0（2026-10-31）已发布到 mooncakes；0.5.0 之后本地主线另有 S36–S73 审计波（未发布，见 §04 与 CHANGELOG Unreleased）。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调；该历史会话未重新验证本轮语义，DAVx5/Apple 未跑。</p>
 
 <!-- ============================================================ -->
 <h2 id="s03"><span class="num">03</span>架构与数据流</h2>
@@ -172,7 +172,7 @@ ical/caldav: Filter::matches(Self, String) -&gt; Bool raise
 <div class="note"><b>设计立场</b>：保真优先——未知组件/属性一律保留（竞品 mooncal 是固定字段清单）；时间四态显式建模；类型化计算不能完成时失败；组件树保留不等于所有数据可计算。这三条是后续所有包必须继承的基线。</div>
 
 <!-- ============================================================ -->
-<h2 id="s04"><span class="num">04</span>里程碑与历史 S0–S34</h2>
+<h2 id="s04"><span class="num">04</span>里程碑与历史 S0–S73</h2>
 
 <p>下表保留各步骤当时的验收数字与行为。S29–S33 的“0.5.0 批次”是原计划标签，实际已随 0.4.0 于 2026-10-26 发布。S27 的空/有界预算与 master 兜底行为由 S34 更正，不把新契约改写成旧版行为。</p>
 <p>节奏：<b>每步一个最小目标 → 代码 + 测试 → 验收 → 一次提交</b>。单步超过半天就拆。任何一步卡住，先砍范围再加班。</p>
@@ -223,6 +223,17 @@ ical/caldav: Filter::matches(Self, String) -&gt; Bool raise
     <tr><td class="c">S32</td><td>0.5.0 批次第四项（身份定界 0.95 卫生项）：覆盖率审计（caret 模式绕过 coverage 解析器对 xml.mbt 的诊断）——抓到<b>文档与实现不一致</b>：README 声明双顶层「第一根胜」，实现实为最后一根覆盖第一根（追加第二根可伪装 REPORT 判型）；对齐为第一根胜（root 已设即不覆盖，两处赋值点加守卫）；补三个判别测试（声明/注释/DOCTYPE/双顶层整体行为、超长十进制与空十六进制引用）</td><td class="c">~+45</td><td>差分：双顶层第一根胜（修复前该测试红——审计即判别）；全目标 212/195/212/222、S5 24/24、S6 39/39；.mbti 零变化</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S33</td><td>0.5.0 批次例行项（身份定界 0.91 供应链卫生）：依赖升级 <code>async</code> 0.22.4→0.22.5、<code>x</code> 0.5.5→0.5.6（moon search 实证有新版）；升级后全门闸 + 活体复跑全绿、.mbti 不变</td><td class="c">~0</td><td>check/test all deny-warn 212/195/212/222、fmt、info 零 diff、S5 24/24、S6 39/39</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">S34</td><td>0.5.0 本轮一致性修复（2026-10-31）：RDATE DATE/DATE-TIME 集合与覆盖；PERIOD、跨域及缺 DTSTART 拒绝；可靠固定时区绑定；候选排序去重与严格周期预算；calendar-query 受检求值，无 master/partial 回退；安全 reason；非重复 VTODO RFC §9.9 状态表；request timezone 结构/字段检查与转换边界</td><td class="c">跨 model/rrule/caldav/serve</td><td>独立审核通过；严格四目标 251/234/251/261，S5 24/24、S6 47/47（S34+R14 合流后复跑）；新 HTTP 求值驱动另计。RDATE→EXDATE 空集、合法→不支持时间求值 500、固定→动态 TZID 500、预算不可证明→500、安全正文/日志均有守卫；证据见 §11</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S35</td><td>驳回修复波（随 0.5.0 发布）：RDATE 集合、严格固定时区绑定、受检求值、非重复 VTODO §9.9 状态表</td><td class="c">跨 model/rrule/caldav</td><td>随 0.5.0 发布（0c3a1fd）；证据见 §11</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S36</td><td>工具链迁移 moonc v0.10.20：73 处新弃用告警清零（#derive 前置、to_string_view/clamped_view），CI 工具链不锁版本因此有时限</td><td class="c">~0 行为变化</td><td>全闸 264/247/264/274、.mbti 零 API diff；未迁移则下次 push CI 必红</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S37</td><td>递归与变更语义四处缺陷（JEV 审计确认）：YEARLY 年序号含负序数、THISANDFUTURE 时长继承（§3.8.4.4）、无 UID 单独判定、DURATION=0 行</td><td class="c">~+90</td><td>dateutil 差分 +6；全目标 270/253/270/280</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S38–S42</td><td>黑客轮一批：DAV XML 控制字符加固、冲突重复 Content-Length 400、名字 NAME_MAX 上限、可证空规则预算错误、双根自闭合 PROPFIND 杀进程</td><td class="c">~+60</td><td>全部先实证后修复；15+ 攻击形状否证；全目标 277/258/277/288</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S43–S52</td><td>方法面一批：文件级 PROPFIND/REPORT/HEAD（etag 探测形状）、scoped Allow、S44 插错分支自纠（S6 验收抓到）、S50 机械审计、<b>S51 并发连接杀进程修复</b>（上游 @stdio 并发写缺陷，workaround stdio_lock，上游 issue moonbitlang/async#732）</td><td class="c">~+120</td><td>全部全闸 + 活体复验；S44 回归由 s6 钉住</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S53+S54</td><td>PUT 前置校验（RFC 4791 §5.3.2 + Radicale 式门前拒绝）：读不了的 body 403 不落盘，门=求值器等宽（VTODO 状态、系列类型一致性镜像）</td><td class="c">~+150</td><td>毒 PUT 全 403、被拒体 404、canary 201；s5/s6 全绿</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S55</td><td>sabre/vobject override 合并语料移植为差分测试（PHP 生态事实标准）——首轮零分歧</td><td class="c">+5 测试</td><td>全目标 289/270/289/300</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S56+S57</td><td>可证空证明推广为形状不相交穷举（修 30s 冻结）+ WEEKLY;BYMONTHDAY 按 §3.3.10 MUST NOT 拒绝（破坏性变更）</td><td class="c">~+40</td><td>冻结规则 PUT 即时 403；全目标 291/272/291/302</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S60</td><td>广告集收窄（用户拍板对齐主流）：混合实体类型与 METHOD → 403 valid-calendar-object-resource；非 VEVENT 实体 → 403 supported-calendar-component；VEVENT-only 门与 PROPFIND 广告等宽</td><td class="c">~+30</td><td>JEV 0.997/0.989/0.6；毒 PUT 全 403 + 精确元素；s6 +10 钉</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S61–S66</td><td>安全审计波：no-uid-conflict（403 命名持有者，跨集合放行）、重复属性行门界（MUST 三属性拒/SHOULD 与无注记宽容）、畸形请求排空（70KB 请求行 RST 吞 400）、If-Match 强比较（弱标签 412）、no-uid-conflict TOCTOU 锁、CDATA 按字符数据</td><td class="c">~+180</td><td>原始 socket 实测每项；s6 +16 钉；全目标 320/309/309/289</td><td><span class="chip done">完成</span></td></tr>
+    <tr><td class="c">S67–S73</td><td>二轮审计波：条件 GET/HEAD 304（RFC 9110 §13.1.2）、PUT 原子写（dotfile+rename）、流水线缓冲（两连发只答一问的丢字节修复）、comp-filter 大小写、HEAD 错误应答无体（§9.3.2）、<b>Expect: 100-continue</b>（此前阻塞读体，严格客户端无限挂起，JEV 0.991）</td><td class="c">~+150</td><td>原始 socket 实测；s6 91 项、s7 34 项（新增原始 socket 套件）；全目标 321/310/310/290</td><td><span class="chip done">完成</span></td></tr>
   </tbody>
 </table></div>
 

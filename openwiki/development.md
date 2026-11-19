@@ -44,7 +44,7 @@ CI 使用同类检查。`.mbti` 变化需要与预期契约逐项核对；没有
 | RFC 语料对拍 | `ical/rrule/*corpus*` + `tools/gen_s3_corpus_test.py` | 期望值从 graham/rrule 套件**机械抽取**，不是实现的回声（R5 的库层范本） |
 | 第三方言差分 | `ical/rrule/sabre_corpus_test.mbt` | sabre-io/vobject（PHP 生态事实标准）EventIterator 的 override 合并语义移植 5 例（S55），首轮零分歧；其中两例按分歧钉死不移植——跨 UID override sabre 宽容而 RFC 5545 §3.8.4.4 要求同 UID，全排除序列 sabre 抛错而查询模型答空集（R2） |
 | 基准 | `*_bench_test.mbt` | native release；R 系列基线：parse ~15.6ms、multiget ~3.7ms、series ~1.68ms、monthly ~5.5ms；unfold 基准钉住 S25 的线性化（770KB 折行行 1.68s → 6.6ms，修复前是二次方拼接） |
-| 活体验收 | S5（24 项）、S6（49 项），另有 `tools/s6_evaluation_acceptance.mbtx` | 真实 TCP 检查；新驱动包括 RDATE、预算、错误分类和日志隐私，使用隔离目录 |
+| 活体验收 | S5（24 项）、S6（91 项）、S7（34 项原始 socket，`tools/s7_http_acceptance.py`），另有 `tools/s6_evaluation_acceptance.mbtx` | 真实 TCP 检查；新驱动包括 RDATE、预算、错误分类和日志隐私，使用隔离目录。S7 用裸 TCP 盖 curl 不会发的形状：流水线、HEAD 错误无体（RFC 9110 §9.3.2）、obs-fold/TE 组合、行与头数上限、并发同 UID 恰一赢家、反射注入守卫 |
 | fixture | `fixtures/recurrence-demo.ics` 与既有生成器 | 使用显式 DEMO-FIXED-0500，不作为动态纽约时区证据 |
 | 本轮回归 | `recurrence_dates_test`、`fixed_zone_test`、`series_query_test`、`review_regression_test`、`evaluation_test` 与根门面测试 | 集合差分、完整性、明确拒绝、合法空集、HTTP 与隐私路径 |
 
@@ -68,6 +68,6 @@ CI 使用同类检查。`.mbti` 变化需要与预期契约逐项核对；没有
 
 S0–S35 和 R1–R14 是已有历史；0.4.0 与 0.5.0（2026-10-31）均已发布到 mooncakes。驳回修复波以 S35 入库，与远端 S34/R14 合流后提交。提交使用固定命令 `git -c core.hooksPath=.githooks commit`。
 
-S36–S60 是 2026-11-13/15/18 的三连波加一次收窄落地（工具链迁移 → JEV 审计修复 → 黑客轮实机攻击与成熟方案对齐 → 广告集执行），已入库**未推送**：S36 迁移 v0.10.20；S37 修递归/变更语义四处缺陷；S38-S53/S55 为实机攻击面修复（存储毒化 XML、走私头、超长名、可证空预算、双根 XML 杀进程、并发连接杀进程、PUT 前置校验、sabre 语料）与 S43-S52 的方法面补齐（文件级 PROPFIND/REPORT、HEAD、scoped Allow）；S56/S57 把可证空证明推广成形状不相交穷举并按 RFC 拒绝 WEEKLY;BYMONTHDAY；S60 把 PUT 门收窄到集合自己宣传的 VEVENT-only 组件集（METHOD/混合类型 → valid-calendar-object-resource，非 VEVENT 实体 → supported-calendar-component）。**破坏性变更：WEEKLY+BYMONTHDAY 从宽容过滤变为拒绝；VTODO/VJOURNAL/VFREEBUSY 从可存储变为 403**。详见 `docs/PROGRESS.md` 里程碑表。
+S36–S60 是 2026-11-13/15/18 的三连波加一次收窄落地（工具链迁移 → JEV 审计修复 → 黑客轮实机攻击与成熟方案对齐 → 广告集执行），已入库**未推送**：S36 迁移 v0.10.20；S37 修递归/变更语义四处缺陷；S38-S53/S55 为实机攻击面修复（存储毒化 XML、走私头、超长名、可证空预算、双根 XML 杀进程、并发连接杀进程、PUT 前置校验、sabre 语料）与 S43-S52 的方法面补齐（文件级 PROPFIND/REPORT、HEAD、scoped Allow）；S56/S57 把可证空证明推广成形状不相交穷举并按 RFC 拒绝 WEEKLY;BYMONTHDAY；S60 把 PUT 门收窄到集合自己宣传的 VEVENT-only 组件集（METHOD/混合类型 → valid-calendar-object-resource，非 VEVENT 实体 → supported-calendar-component）。**破坏性变更：WEEKLY+BYMONTHDAY 从宽容过滤变为拒绝；VTODO/VJOURNAL/VFREEBUSY 从可存储变为 403**。S61-S73 为 11-19 审计波（UID 唯一性、重复行门界、条件 GET、原子写、流水线、分帧边界、Expect 100-continue）。详见 `docs/PROGRESS.md` 里程碑表。
 
-2026-11-18 全目标严格测试为 293/274/293/304（wasm/wasm-gc/js/native），S5 24/24、S6 58/58 活体全绿。能力范围与证据对应表见手册 §11；明确拒绝的输入不能在申请材料里改称通用处理。
+2026-11-19 全目标严格测试为 310/310/290/321（wasm/wasm-gc/js/native），S5 24/24、S6 91/91、S7 34/34 活体全绿。S73 起 `Expect: 100-continue` 被尊重（读体前写 100）。S61-S72 是 11-19 的审计波（no-uid-conflict、重复属性行门界、条件 GET 304、原子写、流水线缓冲、comp-filter 大小写、HEAD 错误无体）；PUT 门收窄为 VEVENT-only 与广告集等宽。能力范围与证据对应表见手册 §11；明确拒绝的输入不能在申请材料里改称通用处理。

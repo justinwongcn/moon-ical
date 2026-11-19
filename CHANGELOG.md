@@ -1,5 +1,50 @@
 # Changelog
 
+## Unreleased
+
+Behavior changes from the 2026-11 audit waves (S36-S73). Breaking for
+clients that relied on the pre-audit shapes:
+
+- WEEKLY recurrence with BYMONTHDAY is now refused (RFC 5545 §3.3.10
+  MUST NOT; it was previously tolerated as a filter).
+- The PUT door enforces the collection's advertised VEVENT-only
+  component set: VTODO/VJOURNAL/VFREEBUSY bodies are refused with 403
+  CALDAV:supported-calendar-component, and the iCalendar METHOD
+  property or mixed entity types are refused with 403
+  CALDAV:valid-calendar-object-resource (RFC 4791 §4.1). The library's
+  parse/evaluation support for those components is unchanged.
+- Duplicated DTSTART, UID and RECURRENCE-ID lines in one component are
+  refused (MUST-NOT-once); duplicated RRULE/DTEND/DURATION stay
+  tolerated with the first line winning (S72 corrected S62's
+  over-strict refusal after a verbatim RFC re-read).
+- If-Match uses the strong comparison: weak entity tags (`W/"..."`)
+  and unquoted tokens never match (RFC 9110 §13.1.1).
+- GET and HEAD honor If-None-Match and answer 304 with the ETag
+  (RFC 9110 §13.1.2).
+
+New:
+
+- CALDAV:no-uid-conflict enforcement: a PUT whose UID another resource
+  in the same collection holds, or an overwrite that changes the
+  resource's UID, answers 403 with the holding resource's href
+  (RFC 4791 §5.3.2.1). Scoped per collection.
+- `Expect: 100-continue` is honored: the interim 100 response goes out
+  before the body is read (RFC 9110 §10.1.1); a strict client no
+  longer stalls.
+- Atomic vdir writes (dotfile temporary + rename), pipelined-request
+  buffering, HEAD answers without content on every path including
+  errors, case-insensitive comp-filter names, and a drain before the
+  malformed-request close.
+
+Fixes:
+
+- Concurrent connections could kill the process through upstream
+  concurrent `@stdio` writes (workaround: `stdio_lock`; upstream issue
+  moonbitlang/async#732).
+- A second self-closing root element in a PROPFIND body killed the
+  process; conflicting duplicate Content-Length headers and
+  over-NAME_MAX names escaped as 500s.
+
 ## 0.5.0 (2026-10-31)
 
 - Honor the `DAV:prop` selection in `PROPFIND` and `REPORT` bodies: answers

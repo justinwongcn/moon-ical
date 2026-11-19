@@ -173,7 +173,11 @@ async fn handle_connection(
     // it — sits inside one try, so every refusal gets its proper
     // response instead of escaping as a failed connection.
     let outcome = try {
-      match @httpd.read_request(conn, buf=pending) {
+      match @httpd.read_request(conn, buf=pending, notify_continue=Some(() => {
+        // RFC 9110 §10.1.1: the interim response goes out before the
+        // body is read, unblocking clients that wait for it.
+        conn.write(b"HTTP/1.1 100 Continue\r\n\r\n")
+      })) {
         (None, _) => Stop // clean disconnect between requests
         (Some(request), rest) => {
           pending = rest

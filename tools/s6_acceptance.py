@@ -403,6 +403,147 @@ def main():
         check("GET with a stale If-None-Match answers 200", code == 200)
         code, _, _ = request("GET", "/cal/s6.ics", headers=[f"If-None-Match: W/{tag}"])
         check("GET weak-spelling If-None-Match also matches", code == 304)
+        # S61 follow-up: duplicate conditional header lines are evaluated
+        # first-only (no comma-combining) - the stale first line wins and
+        # the matching second is ignored (defined boundary, recorded).
+        code, _, _ = request(
+            "PUT", "/cal/s6.ics", EVENT,
+            ['If-Match: "stale"', f"If-Match: {tag}"],
+        )
+        check("duplicate If-Match lines: first line evaluated, 412", code == 412)
+        # EXDATE exclusion matches by instant, not by TZID spelling - a
+        # fixed-zone spelling of the same instant removes the same slot
+        # as the UTC spelling (R1 pair).
+        fixed_zone = (
+            "BEGIN:VTIMEZONE\r\nTZID:W3-Z\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\n"
+            "TZOFFSETFROM:+0900\r\nTZOFFSETTO:+0900\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n"
+        )
+        ex_base = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//s6//x\r\n" + fixed_zone +
+            "BEGIN:VEVENT\r\nUID:{uid}\r\nDTSTART:20260915T090000Z\r\n"
+            "RRULE:FREQ=DAILY;COUNT=3\r\n{ex}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        code, _, _ = request(
+            "PUT", "/cal/ex-utc.ics",
+            ex_base.format(uid="exutc@moon-ical", ex="EXDATE:20260916T090000Z"),
+            ["If-None-Match: *"],
+        )
+        check("UTC-spelled EXDATE stores", code == 201)
+        code, _, _ = request(
+            "PUT", "/cal/ex-tz.ics",
+            ex_base.format(uid="extz@moon-ical", ex="EXDATE;TZID=W3-Z:20260916T180000"),
+            ["If-None-Match: *"],
+        )
+        check("cross-TZ EXDATE (same instant) stores", code == 201)
+        code, _, body = request(
+            "REPORT", "/cal/",
+            '<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"><C:time-range start="20260916T000000Z" end="20260917T000000Z"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>',
+            ["Depth: 1"],
+        )
+        check(
+            "exclusion by instant: both EXDATE spellings exclude the slot",
+            code == 207 and "/cal/ex-utc.ics" not in body and "/cal/ex-tz.ics" not in body,
+        )
+        code, _, _ = request("DELETE", "/cal/ex-utc.ics")
+        code, _, _ = request("DELETE", "/cal/ex-tz.ics")
+
+        # Hacker-view wire receipts (S73 review round): series semantics,
+        # multiget pathologies, and the XML depth boundary, measured live
+        # and pinned so the router/door/evaluator integration cannot drift.
+        series = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:nouid2a\r\nDTSTART:20260101T090000Z\r\n"
+            "DTEND:20260101T100000Z\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:nouid2b\r\n"
+            "DTSTART:20260915T090000Z\r\nDTEND:20260915T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        code, _, _ = request("PUT", "/cal/series-nouid.ics", series, ["If-None-Match: *"])
+        check("two UID-less events in one resource store", code == 201)
+        code, _, body = request(
+            "REPORT", "/cal/",
+            '<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"><C:time-range start="20260915T090000Z" end="20260915T100000Z"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>',
+            ["Depth: 1"],
+        )
+        check(
+            "a window matching only the second UID-less event selects the resource (R1)",
+            code == 207 and "/cal/series-nouid.ics" in body,
+        )
+        code, _, _ = request("DELETE", "/cal/series-nouid.ics")
+        taf = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:taf-s6\r\nDTSTART:20260915T090000Z\r\n"
+            "DTEND:20260915T093000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:taf-s6\r\n"
+            "RECURRENCE-ID;RANGE=THISANDFUTURE:20260916T090000Z\r\nDTSTART:20260916T090000Z\r\n"
+            "DTEND:20260916T120000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        code, _, _ = request("PUT", "/cal/taf.ics", taf, ["If-None-Match: *"])
+        check("THISANDFUTURE duration change stores", code == 201)
+        code, _, body = request(
+            "REPORT", "/cal/",
+            '<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"><C:time-range start="20260917T100000Z" end="20260917T110000Z"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>',
+            ["Depth: 1"],
+        )
+        check(
+            "the inherited longer duration covers the old short slot's window",
+            code == 207 and "/cal/taf.ics" in body,
+        )
+        code, _, body = request(
+            "REPORT", "/cal/",
+            '<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"><C:time-range start="20260917T093000Z" end="20260917T093500Z"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>',
+            ["Depth: 1"],
+        )
+        check(
+            "a window inside the inherited span selects (09:30-09:35 is past the old 09:30 end)",
+            code == 207 and "/cal/taf.ics" in body,
+        )
+        code, _, body = request(
+            "REPORT", "/cal/",
+            '<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"><C:time-range start="20260917T120000Z" end="20260917T123000Z"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>',
+            ["Depth: 1"],
+        )
+        check(
+            "a window beyond the inherited end excludes the instance",
+            code == 207 and "/cal/taf.ics" not in body,
+        )
+        code, _, _ = request("DELETE", "/cal/taf.ics")
+        mg_base = '<C:calendar-multiget xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/></D:prop>{hrefs}</C:calendar-multiget>'
+        mg_event = EVENT.replace("UID:s6@moon-ical", "UID:mg@moon-ical")
+        code, _, _ = request("PUT", "/cal/mg.ics", mg_event, ["If-None-Match: *"])
+        check("multiget seed", code == 201)
+        code, _, body = request(
+            "REPORT", "/cal/",
+            mg_base.format(hrefs="<D:href>/cal/mg.ics</D:href><D:href>/cal/mg.ics</D:href>"),
+            ["Depth: 1"],
+        )
+        check(f"duplicated multiget href answers one response ({body.count('<D:response')})", code == 207 and body.count("<D:response") == 1)
+        code, _, body = request(
+            "REPORT", "/cal/",
+            mg_base.format(hrefs="<D:href>/cal/%6d.ics</D:href>"),
+            ["Depth: 1"],
+        )
+        check(
+            "percent-encoded href matches byte-exact, 404 propstat, nothing leaks",
+            code == 207 and "404" in body and "/cal/mg.ics" not in body,
+        )
+        code, _, body = request(
+            "REPORT", "/cal/",
+            mg_base.format(hrefs="<D:href>/cal/..%2Foutside.ics</D:href>"),
+            ["Depth: 1"],
+        )
+        check("traversal href stays inside the collection 404", code == 207 and "404" in body and "outside" not in body.replace("/cal/..%2Foutside.ics", ""))
+        code, _, body = request(
+            "REPORT", "/cal/",
+            mg_base.format(hrefs=f"<D:href>http://127.0.0.1:{PORT}/cal/mg.ics</D:href>"),
+            ["Depth: 1"],
+        )
+        check(
+            "absolute-URI href form matches the resource (defined lenient)",
+            code == 207 and "/cal/mg.ics" in body,
+        )
+        code, _, _ = request("DELETE", "/cal/mg.ics")
+        deep63 = '<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/></D:prop><C:filter>' + '<C:comp-filter name="VCALENDAR">' * 63 + "</C:comp-filter>" * 63 + "</C:calendar-query>"
+        deep65 = deep63.replace("* 63", "* 65").replace("</C:comp-filter>" * 63, "</C:comp-filter>" * 65)
+        code, _, _ = request("REPORT", "/cal/", deep63, ["Depth: 1"])
+        check(f"63-deep comp-filter answered ({code})", code in (207, 400))
+        code, _, _ = request("REPORT", "/cal/", deep65, ["Depth: 1"])
+        check(f"65-deep comp-filter refused ({code})", code == 400, f"got {code}")
         code, _, rep_body = request(
             "REPORT",
             "/cal/",

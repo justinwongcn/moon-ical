@@ -44,9 +44,11 @@
 
 `expand_series` 接受一个 UID 的系列。候选由 RRULE 前缀（没有 RRULE 时为 DTSTART）与 master 的全部 RDATE 合并，按原始 recurrence slot 去重，再应用 EXDATE、改期、取消和 THISANDFUTURE，最后按实际开始排序。THISANDFUTURE 的改期把选中及后续实例整体平移；覆盖件带显式 DTEND 时，RFC 5545 §3.8.4.4 要求后续实例改用该时长，无 DTEND 则维持 master 时长平移（长度不变）。
 
-RDATE 支持 DATE/DATE-TIME、多值和重复属性行。它可以早于 DTSTART 或晚于 UNTIL，不占 RRULE COUNT，也不会因生成预算而静默截断。相同 slot 优先保留已有 RRULE/DTSTART 表示。EXDATE 优先于同槽 override；RDATE slot 同样可改期、取消并继承时长。
+RDATE 支持 DATE/DATE-TIME、多值和重复属性行。它可以早于 DTSTART 或晚于 UNTIL，不占 RRULE COUNT，也不会因生成预算而静默截断。相同 slot 优先保留已有 RRULE/DTSTART 表示。EXDATE 优先于同槽 override；RDATE slot 同样可改期、取消并继承时长。EXDATE 的排除按**时刻等价**（`instant_seconds`）判定，与 TZID 拼写无关——`EXDATE;TZID=+0900区:18:00` 与 `EXDATE:09:00Z` 排除同一个槽（实测逐字一致，主流口径）。
 
 PERIOD、空值、VALUE 与值形状不一致明确拒绝。重复集合需要 DTSTART；DATE、floating 与有偏移的 DATE-TIME 不混算。RID 和 override DTSTART 也必须与 master 的 DATE/floating 域一致。这是本库支持范围，不应表述成所有 RFC 合法组合都被支持。
+
+重复属性行的门界由 §3.6.1 的注记级别决定：`dtstamp`/`uid` 组、`dtstart` 与 `recurid` 是 MUST-NOT-once，重复即拒绝；`rrule` 是 SHOULD NOT、`dtend`/`duration` 无 once 注记，重复宽容取首条（与 dateutil/icalendar 一致，S72 纠偏）。DTEND 的值类型必须与 DTSTART 一致、DATE 起点的 DURATION 必须为天/周形，dtend 与 duration 并存拒绝。DTEND 早于 DTSTART（§3.8.2.2 的 later-in-time MUST）不在门上硬拒——空区间在任何 time-range 窗口都不选中，按 §9.9 两两条件的退化语义定义。
 
 `limit` 不限制合并后的总输出：有限 RDATE 全部加入，EXDATE/取消又可能缩短结果。不能从输出长度推断生成器是否结束。
 

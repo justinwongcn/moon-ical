@@ -144,6 +144,7 @@ pub fn HttpRequest::header(self : HttpRequest, name : String) -> String? {
 pub async fn[R : @io.Reader] read_request(
   reader : R,
   buf~ : Array[Byte] = [],
+  notify_continue~ : (async () -> Unit raise)? = None,
 ) -> (HttpRequest?, Array[Byte]) {
   let input : LineInput[R] = { reader, buf, }
   // Leading blank lines before a request line are tolerated (RFC 7230
@@ -198,6 +199,23 @@ pub async fn[R : @io.Reader] read_request(
     version: parts[2],
     headers,
     body: "",
+  }
+  // RFC 9110 §10.1.1: a client that sent `Expect: 100-continue` waits
+  // for the interim response before uploading. Fire the caller's
+  // callback before touching the body, or a strict client stalls
+  // forever (curl's one-second fallback masks it).
+  match request.header("Expect") {
+    Some(value) =>
+      if value.to_upper().contains("100-CONTINUE") &&
+        !is_chunked(request) &&
+        request.header("Content-Length") is Some(len) &&
+        len != "0" {
+        match notify_continue {
+          Some(notify) => notify()
+          None => ()
+        }
+      }
+    None => ()
   }
   if is_chunked(request) {
     raise HttpParseError::ChunkedBody(meth=request.meth)

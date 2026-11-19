@@ -3,7 +3,7 @@
 moon-ical（`justinwongcn/moon-ical`）提供纯 MoonBit 的 [iCalendar](https://www.rfc-editor.org/rfc/rfc5545) 组件解析、限定范围的重复事件计算，以及最小 [CalDAV](https://www.rfc-editor.org/rfc/rfc4791) 服务端。组件树可以保留尚未解释的属性；类型化事件和时间查询只处理明确支持的规则与固定时区，无法可靠计算时会报错。范围见 [domain.md](domain.md)。
 
 - **版本**：0.5.0 已发布到 mooncakes（2026-10-31），新增 RDATE 集合计算、严格固定时区和查询失败传播；0.4.0 发布于 2026-10-26。
-- **验证（2026-11-15）**：严格四目标测试为 wasm 291、wasm-gc 272、JavaScript 291、native 302；S5 24 项、S6 49 项活体验收通过。另有 `tools/s6_evaluation_acceptance.mbtx` 检查求值失败、RDATE、时区和响应/日志隐私。
+- **验证（2026-11-19）**：严格四目标测试为 wasm 310、JavaScript 290、wasm-gc 310、native 321；S5 24 项、S6 91 项、S7 34 项（原始 socket 分帧/条件/竞态/Expect）活体验收通过。另有 `tools/s6_evaluation_acceptance.mbtx` 检查求值失败、RDATE、时区和响应/日志隐私。
 - **互操作**：Thunderbird 155.0.1（Windows）已完成发现、读取、创建、修改、删除的真实联调；DAVx5 / Apple Calendar 是候选，未跑。
 
 ## 为什么有这个项目

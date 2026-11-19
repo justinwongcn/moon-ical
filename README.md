@@ -153,7 +153,7 @@ and specific failure assertions. The capability-to-evidence matrix is in
 
 | Client or driver | Discovery | Read/list | Create/update/delete | Evidence |
 |---|---:|---:|---:|---|
-| curl over TCP | Yes | Yes | Yes | S5 24/24 and S6 47/47; a separate evaluation driver also passes |
+| curl over TCP | Yes | Yes | Yes | S5 24/24, S6 91/91, and the S7 raw-socket suite 31/31 (framing, conditional requests, write races); a separate evaluation driver also passes |
 | Thunderbird 155.0.1 (Windows) | Yes | Yes | Yes | Earlier localhost session verified seed read, create, in-place update, and delete in vdir |
 | DAVx5 | Not run | Not run | Not run | Android device required |
 | Apple Calendar | Not run | Not run | Not run | macOS/iOS device required |

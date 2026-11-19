@@ -31,3 +31,8 @@ jobs:
           git diff --exit-code
       - name: Build native CalDAV server
         run: moon build cmd/serve --target native --release
+      - name: Live acceptance suites (S5/S6/S7)
+        run: |
+          python3 -I tools/s5_acceptance.py
+          python3 -I tools/s6_acceptance.py
+          python3 -I tools/s7_http_acceptance.py
