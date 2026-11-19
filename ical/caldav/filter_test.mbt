@@ -747,16 +747,12 @@ test "calendar_object_precondition mirrors the series type-agreement raise" {
 
 ///|
 test "calendar_object_precondition refuses duplicated single-occurrence properties" {
-  // S62: RFC 5545 marks DTSTART/DTEND/DURATION/UID/RECURRENCE-ID/RRULE
-  // "MUST NOT occur more than once"; the typed parse raises and the door
-  // mirrors it as invalid-calendar-data instead of storing a document
-  // whose meaning depends on which line a reader happened to pick.
-  assert_eq(
-    @caldav.calendar_object_precondition(
-      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:d1\r\nDTSTART:20260915T090000Z\r\nRRULE:FREQ=DAILY;COUNT=2\r\nRRULE:FREQ=WEEKLY;COUNT=2\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
-    ),
-    Some("<C:valid-calendar-data/>"),
-  )
+  // S62: RFC 5545 3.6.1's ABNF marks DTSTART, UID and RECURRENCE-ID at
+  // MUST-NOT-once; the typed parse raises and the door mirrors it as
+  // invalid-calendar-data instead of storing a document whose meaning
+  // depends on which line a reader happened to pick. (RRULE is only
+  // SHOULD-level and DTEND/DURATION carry no once-annotation - the
+  // tolerance test below pins that boundary.)
   assert_eq(
     @caldav.calendar_object_precondition(
       "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:d2\r\nDTSTART:20260915T090000Z\r\nDTSTART:20260916T090000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
@@ -769,6 +765,25 @@ test "calendar_object_precondition refuses duplicated single-occurrence properti
     ),
     Some("<C:valid-calendar-data/>"),
   )
+}
+
+///|
+test "calendar_object_precondition tolerates duplicated RRULE and DTEND" {
+  // S72: rrule is "SHOULD NOT occur more than once" in 3.6.1's ABNF and
+  // dtend/duration carry no once-annotation, so duplicates stay
+  // tolerated with the first line winning - the same reading
+  // dateutil/icalendar give. JEV adjudicated tolerance over refusal at
+  // 0.948/0.816 (R1: the same bodies with the duplicates removed pass
+  // identically).
+  let with_dup = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:t1\r\nDTSTART:20260915T090000Z\r\nRRULE:FREQ=DAILY;COUNT=2\r\nRRULE:FREQ=WEEKLY;COUNT=2\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+  let without_dup = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:t1\r\nDTSTART:20260915T090000Z\r\nRRULE:FREQ=DAILY;COUNT=2\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+  assert_eq(
+    @caldav.calendar_object_precondition(with_dup),
+    @caldav.calendar_object_precondition(without_dup),
+  )
+  assert_eq(@caldav.calendar_object_precondition(with_dup), None)
+  let dtend_dup = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:t2\r\nDTSTART:20260915T090000Z\r\nDTEND:20260915T100000Z\r\nDTEND:20260915T110000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+  assert_eq(@caldav.calendar_object_precondition(dtend_dup), None)
 }
 
 ///|
@@ -854,4 +869,34 @@ test "an inverted time-range is the valid-filter refusal" {
       assert_true(body.contains("<C:valid-filter/>"))
     outcome => fail("expected the valid-filter refusal, got \{Repr(outcome)}")
   }
+}
+
+///|
+test "an inverted DTEND interval answers the §9.9 pairwise condition" {
+  // S72 review: §3.8.2.2's "MUST be later in time" is a validity
+  // constraint the door deliberately does not enforce (JEV 0.025 -
+  // refusing inverted ranges is not mainstream). An invalid document
+  // has no RFC-defined time-range semantics; the §9.9 pairwise
+  // condition (DTSTART < window.end AND DTEND > window.start) applied
+  // to the inverted interval degenerates deterministically to the
+  // swapped span [DTEND..DTSTART] - measured, pinned, poison-free
+  // (no 500, no cross-window bleed beyond that span).
+  let resource : @caldav.DavResource = {
+    href: "/cal/inverted.ics",
+    etag: "t",
+    calendar_data: "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:iv@x\r\nDTSTART:20260915T100000Z\r\nDTEND:20260915T090000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+  }
+  fn window(s : String, e : String) -> String raise {
+    report_body(
+      "<C:calendar-query xmlns:D=\"DAV:\" xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><D:prop><D:getetag/></D:prop><C:filter><C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\"><C:time-range start=\"" + s + "\" end=\"" + e + "\"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>",
+      [resource],
+    )
+  }
+  // The swapped span [09:00..10:00]: windows overlapping it select,
+  // windows outside do not.
+  assert_true(window("20260915T083000Z", "20260915T103000Z").contains("/cal/inverted.ics"))
+  assert_true(!window("20260915T103000Z", "20260915T110000Z").contains("/cal/inverted.ics"))
+  assert_true(!window("20260915T083000Z", "20260915T090000Z").contains("/cal/inverted.ics"))
+  let door = @caldav.calendar_object_precondition(resource.calendar_data)
+  assert_eq(door, None)
 }

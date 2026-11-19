@@ -14,11 +14,13 @@
 | §3.3.9 | DURATION 严格文法(阶段机) | 合规 | S29 的 10 合法/12 拒绝差分 |
 | §3.3.10 | RECUR 语义 + UNTIL UTC | 合规 | graham 语料机械抽取 + dateutil 对拍 + fuzz 100 条 0 不一致;WEEKLY+BYMONTHDAY 按 MUST NOT 拒绝(S57) |
 | §3.3.14 | UTC-OFFSET 允许 `±hhmmss` 秒形 | 合规 | 探针实测存储;S20 的 ≤23h 上界 |
+| §3.8.2.2 | DTEND 值必须晚于 DTSTART("MUST be later in time") | 容忍(门不拒,JEV 0.025) | 空区间求值:任何 time-range 窗口都不选中(钉住);负 DURATION 语法合法值同口径 |
 | §3.6 | iCalendar 对象 MUST 含 PRODID 与 VERSION | 容忍(缺失放行) | 探针:仅 VERSION / 仅 PRODID / 均无 → 201。文档化容忍,门=求值宽 |
 | §3.6.1 | VEVENT 必含 DTSTAMP 与 UID | 容忍(缺失放行) | 探针:无 DTSTAMP → 201;无 UID 是 R8 既定宽容。求值不读 DTSTAMP |
 | §3.8.2.2 | DTEND 值类型必须同 DTSTART;DATE 起点配 DURATION 只能 dur-day/week | **缺口→已修 S62** | 探针:DATE 起点 + DATE-TIME DTEND 曾存储,现 403 valid-calendar-data |
 | §3.8.2.2/3 | DTEND 与 DURATION 不得并存 | 合规(原有) | S29 测试;探针 403 |
-| §3.8.2.4 等 | DTSTART/DTEND/DURATION/UID/RECURRENCE-ID/RRULE "MUST NOT occur more than once" | **缺口→已修 S62** | 探针:六属性重复曾静默收下(`property()` 取首条),现 403 |
+| §3.6.1 | DTSTART/UID/RECURRENCE-ID "MUST NOT occur more than once"(ABNF 逐字) | **缺口→已修 S62** | 探针:三类重复曾静默收下(`property()` 取首条),现 403 |
+| §3.6.1 | RRULE "SHOULD NOT occur more than once";dtend/duration 无 once 注记(仅互斥 MUST) | **S72 纠偏** | 逐字核验发现 S62 曾把这三类按 MUST 拒——按 JEV 判定(0.948/0.816)恢复宽容取首条,与 dateutil/icalendar 口径一致;互斥 MUST 与值类型 MUST 仍拒绝 |
 | §3.8.4.7 | UID 唯一标识 | 合规(S61 补齐) | 同集合重复 UID → 403 no-uid-conflict(S61);无 UID 单独判定(S37) |
 | §3.8.5.3 | RRULE 至多一条 | **缺口→已修 S62** | 同上 |
 

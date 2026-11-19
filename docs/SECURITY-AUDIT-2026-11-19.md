@@ -1,8 +1,7 @@
 # 安全审计日志(worktree audit/2026-11-19,2026-11-19)
 
 在独立 worktree 对 70f470a 基线做安全团队式审查:逐条合规检查、攻击波实机测试、
-确认即修。修复以 S61-S66 入库于本分支。探针存档 `/tmp/security-audit/`
-(`uid_probe.py` / `compliance_probe.py` / `waves.py`)。
+确认即修。修复以 S61-S66 入库于本分支。探针曾存档 `/tmp/security-audit/`(waves/waves2/waves3/waves4/waves5、uid_probe、compliance_probe),后被系统临时目录清理抹去——持久收据是本仓库的测试套件(`filter_test.mbt`/`uid_test.mbt`/`event_test.mbt` 的行为钉子与 s6 的实机钉子)及本文的文字收据。
 
 ## 实证修复(六笔)
 
@@ -78,4 +77,16 @@ COUNT=0、year-9999、BOM/DOCTYPE 双根、i;octet、negate、世纪闰年、负
 
 第 3 轮发现 1 项并修复(S71);第 4 轮与第 5 轮(全回归 waves/waves2/waves3/waves4 + 微面)连续两轮零新发现——按用户停止条件(连续两轮无新问题)收束。
 
-**JEV 状态(已完成复核)**:TokenRhythm 云端密钥过期(401),改经本地 facade `127.0.0.1:11434/v1/systemone`(模型 `jev/NeoHorse-Jev-4B`,同引擎 NeoHorse-Jev-4B)重跑存档请求。**三项判定与过渡结论全部一致**:q1 HEAD 错误应答带体是应修复缺陷 **0.984**(已修 S71);q2 区间倒置 403 valid-filter 非缺陷 **0.062**(行为正确,已钉);q3 无需同面继续深挖 **0.072**。收据:`/tmp/jev-moonical/jev-round2fix-request-local.json` + `jev-round2fix-response-local.json`。
+**JEV 状态(已完成复核)**:TokenRhythm 云端密钥过期(401),改经本地 facade `127.0.0.1:11434/v1/systemone`(模型 `jev/NeoHorse-Jev-4B`,同引擎 NeoHorse-Jev-4B)重跑存档请求。**三项判定与过渡结论全部一致**:q1 HEAD 错误应答带体是应修复缺陷 **0.984**(已修 S71);q2 区间倒置 403 valid-filter 非缺陷 **0.062**(行为正确,已钉);q3 无需同面继续深挖 **0.072**。收据:`/tmp/jev-moonical/jev-round2fix-request-local.json` + `jev-round2fix-response-local.json`(判定值 0.984/0.062/0.072 与本轮误判审查的 0.948/0.816/0.025/0.302 已录本文与 PROGRESS;/tmp 收据文件随后被系统清理,重跑 `decide.mjs` 可即时复现)。
+
+## 误判审查轮(用户质询「是否有误判」)
+
+对 0.5.0 以来的 33 笔提交逐字核验 RFC 锚点,JEV(本地 facade)判定。
+
+**误判确认并纠偏(S72)**:S62 把六类重复属性一律按 MUST-NOT-once 拒绝,但 §3.6.1 eventprop ABNF 的注记级别并不一致——dtstamp/uid 组与 dtstart/recid 组确是 MUST,而 **rrule 是 SHOULD NOT**、**dtend/duration 组只有互斥 MUST、单属性重复无注记**。S62 的提交信息与测试注释把三者都写成 MUST,属引用误判;行为上拒绝 SHOULD 违规超出「门=求值宽」原则。JEV 判定:重复 RRULE 与重复 DTEND/DURATION 恢复宽容取首条(0.948/0.816),与 dateutil/icalendar 口径一致;MUST 级三项(DTSTART/UID/RECURRENCE-ID)、互斥与值类型条款维持拒绝。守卫收窄,门与求值器恢复等宽。
+
+**漏检新发现(非误判,按 JEV 判定不硬拒)**:§3.8.2.2 "its value MUST be later in time than the value of the DTSTART property"——DTEND ≤ DTSTART 的 body 门放行(JEV 0.025:不应硬拒);求值语义已定义(空区间任何 time-range 均不选中),钉住。
+
+**误判排除(逐字成立)**:S57(§3.3.10 "FREQ rule part is set to WEEKLY" 逐字)、S61(§5.3.2.1 "MUST NOT ... already in use ... or overwrite ... different" 逐字)、S64/S67(7232 语义,引用已显 9110/9112 更名)、S70(组件名大小写:iana-token + RFC 5234 §2.3 ABNF 字串大小写不敏感)、S71、S37(§3.8.4.4)、S39、S41/S56、S51、S42、S40、S38、S36。
+
+**探针/账目误判史(均非服务器缺陷)**:S60 元素名(valid-calendar-object-resource→supported-calendar-component,重落地纠正);S64 旧测试把弱 If-Match 钉成 Pass(方向反了);waves3 的 NUL 文件名撞 S31 守卫;curl -X HEAD 挂起;timeout 参数;嵌套 XML 没闭合;s6 钉子变量复用。

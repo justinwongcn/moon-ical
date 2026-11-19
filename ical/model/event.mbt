@@ -138,12 +138,15 @@ fn event_from_component(
   component : Component,
   zones : ZoneTable,
 ) -> Event raise {
-  // RFC 5545 marks each of these properties "MUST NOT occur more than
-  // once" on a VEVENT (§3.8.2.4 DTSTART, §3.8.2.2 DTEND, §3.8.2.3
-  // DURATION, §3.8.4.7 UID, §3.8.4.6 RECURRENCE-ID, §3.8.5.3 RRULE).
-  // The first-occurrence readers would silently pick one line and drop
-  // the rest — an invalid document must be loud, not interpreted.
-  for name in ["DTSTART", "DTEND", "DURATION", "RRULE", "UID", "RECURRENCE-ID"] {
+  // RFC 5545 §3.6.1's eventprop ABNF marks DTSTART ("in any case, it
+  // MUST NOT occur more than once"), UID and RECURRENCE-ID
+  // ("OPTIONAL, but MUST NOT occur more than once") at MUST level — the
+  // first-occurrence readers would silently pick one line and drop the
+  // rest, so these are loud. RRULE is only "SHOULD NOT occur more than
+  // once" and DTEND/DURATION carry no once-annotation (§3.8.2.2 only
+  // forbids carrying both) — duplicates there stay tolerated with the
+  // first line winning, the same reading dateutil and icalendar give.
+  for name in ["DTSTART", "UID", "RECURRENCE-ID"] {
     if component.properties_named(name).length() > 1 {
       raise @text.ParseError::BadLine(
         line_no=0,

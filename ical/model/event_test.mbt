@@ -169,14 +169,12 @@ test "an unknown TZID on an event is an error, never a silent guess" {
 ///|
 test "a repeated single-occurrence property is loud, never first-wins" {
   // RFC 5545 marks DTSTART (3.8.2.4), DTEND (3.8.2.2), DURATION (3.8.2.3),
-  // UID (3.8.4.7), RECURRENCE-ID (3.8.4.6) and RRULE (3.8.5.3) "MUST NOT
-  // occur more than once"; the first-occurrence readers used to pick one
-  // line and drop the rest silently.
+  // UID (3.8.4.7) and RECURRENCE-ID (3.8.4.6) at MUST-NOT-once (3.6.1's
+  // ABNF); the first-occurrence readers used to pick one line and drop
+  // the rest silently. (RRULE is only SHOULD-level and DTEND/DURATION
+  // carry no once-annotation - see the tolerance test below.)
   let pairs : Array[(String, String)] = [
     ("DTSTART", "DTSTART:20260915T090000Z\r\nDTSTART:20260916T090000Z\r\n"),
-    ("DTEND", "DTEND:20260915T100000Z\r\nDTEND:20260915T110000Z\r\n"),
-    ("DURATION", "DURATION:PT1H\r\nDURATION:PT2H\r\n"),
-    ("RRULE", "RRULE:FREQ=DAILY;COUNT=2\r\nRRULE:FREQ=WEEKLY;COUNT=2\r\n"),
     ("UID", "UID:first@x\r\nUID:second@x\r\n"),
     (
       "RECURRENCE-ID", "RECURRENCE-ID:20260916T090000Z\r\nRECURRENCE-ID:20260917T090000Z\r\n",
@@ -191,6 +189,30 @@ test "a repeated single-occurrence property is loud, never first-wins" {
     )
     assert_true(msg.contains("more than one \{name}"))
   }
+}
+
+///|
+test "duplicated RRULE and DTEND tolerate with the first line winning" {
+  // RFC 5545 3.6.1: rrule is "SHOULD NOT occur more than once" (not
+  // MUST) and dtend/duration carry no once-annotation, so duplicates
+  // stay tolerated - the first occurrence is the one every reader sees,
+  // matching the dateutil/icalendar reading. JEV adjudicated the
+  // tolerance over refusal at 0.948/0.816.
+  let two_rrule = @model.parse_events(
+    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:t1\r\n" +
+    "DTSTART:20260901T090000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nRRULE:FREQ=HOURLY;COUNT=9\r\n" +
+    "END:VEVENT\r\nEND:VCALENDAR\r\n",
+  )
+  assert_eq(two_rrule.length(), 1)
+  assert_eq(two_rrule[0].rrule.unwrap(), "FREQ=DAILY;COUNT=3")
+  let two_dtend = @model.parse_events(
+    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:t2\r\n" +
+    "DTSTART:20260901T090000Z\r\nDTEND:20260901T100000Z\r\nDTEND:20260901T110000Z\r\n" +
+    "END:VEVENT\r\nEND:VCALENDAR\r\n",
+  )
+  assert_eq(two_dtend.length(), 1)
+  assert_true(two_dtend[0].dtend.unwrap().to_string().contains("10:00:00"))
+  assert_true(!two_dtend[0].dtend.unwrap().to_string().contains("11:00:00"))
 }
 
 ///|
