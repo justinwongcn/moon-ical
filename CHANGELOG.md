@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 (2026-11-20)
 
 Behavior changes from the 2026-11 audit waves (S36-S73). Breaking for
 clients that relied on the pre-audit shapes:

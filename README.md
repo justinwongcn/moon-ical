@@ -9,10 +9,11 @@ It does not calculate every valid iCalendar input.
 ## Version
 
 ```bash
-moon add justinwongcn/moon-ical@0.5.0
+moon add justinwongcn/moon-ical@0.6.0
 ```
 
-0.5.0 is the published version (2026-10-31); it adds the RDATE sets,
+0.6.0 (2026-11-20) adds the audit-wave hardening described in the
+changelog's 0.6.0 section. 0.5.0 (2026-10-31) added the RDATE sets,
 strict fixed time zones, and checked-query evaluation described below.
 
 ## What it handles

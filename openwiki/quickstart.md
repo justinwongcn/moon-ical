@@ -49,7 +49,7 @@ test {
 }
 ```
 
-安装已发布版：`moon add justinwongcn/moon-ical@0.5.0`。上面的基本示例适用于发布版；RDATE 集合计算与严格固定时区在 0.5.0 里已包含。服务端 2026-11 的加固（PUT 前置校验、文件级 PROPFIND/REPORT、并发写串行化）只在工作区，尚未进发布版。
+安装已发布版：`moon add justinwongcn/moon-ical@0.6.0`。上面的基本示例适用于发布版；RDATE 集合计算、严格固定时区、UID 唯一性、VEVENT-only 存储门与 2026-11 的全部审计加固（Expect 100-continue、条件 GET 304、原子写）都包含在 0.6.0 里。
 
 ## 包地图
 
