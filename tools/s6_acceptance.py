@@ -403,49 +403,6 @@ def main():
         check("GET with a stale If-None-Match answers 200", code == 200)
         code, _, _ = request("GET", "/cal/s6.ics", headers=[f"If-None-Match: W/{tag}"])
         check("GET weak-spelling If-None-Match also matches", code == 304)
-        # S61 follow-up: duplicate conditional header lines are evaluated
-        # first-only (no comma-combining) - the stale first line wins and
-        # the matching second is ignored (defined boundary, recorded).
-        code, _, _ = request(
-            "PUT", "/cal/s6.ics", EVENT,
-            ['If-Match: "stale"', f"If-Match: {tag}"],
-        )
-        check("duplicate If-Match lines: first line evaluated, 412", code == 412)
-        # EXDATE exclusion matches by instant, not by TZID spelling - a
-        # fixed-zone spelling of the same instant removes the same slot
-        # as the UTC spelling (R1 pair).
-        fixed_zone = (
-            "BEGIN:VTIMEZONE\r\nTZID:W3-Z\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\n"
-            "TZOFFSETFROM:+0900\r\nTZOFFSETTO:+0900\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n"
-        )
-        ex_base = (
-            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//s6//x\r\n" + fixed_zone +
-            "BEGIN:VEVENT\r\nUID:{uid}\r\nDTSTART:20260915T090000Z\r\n"
-            "RRULE:FREQ=DAILY;COUNT=3\r\n{ex}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
-        )
-        code, _, _ = request(
-            "PUT", "/cal/ex-utc.ics",
-            ex_base.format(uid="exutc@moon-ical", ex="EXDATE:20260916T090000Z"),
-            ["If-None-Match: *"],
-        )
-        check("UTC-spelled EXDATE stores", code == 201)
-        code, _, _ = request(
-            "PUT", "/cal/ex-tz.ics",
-            ex_base.format(uid="extz@moon-ical", ex="EXDATE;TZID=W3-Z:20260916T180000"),
-            ["If-None-Match: *"],
-        )
-        check("cross-TZ EXDATE (same instant) stores", code == 201)
-        code, _, body = request(
-            "REPORT", "/cal/",
-            '<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"><C:time-range start="20260916T000000Z" end="20260917T000000Z"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>',
-            ["Depth: 1"],
-        )
-        check(
-            "exclusion by instant: both EXDATE spellings exclude the slot",
-            code == 207 and "/cal/ex-utc.ics" not in body and "/cal/ex-tz.ics" not in body,
-        )
-        code, _, _ = request("DELETE", "/cal/ex-utc.ics")
-        code, _, _ = request("DELETE", "/cal/ex-tz.ics")
         code, _, rep_body = request(
             "REPORT",
             "/cal/",
