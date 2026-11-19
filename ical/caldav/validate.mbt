@@ -8,10 +8,18 @@ pub fn precondition_document(inner : String) -> String {
 /// Which RFC 4791 §5.3.2 precondition a `PUT` body fails, if any — the
 /// payload is the error element to put on the wire (`None` = acceptable).
 ///
-/// The bar is "the query evaluation can read every component": the body
-/// parses as iCalendar, every calendar component's temporal properties
-/// parse against the body's own zone table, and every `RRULE` is
-/// expandable. Anything the evaluation would fail closed on (500 with
+/// The bar has two halves. The stored shape comes first: the collection
+/// advertises a VEVENT-only `supported-calendar-component-set` (the
+/// PROPFIND answer), so a body may carry exactly one entity type — RFC
+/// 4791 §4.1 forbids more than one type per calendar object resource —
+/// that entity must be the advertised `VEVENT`, and the body must not
+/// carry the iCalendar `METHOD` property (§4.1's own MUST NOT; METHOD
+/// marks an iTIP scheduling message, not a stored event). Mixing types
+/// and `METHOD` answer `valid-calendar-object-resource`; a component the
+/// collection does not list answers `supported-calendar-component`.
+/// Second, evaluation readability: every `VEVENT`'s temporal properties
+/// must parse against the body's own zone table and every `RRULE` must
+/// be expandable. Anything the evaluation would fail closed on (500 with
 /// the poison href named) is refused here with the precondition RFC 4791
 /// §5.3.2 sanctions, so one bad `PUT` can no longer turn the
 /// collection's reports into 500s.
@@ -19,16 +27,48 @@ pub fn calendar_object_precondition(body : String) -> String? {
   let roots = @model.parse_calendar(body) catch {
     _ => return Some("<C:valid-calendar-data/>")
   }
+  // §4.1: a stored calendar object never carries METHOD.
+  for root in roots {
+    if root.property("METHOD") is Some(_) {
+      return Some("<C:valid-calendar-object-resource/>")
+    }
+  }
+  // The entity census, with §4.1's own VTIMEZONE exemption: VTIMEZONE
+  // sits beside the VEVENT it backs and is never an entity type of its
+  // own. An embedded VALARM is likewise a subcomponent of its VEVENT.
+  let mut seen_event = false
+  let mut seen_other = false
+  for root in roots {
+    for child in root.children {
+      match child.kind {
+        "VEVENT" => seen_event = true
+        "VTODO" | "VJOURNAL" | "VFREEBUSY" => seen_other = true
+        _ => ()
+      }
+    }
+  }
+  if seen_event && seen_other {
+    // §4.1: "MUST NOT contain more than one type of calendar component".
+    // The mixing violation is the resource-shape precondition; the
+    // component-set precondition below covers the single-type case.
+    return Some("<C:valid-calendar-object-resource/>")
+  }
+  if seen_other {
+    // One non-VEVENT entity type: not in the advertised
+    // supported-calendar-component-set, so the §5.3.2 precondition for
+    // an unsupported component refuses it before it can be stored —
+    // storing one would make the advertisement a lie for everything a
+    // client reads back through the collection.
+    return Some("<C:supported-calendar-component/>")
+  }
   let zones = @model.ZoneTable::with_builtin(@model.build_zone_table(roots))
   for root in roots {
     for child in root.children {
-      let verdict = match child.kind {
-        "VEVENT" => check_vevent(child, zones~)
-        "VTODO" | "VJOURNAL" | "VFREEBUSY" => check_non_event(child, zones~)
-        _ => "" // VTIMEZONE and unknown components are preserved, never evaluated
-      }
-      if verdict != "" {
-        return Some(verdict)
+      if child.kind == "VEVENT" {
+        let verdict = check_vevent(child, zones~)
+        if verdict != "" {
+          return Some(verdict)
+        }
       }
     }
   }
@@ -87,105 +127,6 @@ fn check_vevent(child : @model.Component, zones~ : @model.ZoneTable) -> String {
       ignore(parsed)
     }
     None => ()
-  }
-  ""
-}
-
-///|
-/// `VTODO` / `VJOURNAL` / `VFREEBUSY`: the temporal properties are parsed
-/// exactly like the evaluation parses them, and a recurring non-`VEVENT`
-/// component is refused with the component-set precondition — evaluation
-/// answers "recurring VTODO time-range is not implemented" for those, so
-/// storing one poisons time-range reports.
-fn check_non_event(
-  child : @model.Component,
-  zones~ : @model.ZoneTable,
-) -> String {
-  let reject_set = "<C:valid-calendar-object-resource/>"
-  let reject_data = "<C:valid-calendar-data/>"
-  if child.property("RRULE") is Some(_) ||
-    child.property("RDATE") is Some(_) ||
-    child.property("RECURRENCE-ID") is Some(_) {
-    return reject_set
-  }
-  for name in ["DTSTART", "DTEND", "DUE", "COMPLETED", "CREATED"] {
-    match child.property(name) {
-      Some(line) => {
-        let parsed = @model.parse_date_time(line, zones) catch {
-          _ => return reject_data
-        }
-        ignore(parsed)
-      }
-      None => ()
-    }
-  }
-  if child.kind == "VTODO" {
-    let state = check_vtodo_states(child, zones~)
-    if state != "" {
-      return state
-    }
-  } else {
-    match child.property("DURATION") {
-      Some(line) => {
-        let parsed = @model.parse_duration(
-          line.value,
-          line_no=0,
-          raw=line.value,
-        ) catch {
-          _ => return reject_data
-        }
-        ignore(parsed)
-      }
-      None => ()
-    }
-  }
-  ""
-}
-
-///|
-/// Mirror of the two `VTODO` state raises in `todo_overlaps`: `DURATION`
-/// needs exactly `DTSTART` (no `DUE`), and `DUE` must not precede
-/// `DTSTART` (RFC 5545). Violations fail every time-range report with a
-/// 500 today — the door turns them into the data precondition.
-fn check_vtodo_states(
-  child : @model.Component,
-  zones~ : @model.ZoneTable,
-) -> String {
-  let reject = "<C:valid-calendar-data/>"
-  let mut start : Int64? = None
-  let mut due : Int64? = None
-  let mut duration : Int64? = None
-  match child.property("DTSTART") {
-    Some(line) => {
-      let dt = @model.parse_date_time(line, zones) catch { _ => return reject }
-      start = Some(dt.instant_seconds())
-    }
-    None => ()
-  }
-  match child.property("DUE") {
-    Some(line) => {
-      let d = @model.parse_date_time(line, zones) catch { _ => return reject }
-      due = Some(d.instant_seconds())
-    }
-    None => ()
-  }
-  match child.property("DURATION") {
-    Some(line) => {
-      let d = @model.parse_duration(line.value, line_no=0, raw=line.value) catch {
-        _ => return reject
-      }
-      duration = Some(d)
-    }
-    None => ()
-  }
-  // (start <= DTSTART+DURATION ...) row requires the DTSTART+DURATION
-  // pairing; the due row requires no DURATION beside it.
-  if duration is Some(_) && (start is None || due is Some(_)) {
-    return reject
-  }
-  match (start, due) {
-    (Some(s), Some(u)) => if u < s { return reject }
-    _ => ()
   }
   ""
 }

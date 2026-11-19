@@ -29,14 +29,14 @@
 
 ## RRULE 支持与预算
 
-`parse_rule` 支持 DAILY/WEEKLY/MONTHLY/YEARLY，以及 INTERVAL、COUNT、UNTIL、序数 BYDAY、正负 BYMONTHDAY、BYMONTH、BYSETPOS、WKST。sub-daily 频率与 BYWEEKNO/BYYEARDAY/BYHOUR/BYMINUTE/BYSECOND 明确拒绝。
+`parse_rule` 支持 DAILY/WEEKLY/MONTHLY/YEARLY，以及 INTERVAL、COUNT、UNTIL、序数 BYDAY、正负 BYMONTHDAY、BYMONTH、BYSETPOS、WKST。sub-daily 频率与 BYWEEKNO/BYYEARDAY/BYHOUR/BYMINUTE/BYSECOND 在解析层明确拒绝；WEEKLY 与 BYMONTHDAY 并用则在展开层按 RFC 5545 §3.3.10 的 MUST NOT 拒绝（S57 前曾按过滤宽容处理，属已否决方向）。
 
 - 候选日期按周期排序、去重后再应用 BYSETPOS 和 COUNT。重复 BYMONTH 或归一到同一天的月日不重复计数。
 - 序数 BYDAY 的作用域随 BYMONTH 而定：YEARLY 无 BYMONTH 时按年计数（RFC 5545 §3.3.10 的 20MO 示例），BYMONTHDAY 只做过滤、正负序数同理；有 BYMONTH 时才按月计数。组合此前被按月解释而多报实例，差分钉死在 tier2_test。
 - 不存在的日期跳过，不钳位成月末。
 - COUNT 与 UNTIL 不能并存；UNTIL 的时间域必须符合起点。
 - 步进使用 Int64；越出 year 9999 自然终止。
-- `limit` 是原始 RRULE 实例预算。填满 limit 可以返回前缀；走完 10000 周期仍未耗尽且未填满预算时，`expand` 和 `expand_series` 报 `ExpandError::Invalid`，包括有 COUNT/UNTIL或零输出的情况。
+- `limit` 是原始 RRULE 实例预算。填满 limit 可以返回前缀；走完 10000 周期仍未耗尽且未填满预算时，`expand` 和 `expand_series` 报 `ExpandError::Invalid`。可**证明为空**的规则不烧预算，自然终止为空集（S41/S56）：两条证明按序尝试——①形状不相交（有 BYMONTHDAY 时）：月由长度（28/29/30/31）与月首星期（7 值）完全决定，穷举全部组合下 BYMONTHDAY 与 BYDAY 序数无可满足交集即为空；②全序数上界（无 BYMONTHDAY 时）：所有 BYDAY 条目都是超出作用域上限的序数（月内任一星期几至多 5 个、无 BYMONTH 的年至多 53 个）。空性不可证明时预算错误契约保留（混合平条目仍可达）。
 
 语料来自 [graham/rrule](https://github.com/graham/rrule)，出处见 [第三方声明](../THIRD-PARTY-NOTICES.md)。旧纽约示例现在使用调用方显式固定绑定，只验证重复规则，不验证纽约历史偏移。
 
@@ -70,7 +70,7 @@ PERIOD、空值、VALUE 与值形状不一致明确拒绝。重复集合需要 D
 
 VEVENT time-range 按当前组件自身 UID 取系列，避免另一组件代为通过；成功的空系列不回退 master。无 UID 的 VEVENT（RFC 5545 §3.8.4.7 必填，解析层容忍缺失）不锚定系列，按自身单独判定——把无 UID 兄弟并进第一个的系列会静默漏判。零时长 DATE-TIME（DURATION 为零或 DTEND 等于 DTSTART）采用 §9.9 的 DURATION=0 行，区间起点边界包容。非重复 VTODO 使用 RFC 4791 §9.9 的任务状态表；重复 VTODO 等未实现的组件重复计算明确失败。
 
-`report` 区分四种结果：报告成功、未知报告、请求前置条件失败、资源求值失败。
+`report` 区分四种结果：报告成功、未知报告、请求前置条件失败、资源求值失败。服务端的 PUT 门（`calendar_object_precondition`）用与求值同一套判定把"不可读日历对象"从查询期 500 前移到写入期 403——门的清单与它镜像的求值拒绝见 [server.md](server.md)；对应错误类别是 `FilterError::InvalidCalendarObjectResource`。
 
 | 情况 | HTTP |
 |---|---|

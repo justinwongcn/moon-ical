@@ -3,7 +3,7 @@
 moon-ical（`justinwongcn/moon-ical`）提供纯 MoonBit 的 [iCalendar](https://www.rfc-editor.org/rfc/rfc5545) 组件解析、限定范围的重复事件计算，以及最小 [CalDAV](https://www.rfc-editor.org/rfc/rfc4791) 服务端。组件树可以保留尚未解释的属性；类型化事件和时间查询只处理明确支持的规则与固定时区，无法可靠计算时会报错。范围见 [domain.md](domain.md)。
 
 - **版本**：0.5.0 已发布到 mooncakes（2026-10-31），新增 RDATE 集合计算、严格固定时区和查询失败传播；0.4.0 发布于 2026-10-26。
-- **验证（2026-10-31）**：严格四目标测试为 wasm 251、wasm-gc 234、JavaScript 251、native 261；S5 24 项、S6 39 项活体验收通过。另有 `tools/s6_evaluation_acceptance.mbtx` 检查求值失败、RDATE、时区和响应/日志隐私。
+- **验证（2026-11-15）**：严格四目标测试为 wasm 291、wasm-gc 272、JavaScript 291、native 302；S5 24 项、S6 49 项活体验收通过。另有 `tools/s6_evaluation_acceptance.mbtx` 检查求值失败、RDATE、时区和响应/日志隐私。
 - **互操作**：Thunderbird 155.0.1（Windows）已完成发现、读取、创建、修改、删除的真实联调；DAVx5 / Apple Calendar 是候选，未跑。
 
 ## 为什么有这个项目
@@ -30,8 +30,8 @@ moon fmt --check
 moon info                    # 然后检查 *.mbti 是否有非预期 diff
 
 # 4) 活体验收（脚本各自启动并回收隔离服务器）
-python -I tools/s5_acceptance.py
-python -I tools/s6_acceptance.py
+python3 -I tools/s5_acceptance.py
+python3 -I tools/s6_acceptance.py
 # 新求值驱动需要单独的隔离服务器与其日志路径，见 server.md
 ```
 
@@ -49,7 +49,7 @@ test {
 }
 ```
 
-安装已发布版：`moon add justinwongcn/moon-ical@0.4.0`。上面的基本示例适用于发布版；本页所述 RDATE 和严格时区变更需要当前 0.5.0 工作区。
+安装已发布版：`moon add justinwongcn/moon-ical@0.5.0`。上面的基本示例适用于发布版；RDATE 集合计算与严格固定时区在 0.5.0 里已包含。服务端 2026-11 的加固（PUT 前置校验、文件级 PROPFIND/REPORT、并发写串行化）只在工作区，尚未进发布版。
 
 ## 包地图
 
@@ -61,7 +61,7 @@ test {
 | `ical/serialize` | 组件树 → 折行 `.ics` 文本（CRLF、75 octet、UTF-8 不劈开） | `serialize_components` |
 | `ical/fetch` | URL 取件薄层（`@http.get` + 状态检查 + 超时兜底，上游客户端自身无超时） | `fetch_ics` |
 | `ical/httpd` | HTTP/1.1 请求层：手解析请求行/头/体，方法只是 token（WebDAV 方法天然可用） | `read_request`、`respond` |
-| `ical/caldav` | WebDAV/CalDAV 语义（纯函数包，无 IO）：发现、PROPFIND、REPORT、`DAV:prop` 选择、filter 求值、XML | `report`、`parse_filter`、`parse_propfind`、`collection_propfind` |
+| `ical/caldav` | WebDAV/CalDAV 语义（纯函数包，无 IO）：发现、PROPFIND、REPORT、`DAV:prop` 选择、filter 求值、XML、PUT 前置校验 | `report`、`parse_filter`、`parse_propfind`、`collection_propfind`、`calendar_object_precondition` |
 | `ical/store` | vdir 存储：每事件一个 `.ics`、目录即集合、内容寻址 ETag | `VdirStore`、`etag_of` |
 | `cmd/serve` | 可执行入口：TCP accept、路由、把 httpd/caldav/store 组装起来 | `moon run cmd/serve` |
 | `demo` | 演示入口：本地 fixture 或 URL → 事件清单 | `moon run demo` |

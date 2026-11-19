@@ -631,21 +631,89 @@ test "calendar_object_precondition refuses unreadable bodies" {
 }
 
 ///|
-test "calendar_object_precondition refuses recurring non-VEVENT components" {
-  // Evaluation answers "recurring VTODO time-range is not implemented"
-  // with a 500 — storing one would poison every time-range report, so the
-  // component-set precondition refuses it at the door.
+test "calendar_object_precondition refuses non-VEVENT components" {
+  // S60: the collection advertises a VEVENT-only supported-calendar-
+  // component-set (the PROPFIND answer), so any VTODO/VJOURNAL/VFREEBUSY
+  // entity is refused with §5.3.2's supported-calendar-component —
+  // recurring or not, readable or not. (The older recurring-only refusal
+  // answered valid-calendar-object-resource; the narrowing supersedes it.)
   assert_eq(
     @caldav.calendar_object_precondition(
       "BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:t\r\nDTSTART:20260101T090000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nEND:VTODO\r\nEND:VCALENDAR\r\n",
     ),
+    Some("<C:supported-calendar-component/>"),
+  )
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:t\r\nDUE:20260201T090000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:supported-calendar-component/>"),
+  )
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VJOURNAL\r\nUID:j\r\nSUMMARY:note\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:supported-calendar-component/>"),
+  )
+}
+
+///|
+test "calendar_object_precondition refuses mixed entity types" {
+  // RFC 4791 §4.1: a calendar object resource "MUST NOT contain more than
+  // one type of calendar component" (VTIMEZONE exempt) — a VEVENT+VTODO
+  // body violates the resource-shape restriction even though each
+  // component alone parses. R1 differential pair: the same VEVENT with
+  // the VTODO removed is accepted.
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:e\r\nDTSTART:20260101T090000Z\r\nDTEND:20260101T100000Z\r\nEND:VEVENT\r\nBEGIN:VTODO\r\nUID:t\r\nDUE:20260201T090000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n",
+    ),
     Some("<C:valid-calendar-object-resource/>"),
+  )
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:e\r\nDTSTART:20260101T090000Z\r\nDTEND:20260101T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    None,
+  )
+}
+
+///|
+test "calendar_object_precondition refuses the METHOD property" {
+  // RFC 4791 §4.1: "Calendar object resources contained in calendar
+  // collections MUST NOT specify the iCalendar METHOD property" — METHOD
+  // marks an iTIP scheduling message, not a stored event. R1 differential
+  // pair: the identical body without METHOD is accepted.
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:e\r\nDTSTART:20260101T090000Z\r\nDTEND:20260101T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:valid-calendar-object-resource/>"),
+  )
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:e\r\nDTSTART:20260101T090000Z\r\nDTEND:20260101T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    None,
+  )
+}
+
+///|
+test "calendar_object_precondition keeps VALARM inside VEVENT legal" {
+  // §4.1's single-type rule counts entity types, and an embedded VALARM
+  // is a subcomponent of its VEVENT — the door must keep accepting the
+  // pairing every real client writes.
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:e\r\nDTSTART:20260101T090000Z\r\nDTEND:20260101T100000Z\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:reminder\r\nTRIGGER:-PT15M\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    None,
   )
 }
 
 ///|
 test "calendar_object_precondition accepts everything evaluation reads" {
-  let valid = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:ok\r\nDTSTART:20260101T090000Z\r\nDTEND:20260101T100000Z\r\nEXDATE:20260102T090000Z\r\nSUMMARY:a\u{0000}b\r\nEND:VEVENT\r\nBEGIN:VTODO\r\nUID:todo\r\nDUE:20260201T090000Z\r\nEND:VTODO\r\nBEGIN:VTIMEZONE\r\nTZID:FIXED-Z\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\nTZOFFSETFROM:+0900\r\nTZOFFSETTO:+0900\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\nEND:VCALENDAR\r\n"
+  let valid = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:ok\r\nDTSTART:20260101T090000Z\r\nDTEND:20260101T100000Z\r\nEXDATE:20260102T090000Z\r\nSUMMARY:a\u{0000}b\r\nEND:VEVENT\r\nBEGIN:VTIMEZONE\r\nTZID:FIXED-Z\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\nTZOFFSETFROM:+0900\r\nTZOFFSETTO:+0900\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\nEND:VCALENDAR\r\n"
   assert_eq(@caldav.calendar_object_precondition(valid), None)
   // A VEVENT without DTSTART is the R8-tolerated degenerate shape: it
   // poisons no evaluation, so the door accepts it too.
@@ -674,23 +742,5 @@ test "calendar_object_precondition mirrors the series type-agreement raise" {
       "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:m\r\nDTSTART:20260101T090000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:m\r\nRECURRENCE-ID:20260102T090000Z\r\nDTSTART:20260102T110000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
     ),
     None,
-  )
-}
-
-///|
-test "calendar_object_precondition mirrors the VTODO state raises" {
-  // DURATION without DTSTART, and DUE before DTSTART, are the two rows
-  // todo_overlaps raises on — the door refuses both.
-  assert_eq(
-    @caldav.calendar_object_precondition(
-      "BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:t\r\nDURATION:PT5M\r\nEND:VTODO\r\nEND:VCALENDAR\r\n",
-    ),
-    Some("<C:valid-calendar-data/>"),
-  )
-  assert_eq(
-    @caldav.calendar_object_precondition(
-      "BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:t\r\nDTSTART:20260201T090000Z\r\nDUE:20260101T090000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n",
-    ),
-    Some("<C:valid-calendar-data/>"),
   )
 }

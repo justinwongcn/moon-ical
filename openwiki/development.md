@@ -11,9 +11,10 @@
 
 ## 工具链与 MoonBit 硬规则
 
-`moon 0.1.20261023 / moonc v0.10.17`，特性开关 `rr_moon_mod + rr_moon_pkg`（元数据是 `moon.mod` / `moon.pkg`）。动手前先 `moon version --all`；写代码前按 AGENTS.md 的表加载对应 `.agents/skills/` 技能。最容易踩的：
+`moon 0.1.20261104 / moonc v0.10.20`（S36 已按 v0.10.20 迁移全仓：`#derive` 前置、`to_string_view()`/`clamped_view` 替代弃用的 `.view()`/切片糖），特性开关 `rr_moon_mod + rr_moon_pkg`（元数据是 `moon.mod` / `moon.pkg`）。动手前先 `moon version --all`；写代码前按 AGENTS.md 的表加载对应 `.agents/skills/` 技能。最容易踩的：
 
 - **导入只写 `moon.pkg`**；`.mbt` 文件里写 `import "..."` 是硬错误（3001/3002）。测试专用导入用 `import { … } for "test"`。
+- **模块根下的 `moon run x.mbtx` 从 mooncakes 注册表解析自模块 import，不是工作区**（实证：给本地包加语法错误，脚本照样运行——它测的是已发布的 0.5.0）。对工作区代码做行为验证，一律用模块内临时主包（`tmpfuzz/`，`pkgtype(kind: "executable")`，`moon run tmpfuzz --`，用后即删）。
 - **永远不要凭记忆写 stdlib API**：`moon ide doc "Type::method"` 核实后再用。
 - **`Int` ≡ `Int32`**：formatter 归一为 `Int32`，新代码直接写 `Int32`。
 - **可选参数实为带标签参数**（`name~ : T = d`）：只能 `f(x, name=1)` 按名传，**按位置传编译不过**。注意 `.mbti` 把 `?` 和 `~` 都渲染成 `name?`——"`.mbti` 无 diff = 接口没变"这条判据**有盲区**。
@@ -41,8 +42,9 @@ CI 使用同类检查。`.mbti` 变化需要与预期契约逐项核对；没有
 |---|---|---|
 | 单元测试 | `*_test.mbt`（黑盒）/ `*_wbtest.mbt`（白盒） | 各包目录内；`moon coverage analyze > uncovered.log` 找盲区 |
 | RFC 语料对拍 | `ical/rrule/*corpus*` + `tools/gen_s3_corpus_test.py` | 期望值从 graham/rrule 套件**机械抽取**，不是实现的回声（R5 的库层范本） |
+| 第三方言差分 | `ical/rrule/sabre_corpus_test.mbt` | sabre-io/vobject（PHP 生态事实标准）EventIterator 的 override 合并语义移植 5 例（S55），首轮零分歧；其中两例按分歧钉死不移植——跨 UID override sabre 宽容而 RFC 5545 §3.8.4.4 要求同 UID，全排除序列 sabre 抛错而查询模型答空集（R2） |
 | 基准 | `*_bench_test.mbt` | native release；R 系列基线：parse ~15.6ms、multiget ~3.7ms、series ~1.68ms、monthly ~5.5ms；unfold 基准钉住 S25 的线性化（770KB 折行行 1.68s → 6.6ms，修复前是二次方拼接） |
-| 活体验收 | S5（24 项）、S6（39 项），另有 `tools/s6_evaluation_acceptance.mbtx` | 真实 TCP 检查；新驱动包括 RDATE、预算、错误分类和日志隐私，使用隔离目录 |
+| 活体验收 | S5（24 项）、S6（49 项），另有 `tools/s6_evaluation_acceptance.mbtx` | 真实 TCP 检查；新驱动包括 RDATE、预算、错误分类和日志隐私，使用隔离目录 |
 | fixture | `fixtures/recurrence-demo.ics` 与既有生成器 | 使用显式 DEMO-FIXED-0500，不作为动态纽约时区证据 |
 | 本轮回归 | `recurrence_dates_test`、`fixed_zone_test`、`series_query_test`、`review_regression_test`、`evaluation_test` 与根门面测试 | 集合差分、完整性、明确拒绝、合法空集、HTTP 与隐私路径 |
 
@@ -66,4 +68,6 @@ CI 使用同类检查。`.mbti` 变化需要与预期契约逐项核对；没有
 
 S0–S35 和 R1–R14 是已有历史；0.4.0 与 0.5.0（2026-10-31）均已发布到 mooncakes。驳回修复波以 S35 入库，与远端 S34/R14 合流后提交。提交使用固定命令 `git -c core.hooksPath=.githooks commit`。
 
-2026-10-31 全目标严格测试为 251/234/251/261。能力范围与证据对应表见手册 §11；明确拒绝的输入不能在申请材料里改称通用处理。
+S36–S60 是 2026-11-13/15/18 的三连波加一次收窄落地（工具链迁移 → JEV 审计修复 → 黑客轮实机攻击与成熟方案对齐 → 广告集执行），已入库**未推送**：S36 迁移 v0.10.20；S37 修递归/变更语义四处缺陷；S38-S53/S55 为实机攻击面修复（存储毒化 XML、走私头、超长名、可证空预算、双根 XML 杀进程、并发连接杀进程、PUT 前置校验、sabre 语料）与 S43-S52 的方法面补齐（文件级 PROPFIND/REPORT、HEAD、scoped Allow）；S56/S57 把可证空证明推广成形状不相交穷举并按 RFC 拒绝 WEEKLY;BYMONTHDAY；S60 把 PUT 门收窄到集合自己宣传的 VEVENT-only 组件集（METHOD/混合类型 → valid-calendar-object-resource，非 VEVENT 实体 → supported-calendar-component）。**破坏性变更：WEEKLY+BYMONTHDAY 从宽容过滤变为拒绝；VTODO/VJOURNAL/VFREEBUSY 从可存储变为 403**。详见 `docs/PROGRESS.md` 里程碑表。
+
+2026-11-18 全目标严格测试为 293/274/293/304（wasm/wasm-gc/js/native），S5 24/24、S6 58/58 活体全绿。能力范围与证据对应表见手册 §11；明确拒绝的输入不能在申请材料里改称通用处理。

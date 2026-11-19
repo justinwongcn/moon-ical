@@ -25,3 +25,6 @@ docs/research/
 
 # local agent workspace data (session memory, not part of the project)
 .workbuddy-ai/
+
+# skill-local secrets (real API keys) — never commit
+.env

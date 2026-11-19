@@ -265,6 +265,59 @@ def main():
         code, _, _ = request("DELETE", "/cal/work/")
         check("deleting the now-empty collection succeeds", code == 204)
 
+        # S60 PUT door: the collection advertises a VEVENT-only supported-
+        # calendar-component-set, and RFC 4791 4.1 forbids more than one
+        # entity type per resource and the METHOD property outright. Each
+        # refusal must name its specific precondition element (a bare "not
+        # 200" proves nothing) and the refused body must not have been
+        # stored. The R1 pair: the same body with the poison removed stores
+        # fine, so the refusals below really are reading the input.
+        code, _, body = request(
+            "PUT",
+            "/cal/poison-mixed.ics",
+            EVENT.replace(
+                "END:VCALENDAR",
+                "BEGIN:VTODO\r\nUID:poison-t\r\nDUE:20260916T090000Z\r\nEND:VTODO\r\nEND:VCALENDAR",
+            ),
+        )
+        check(
+            "mixed entity types refused as valid-calendar-object-resource",
+            code == 403 and "valid-calendar-object-resource" in body,
+        )
+        code, _, _ = request("GET", "/cal/poison-mixed.ics")
+        check("refused mixed body was not stored", code == 404)
+        code, _, body = request(
+            "PUT",
+            "/cal/poison-method.ics",
+            EVENT.replace("VERSION:2.0", "VERSION:2.0\r\nMETHOD:REQUEST"),
+        )
+        check(
+            "METHOD property refused as valid-calendar-object-resource",
+            code == 403 and "valid-calendar-object-resource" in body,
+        )
+        code, _, _ = request("GET", "/cal/poison-method.ics")
+        check("refused METHOD body was not stored", code == 404)
+        code, _, body = request(
+            "PUT",
+            "/cal/poison-todo.ics",
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:poison-only\r\nDUE:20260916T090000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n",
+        )
+        check(
+            "VTODO refused as supported-calendar-component",
+            code == 403 and "supported-calendar-component" in body and "valid-calendar-data" not in body,
+        )
+        code, _, _ = request("GET", "/cal/poison-todo.ics")
+        check("refused VTODO body was not stored", code == 404)
+        code, _, _ = request("PUT", "/cal/s6-clean.ics", EVENT, ["If-None-Match: *"])
+        check("the R1 canary VEVENT still stores", code == 201)
+        code, _, body = request("PROPFIND", "/cal/", headers=["Depth: 1"])
+        check(
+            "collection stays clean: canary listed, no poison hrefs",
+            code == 207 and "/cal/s6-clean.ics" in body and "poison" not in body,
+        )
+        code, _, _ = request("DELETE", "/cal/s6-clean.ics")
+        check("cleanup of the S60 canary", code == 204)
+
         code, _, _ = request("DELETE", "/cal/s6.ics", headers=[f"If-Match: {tag}"])
         check("matching conditional delete succeeds", code == 204)
         # The DELETE precondition must be evaluated, not assumed: a stale

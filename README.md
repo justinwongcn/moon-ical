@@ -40,7 +40,12 @@ written by the library, while typed event parsing may reject it. The server
 applies that distinction at the door: a PUT body its evaluation cannot read
 is refused with 403 and the CALDAV:valid-calendar-data (or
 valid-calendar-object-resource) precondition, so stored content never
-poisons the collection's reports.
+poisons the collection's reports. Storage is also VEVENT-only, matching the
+`supported-calendar-component-set` the collection itself advertises: the
+iCalendar METHOD property and mixed entity types are refused with
+CALDAV:valid-calendar-object-resource (RFC 4791 §4.1), and a
+VTODO/VJOURNAL/VFREEBUSY body is refused with CALDAV:supported-calendar-
+component.
 
 ## Library usage
 
