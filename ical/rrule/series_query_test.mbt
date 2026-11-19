@@ -183,8 +183,11 @@ test "bounded and empty period budget exhaustion never claims completeness" {
 
 ///|
 test "period budget shortfall is explicit independently of output filtering" {
+  // A legal never-matching shape: February 30th does not exist (BYMONTH=2
+  // scopes the walk to February, whose 28/29 days never realize 30), so
+  // the monthly walk yields no candidates for every period.
   let events = series_events(
-    "DTSTART:20260228T000000Z\r\nRRULE:FREQ=WEEKLY;BYMONTHDAY=-1\r\n",
+    "DTSTART:20260228T000000Z\r\nRRULE:FREQ=MONTHLY;BYMONTHDAY=30;BYMONTH=2\r\n",
   )
   let result = @rrule.expand_series_query(events, limit=5000)
   assert_false(result.exhausted)

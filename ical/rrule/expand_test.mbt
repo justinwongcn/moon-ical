@@ -278,22 +278,25 @@ test "DAILY with mixed-sign BYMONTHDAY realizes both entries" {
 }
 
 ///|
-test "WEEKLY with a negative BYMONTHDAY keeps only month-end weekdays" {
-  // From a Thursday DTSTART, the Thursdays that are also their month's
-  // last day in 2026 are 2026-04-30 and 2026-12-31 (every other month
-  // ends on a different weekday).
+test "WEEKLY with BYMONTHDAY is refused (RFC 5545 §3.3.10 MUST NOT)" {
+  // The RFC forbids BYMONTHDAY with WEEKLY. S11 originally implemented
+  // filter semantics for the combination before the MUST NOT was checked;
+  // the strict reading wins (S57), and the S11-era month-end matches
+  // (2026-04-30, 2026-12-31 from a Thursday DTSTART) are gone.
   let dtstart = @model.parse_single_date_time(
     "20260115T000000Z",
     @model.ZoneTable::empty(),
   )
   let out = @rrule.expand(
-    @rrule.parse_rule("FREQ=WEEKLY;BYMONTHDAY=-1"),
-    dtstart,
-    limit=2,
-  )
-  assert_eq(out.length(), 2)
-  assert_eq(out[0].to_string(), "2026-04-30T00:00:00Z")
-  assert_eq(out[1].to_string(), "2026-12-31T00:00:00Z")
+      @rrule.parse_rule("FREQ=WEEKLY;BYMONTHDAY=-1"),
+      dtstart,
+    )
+    .map(x => x.to_string())
+    .join(",") catch {
+      err => "refused:\{err.to_string()}"
+    }
+  assert_true(out.contains("BYMONTHDAY must not be specified with WEEKLY"))
+  assert_true(out.contains("2026-04-30") == false)
 }
 
 ///|
@@ -386,8 +389,8 @@ test "every weekday of 9999's final week is offered up to the horizon" {
 
 ///|
 test "an unbounded walk past the period budget is an error, not a quiet prefix" {
-  // A weekly rule filtered to month-end weekdays produces ~2300 instances
-  // inside MAX_PERIODS=10000 weeks (~192 years) and would keep going:
+  // A monthly rule filtered to a day that never exists (February 30th)
+  // produces zero instances for every period and would keep going:
   // with a limit past that yield, before S27 the walk silently ended at
   // the budget and the caller got a truncated prefix that read as
   // complete. The four-way differential:
@@ -395,6 +398,10 @@ test "an unbounded walk past the period budget is an error, not a quiet prefix" 
   // 2) bounded by COUNT -> ends honestly at the count,
   // 3) limit reached inside the budget -> ends at the limit,
   // 4) a rule whose clauses never match -> empty, the whole truth.
+  // (The original shape here was WEEKLY;BYMONTHDAY=-1 — month-end
+  // Mondays; that combination is refused since S57 per the RFC 5545
+  // 3.3.10 MUST NOT, so the never-matching walk is exercised with
+  // February 30th instead.)
   fn result_of(rule : String, limit : Int32) -> String raise {
     let dtstart = @model.parse_single_date_time(
       "20260228T000000Z",
@@ -408,11 +415,11 @@ test "an unbounded walk past the period budget is an error, not a quiet prefix" 
     }
   }
   assert_eq(
-    result_of("FREQ=WEEKLY;BYMONTHDAY=-1", 5000),
+    result_of("FREQ=DAILY;BYMONTHDAY=30;BYMONTH=2", 5000),
     "err:invalid recurrence rule: recurrence expansion exceeded 10000 periods without ending",
   )
-  assert_eq(result_of("FREQ=WEEKLY;BYMONTHDAY=-1;COUNT=7", 5000), "ok:7")
-  assert_eq(result_of("FREQ=WEEKLY;BYMONTHDAY=-1", 50), "ok:50")
+  assert_eq(result_of("FREQ=MONTHLY;BYMONTHDAY=-1;COUNT=7", 5000), "ok:7")
+  assert_eq(result_of("FREQ=MONTHLY;BYMONTHDAY=-1", 50), "ok:50")
   assert_eq(
     result_of("FREQ=MONTHLY;BYMONTHDAY=30;BYMONTH=2", 50),
     "err:invalid recurrence rule: recurrence expansion exceeded 10000 periods without ending",

@@ -100,16 +100,6 @@ fn expand_generated(
   limit~ : Int32,
 ) -> (Array[@model.IcalDateTime], Bool) raise {
   check_expandable(rule, dtstart)
-  if provably_empty(rule) {
-    // Every ordinal BYDAY value names an occurrence that cannot exist in
-    // the scoped period — a month holds at most five of any weekday, a
-    // year at most 53. No other BY clause can rescue an empty BYDAY set,
-    // so the series is empty by construction. Ending here (instead of
-    // walking MAX_PERIODS empty periods) keeps a never-matching rule from
-    // surfacing as a budget error — which, over CalDAV, let one stored
-    // resource fail every REPORT over its collection.
-    return ([], true)
-  }
   if limit <= 0 {
     // A cap of zero or less caps everything. The semantic checks above
     // still ran, so an invalid rule is reported rather than silently
@@ -119,6 +109,18 @@ fn expand_generated(
   }
   let normalized = NormalizedRule::new(rule)
   let rule = normalized.rule
+  if provably_empty(rule, normalized, dtstart.wall.month()) {
+    // Every (month length x month-start weekday) combination the BYDAY
+    // ordinals could match is exhausted against the BYMONTHDAY set — a
+    // month's structure is fully determined by those two inputs and every
+    // combination occurs across the Gregorian cycle, so the series is
+    // empty by construction. Ending here (instead of walking MAX_PERIODS
+    // empty periods) keeps a never-matching rule from surfacing as a
+    // budget error — which, over CalDAV, let one stored resource fail
+    // every REPORT over its collection, and blocked the single-threaded
+    // event loop for the whole walk on a PUT-door validation.
+    return ([], true)
+  }
   let start = plain_date_of(dtstart.wall)
   let until_instant : Int64? = match rule.until {
     Some(u) => Some(u.instant_seconds())
@@ -226,6 +228,13 @@ fn check_expandable(rule : Rule, dtstart : @model.IcalDateTime) -> Unit raise {
         message="ordinal BYDAY is only valid with MONTHLY or YEARLY",
       )
     }
+  }
+  // RFC 5545 §3.3.10: "The BYMONTHDAY rule part MUST NOT be specified when
+  // the FREQ rule part is set to WEEKLY."
+  if rule.bymonthday.length() > 0 && rule.freq is Weekly {
+    raise ExpandError::Invalid(
+      message="BYMONTHDAY must not be specified with WEEKLY",
+    )
   }
   if rule.bysetpos.length() > 0 &&
     rule.byday.length() == 0 &&
@@ -641,31 +650,147 @@ fn plain_date_of(wall : @time.PlainDateTime) -> @time.PlainDate raise {
 
 ///|
 /// Whether the rule can never produce a single occurrence by construction.
-/// Only the all-impossible-ordinal `BYDAY` shape qualifies: a month holds
-/// at most five of any weekday and a year at most 53, so an ordinal past
-/// those bounds (with no plain weekday entry to fall back on, and — for
-/// yearly rules — no `BYMONTH` to change the scoping) can never match,
-/// whatever the other `BY` clauses say.
-fn provably_empty(rule : Rule) -> Bool {
+///
+/// Two proofs, tried in order:
+///
+/// 1. Shape-disjoint (definitive, requires BYMONTHDAY): a month is fully
+///    determined by its length (28/29/30/31) and its start weekday (seven
+///    values), and every (length, start) combination occurs across the
+///    Gregorian cycle. If no day in the BYMONTHDAY realization matches any
+///    BYDAY entry under any start, the series is empty by construction —
+///    regardless of what the other BY clauses do.
+///
+/// 2. All-ordinal bound (for BYMONTHDAY-less rules, where proof 1 is
+///    vacuous): every BYDAY entry is an ordinal past the scoped bound — a
+///    month holds at most five of any weekday, a year at most 53.
+///
+/// Ending the expansion here (instead of walking MAX_PERIODS empty
+/// periods) keeps a never-matching rule from surfacing as a budget error
+/// — which, over CalDAV, let one stored resource fail every REPORT over
+/// its collection, and blocked the single-threaded event loop for the
+/// whole walk on a PUT-door validation.
+fn provably_empty(
+  rule : Rule,
+  normalized : NormalizedRule,
+  month : Int32,
+) -> Bool {
   let entries = rule.byday
   if entries.length() == 0 {
     return false
   }
+  if rule.bymonthday.length() > 0 {
+    // MONTHLY walks every civil month, so all four lengths are in play.
+    // YEARLY with BYMONTH walks only the named months; YEARLY without
+    // BYMONTH walks DTSTART's own month (its length is fixed across the
+    // anniversary scan).
+    // MONTHLY/DAILY/WEEKLY walk every civil month: all four lengths are in
+    // play. YEARLY with BYMONTH walks only the named months; YEARLY without
+    // BYMONTH walks DTSTART's own month (its length is fixed across the
+    // anniversary scan).
+    let lengths = match rule.freq {
+      Yearly => {
+        let all = []
+        if rule.bymonth.length() > 0 {
+          for m in rule.bymonth {
+            for length in month_lengths(m) {
+              all.push(length)
+            }
+          }
+        } else {
+          for length in month_lengths(month) {
+            all.push(length)
+          }
+        }
+        all
+      }
+      _ => [31, 30, 29, 28]
+    }
+    return lengths_unsatisfiable(rule, normalized, lengths)
+  }
+  let mut all_ordinal = true
   for entry in entries {
     if entry.ordinal == 0 {
-      return false
+      all_ordinal = false
     }
   }
-  match rule.freq {
-    Monthly => all_ordinals_beyond(entries, 5)
-    Yearly =>
-      if rule.bymonth.length() == 0 {
-        all_ordinals_beyond(entries, 53)
-      } else {
-        all_ordinals_beyond(entries, 5)
-      }
-    _ => false
+  if all_ordinal {
+    match rule.freq {
+      Monthly => all_ordinals_beyond(entries, 5)
+      Yearly =>
+        if rule.bymonth.length() == 0 {
+          all_ordinals_beyond(entries, 53)
+        } else {
+          all_ordinals_beyond(entries, 5)
+        }
+      _ => false
+    }
+  } else {
+    false
   }
+}
+
+///|
+/// Whether the BYMONTHDAY x BYDAY-ordinal intersection is empty for a
+/// month of `length` days starting on weekday `start` (0 = Monday). A
+/// month's structure is fully determined by those two inputs, and every
+/// (length, start) combination occurs across the Gregorian cycle, so
+/// unsatisfiability over the 7 starts proves the rule can never match.
+/// Requires BYMONTHDAY to be present (the caller routes BYMONTHDAY-less
+/// rules to the ordinal-bound proof).
+fn month_shape_unsatisfiable(
+  rule : Rule,
+  normalized : NormalizedRule,
+  length : Int32,
+  start : Int32,
+) -> Bool {
+  let days = normalized.monthdays_by_length[length - 28]
+  if days.is_empty() {
+    // e.g. BYMONTHDAY=31 against a 28-day February: that length cannot
+    // realize any requested day, so this shape matches nothing.
+    return true
+  }
+  if rule.byday.is_empty() {
+    // No weekday constraint: every realized BYMONTHDAY day is reachable
+    // under some start weekday, so this length is satisfiable.
+    return false
+  }
+  for d in days {
+    let weekday = (start + d - 1) % 7
+    for entry in rule.byday {
+      if weekday_num(entry.weekday) == weekday {
+        if entry.ordinal == 0 {
+          return false
+        }
+        let ord = if entry.ordinal > 0 {
+          (d - 1) / 7 + 1
+        } else {
+          -((length - d) / 7 + 1)
+        }
+        if ord == entry.ordinal {
+          return false
+        }
+      }
+    }
+  }
+  true
+}
+
+///|
+/// Unsatisfiable for every month length in `lengths` and every month-start
+/// weekday — the exhaustive enumeration behind the shape-disjoint proof.
+fn lengths_unsatisfiable(
+  rule : Rule,
+  normalized : NormalizedRule,
+  lengths : Array[Int32],
+) -> Bool {
+  for length in lengths {
+    for start in 0..<7 {
+      if !month_shape_unsatisfiable(rule, normalized, length, start) {
+        return false
+      }
+    }
+  }
+  true
 }
 
 ///|
@@ -676,4 +801,18 @@ fn all_ordinals_beyond(entries : Array[Byday], bound : Int32) -> Bool {
     }
   }
   true
+}
+
+///|
+/// The lengths a civil month can have. February is the only variable one
+/// (28 common, 29 leap); every other month is fixed, and its start
+/// weekday cycles through all seven values across the Gregorian cycle.
+fn month_lengths(month : Int32) -> Array[Int32] {
+  if month == 2 {
+    [28, 29]
+  } else if month == 4 || month == 6 || month == 9 || month == 11 {
+    [30]
+  } else {
+    [31]
+  }
 }

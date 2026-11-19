@@ -369,3 +369,45 @@ test "an impossible ordinal BYDAY is provably empty, not a budget error" {
     [],
   )
 }
+
+///|
+test "S56: the shape-disjoint proof ends never-matching rules instantly" {
+  // The measured 30s-freeze shape: BYMONTHDAY=-7 (month-end week) and
+  // 2FR (second Friday) never co-occur in any month shape. The generalized
+  // provably_empty enumerates (length, start-weekday) exhaustively and
+  // ends the expansion before the period walk, instead of surfacing a
+  // budget error after MAX_PERIODS empty periods.
+  let dt = @model.parse_single_date_time(
+    "20260101T090000Z",
+    @model.ZoneTable::empty(),
+  )
+  assert_eq(
+    @rrule.expand(@rrule.parse_rule("FREQ=MONTHLY;BYMONTHDAY=-7;BYDAY=2FR"), dt),
+    [],
+  )
+  // Ordinal beyond the month bound but inside the YEARLY year bound, with
+  // BYMONTH scoping to a month where it cannot match either.
+  assert_eq(
+    @rrule.expand(@rrule.parse_rule("FREQ=YEARLY;BYMONTH=2;BYDAY=53FR"), dt),
+    [],
+  )
+  // Control: satisfiable shapes still expand (sabre corpus cases above).
+  // Month-end Mondays are rare: the first match from 2026-01-26 is August.
+  assert_eq(
+    expand_strings("FREQ=MONTHLY;BYMONTHDAY=-1;BYDAY=MO", "20260126T090000", 2),
+    ["2026-08-31T09:00:00", "2026-11-30T09:00:00"],
+  )
+}
+
+///|
+test "S56: the shape-disjoint proof covers YEARLY BYMONTH lengths" {
+  // February (28/29) with an ordinal that only fits 31-day months.
+  let dt = @model.parse_single_date_time(
+    "20260101T090000Z",
+    @model.ZoneTable::empty(),
+  )
+  assert_eq(
+    @rrule.expand(@rrule.parse_rule("FREQ=YEARLY;BYMONTH=2;BYDAY=6FR"), dt),
+    [],
+  )
+}
