@@ -29,11 +29,12 @@ pub fn parse_utc_offset(String, line_no~ : Int32, raw~ : String) -> Int32 raise
 // Errors
 
 // Types and methods
+#derive(Eq, @debug.Debug)
 pub struct Component {
   kind : String
   properties : Array[@text.ContentLine]
   children : Array[Component]
-} derive(Eq, @debug.Debug)
+}
 pub fn Component::equal(Self, Self) -> Bool
 pub fn Component::event(Self, zones~ : ZoneTable) -> Event? raise
 pub fn Component::events(Self, zones~ : ZoneTable) -> Array[Event] raise
@@ -42,6 +43,7 @@ pub fn Component::properties_named(Self, String) -> Array[@text.ContentLine]
 pub fn Component::property(Self, String) -> @text.ContentLine?
 pub fn Component::to_repr(Self) -> @debug.Repr
 
+#derive(@debug.Debug)
 pub struct Event {
   uid : String?
   summary : String?
@@ -55,19 +57,20 @@ pub struct Event {
   status : String?
   exdates : Array[IcalDateTime]
   rdates : Array[IcalDateTime]
-} derive(@debug.Debug)
+}
 pub fn Event::all_day(Self) -> Bool
 pub fn Event::output(Self, &Logger) -> Unit
 pub fn Event::to_repr(Self) -> @debug.Repr
 pub fn Event::to_string(Self) -> String
 pub impl Show for Event
 
+#derive(Eq, @debug.Debug)
 pub struct IcalDateTime {
   wall : @time.PlainDateTime
   utc_offset : Int32?
   zone_id : String
   all_day : Bool
-} derive(Eq, @debug.Debug)
+}
 pub fn IcalDateTime::compare(Self, Self) -> Int32
 pub fn IcalDateTime::equal(Self, Self) -> Bool
 pub fn IcalDateTime::instant_seconds(Self) -> Int64
@@ -81,10 +84,11 @@ pub fn IcalDateTime::to_repr(Self) -> @debug.Repr
 pub fn IcalDateTime::to_string(Self) -> String
 pub impl Show for IcalDateTime
 
+#derive(@debug.Debug)
 pub struct ZoneTable {
   entries : Map[String, Int32]
   rejected : Map[String, String]
-} derive(@debug.Debug)
+}
 pub fn ZoneTable::builtin_common() -> Self
 pub fn ZoneTable::empty() -> Self
 pub fn ZoneTable::insert(Self, String, Int32) -> Unit

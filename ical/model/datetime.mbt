@@ -15,6 +15,7 @@
 /// plain `Int` instead of a `Zone` because named zones are resolved through a
 /// fixed-offset table (see [`ZoneTable`] and seam S2 in
 /// docs/upstream-seams.md).
+#derive(Debug, Eq)
 pub struct IcalDateTime {
   wall : @time.PlainDateTime
   /// Seconds east of UTC; `None` means the value is floating.
@@ -23,7 +24,7 @@ pub struct IcalDateTime {
   /// kept for error messages and for writing a feed back out.
   zone_id : String
   all_day : Bool
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend IcalDateTime with @moonbitlang/core/debug.Debug::{to_repr}
@@ -246,7 +247,7 @@ fn parse_value(
   zones : ZoneTable,
   line_no : Int32,
 ) -> IcalDateTime raise {
-  let v = raw.view()
+  let v = raw.to_string_view()
   let n = v.length()
   // VALUE=DATE names an 8-digit date and nothing else: accepting a
   // 15-digit date-time under it marked the value all-day while keeping

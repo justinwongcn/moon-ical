@@ -222,8 +222,8 @@ fn target_of(path : String) -> Target {
   // Routing is by path alone: a request target may carry a query string,
   // and nothing this server serves has one (RFC 3986 splits them at the
   // first '?'). Before S14 any query string made the whole target 404.
-  let path = match path.view().find("?".view()) {
-    Some(q) => path.view()[0:q].to_owned()
+  let path = match path.to_string_view().find("?".to_string_view()) {
+    Some(q) => path.clamped_view(start=0, end=q).to_owned()
     None => path
   }
   if path == "/.well-known/caldav" {
@@ -244,8 +244,8 @@ fn target_of(path : String) -> Target {
   if !path.has_prefix("/cal/") {
     return Unknown
   }
-  let rest = path.view()[5:]
-  match rest.find("/".view()) {
+  let rest = path.clamped_view(start=5)
+  match rest.find("/".to_string_view()) {
     None => Event(collection=None, name=rest.to_owned())
     Some(slash) => {
       let name = rest[:slash].to_owned()

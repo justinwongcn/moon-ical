@@ -17,10 +17,11 @@ pub fn expand_series_query(Array[@model.Event], limit? : Int32) -> SeriesQueryRe
 pub fn parse_rule(String) -> Rule raise
 
 // Errors
+#derive(Eq, @debug.Debug)
 pub(all) suberror ExpandError {
   Unsupported(feature~ : String)
   Invalid(message~ : String)
-} derive(Eq, @debug.Debug)
+}
 pub fn ExpandError::equal(Self, Self) -> Bool
 pub fn ExpandError::not_equal(Self, Self) -> Bool
 pub fn ExpandError::output(Self, &Logger) -> Unit
@@ -29,35 +30,39 @@ pub fn ExpandError::to_string(Self) -> String
 pub impl Show for ExpandError
 
 // Types and methods
+#derive(Eq, @debug.Debug)
 pub struct Byday {
   ordinal : Int32
   weekday : @time.Weekday
-} derive(Eq, @debug.Debug)
+}
 pub fn Byday::equal(Self, Self) -> Bool
 pub fn Byday::not_equal(Self, Self) -> Bool
 pub fn Byday::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) enum Freq {
   Yearly
   Monthly
   Weekly
   Daily
-} derive(Eq, @debug.Debug)
+}
 pub fn Freq::equal(Self, Self) -> Bool
 pub fn Freq::not_equal(Self, Self) -> Bool
 pub fn Freq::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct Occurrence {
   uid : String
   start : @model.IcalDateTime
   end : @model.IcalDateTime?
   summary : String?
   recurrence_id : @model.IcalDateTime
-} derive(Eq, @debug.Debug)
+}
 pub fn Occurrence::equal(Self, Self) -> Bool
 pub fn Occurrence::not_equal(Self, Self) -> Bool
 pub fn Occurrence::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub struct Rule {
   freq : Freq
   interval : Int32
@@ -68,7 +73,7 @@ pub struct Rule {
   bymonth : Array[Int32]
   bysetpos : Array[Int32]
   wkst : @time.Weekday
-} derive(Eq, @debug.Debug)
+}
 pub fn Rule::equal(Self, Self) -> Bool
 pub fn Rule::not_equal(Self, Self) -> Bool
 pub fn Rule::to_repr(Self) -> @debug.Repr

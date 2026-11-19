@@ -17,10 +17,11 @@ pub struct VdirStore {
 ///|
 /// A file read back from the store: its bytes and the ETag those exact
 /// bytes hash to.
+#derive(Debug, Eq)
 pub(all) struct VdirFile {
   text : String
   etag : String
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend VdirFile with @moonbitlang/core/debug.Debug::{to_repr}
@@ -32,9 +33,10 @@ pub extend VdirFile with Eq::{not_equal, equal}
 /// Why a store call failed. `BadName` carries the refused name so the
 /// HTTP layer can answer 404/400 without echoing a path anywhere near a
 /// filesystem.
+#derive(Debug, Eq)
 pub(all) suberror StoreError {
   BadName(name~ : String)
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend StoreError with @moonbitlang/core/debug.Debug::{to_repr}
@@ -329,8 +331,8 @@ pub fn is_store_name(name : String) -> Bool {
 /// the first time the collection is copied or synced, so the refusal
 /// applies on every platform, not just where the server runs.
 fn is_windows_reserved_device(name : String) -> Bool {
-  let v = name.view()
-  let base = match v.find(".".view()) {
+  let v = name.to_string_view()
+  let base = match v.find(".".to_string_view()) {
     Some(dot) => v[:dot].to_owned()
     None => name
   }

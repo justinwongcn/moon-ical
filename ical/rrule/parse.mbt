@@ -101,7 +101,7 @@ fn bad_rule(rule : String, message : String) -> @text.ParseError {
 /// Drop a leading `RRULE:` property-name prefix, if present, so a whole
 /// content line and a bare property value both parse.
 fn without_rrule_prefix(rule : String) -> String {
-  let v = rule.view()
+  let v = rule.to_string_view()
   if v.length() >= 6 && v[:6].to_upper().to_owned() == "RRULE:" {
     v[6:].to_owned()
   } else {
@@ -115,7 +115,7 @@ fn without_rrule_prefix(rule : String) -> String {
 /// breakage instead of being quietly folded away.
 fn split_on(text : String, sep : UInt16) -> Array[String] {
   let parts : Array[String] = []
-  let v = text.view()
+  let v = text.to_string_view()
   let n = v.length()
   let mut start = 0
   for i in 0..<n {
@@ -132,8 +132,8 @@ fn split_on(text : String, sep : UInt16) -> Array[String] {
 /// Split a clause into its name and value at the first `=`; `None` when
 /// there is no separator at all.
 fn split_at_equals(part : String) -> (String, String)? {
-  let v = part.view()
-  match v.find("=".view()) {
+  let v = part.to_string_view()
+  match v.find("=".to_string_view()) {
     Some(i) => Some((v[:i].to_owned(), v[i + 1:].to_owned()))
     None => None
   }
@@ -198,7 +198,7 @@ fn parse_byday_list(value : String, rule : String) -> Array[Byday] raise {
 /// by a two-letter weekday code.
 fn parse_byday_item(item : String) -> Byday? {
   let text = String::to_upper(item)
-  let v = text.view()
+  let v = text.to_string_view()
   let n = v.length()
   if n < 2 {
     None
@@ -263,7 +263,7 @@ fn parse_int_list(
 ) -> Array[Int32] raise {
   let out : Array[Int32] = []
   for item in split_on(value, ',') {
-    let v = item.view()
+    let v = item.to_string_view()
     if !signed && v.length() > 0 && (v[0] == '-' || v[0] == '+') {
       raise bad_rule(rule, "malformed \{key} value: \{item}")
     }
@@ -284,7 +284,7 @@ fn parse_int_list(
 /// A decimal integer with an optional sign. Values longer than nine digits
 /// are refused rather than risked through silent wrap-around.
 fn parse_signed_int(text : String) -> Int32? {
-  let v = text.view()
+  let v = text.to_string_view()
   let n = v.length()
   if n == 0 {
     return None

@@ -2,10 +2,11 @@
 /// A `CALDAV:time-range` test (RFC 4791 §9.7.1) as a half-open interval of
 /// UTC seconds. `None` on a side means that side is unbounded, which is how
 /// a client asks for "everything after this" or "everything before that".
+#derive(Debug, Eq)
 pub(all) struct TimeRange {
   start : Int64?
   end : Int64?
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend TimeRange with @moonbitlang/core/debug.Debug::{to_repr}
@@ -16,13 +17,14 @@ pub extend TimeRange with Eq::{not_equal, equal}
 ///|
 /// A `CALDAV:text-match` test (RFC 4791 §9.7.4): a substring search over a
 /// property value or a parameter value.
+#derive(Debug, Eq)
 pub(all) struct TextMatch {
   text : String
   /// `negate-condition="yes"` inverts the test.
   negate : Bool
   /// `i;ascii-casemap` (the default) folds ASCII case; `i;octet` is exact.
   collation : String
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend TextMatch with @moonbitlang/core/debug.Debug::{to_repr}
@@ -33,11 +35,12 @@ pub extend TextMatch with Eq::{not_equal, equal}
 ///|
 /// A `CALDAV:param-filter` (RFC 4791 §9.7.3): tests one parameter of the
 /// enclosing property.
+#derive(Debug, Eq)
 pub(all) struct ParamFilter {
   name : String
   is_not_defined : Bool
   text_match : TextMatch?
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend ParamFilter with @moonbitlang/core/debug.Debug::{to_repr}
@@ -48,6 +51,7 @@ pub extend ParamFilter with Eq::{not_equal, equal}
 ///|
 /// A `CALDAV:prop-filter` (RFC 4791 §9.7.2): tests one property of the
 /// enclosing component.
+#derive(Debug, Eq)
 pub(all) struct PropFilter {
   /// The property name, uppercased so it matches `ContentLine.name`.
   name : String
@@ -55,7 +59,7 @@ pub(all) struct PropFilter {
   time_range : TimeRange?
   text_match : TextMatch?
   params : Array[ParamFilter]
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend PropFilter with @moonbitlang/core/debug.Debug::{to_repr}
@@ -66,6 +70,7 @@ pub extend PropFilter with Eq::{not_equal, equal}
 ///|
 /// A `CALDAV:comp-filter` (RFC 4791 §9.7.1): tests one calendar component
 /// type in the current scope, optionally recursing into nested components.
+#derive(Debug, Eq)
 pub(all) struct CompFilter {
   /// The component name, uppercased (`VCALENDAR`, `VEVENT`, ...).
   name : String
@@ -73,7 +78,7 @@ pub(all) struct CompFilter {
   time_range : TimeRange?
   comps : Array[CompFilter]
   props : Array[PropFilter]
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend CompFilter with @moonbitlang/core/debug.Debug::{to_repr}
@@ -88,10 +93,11 @@ pub extend CompFilter with Eq::{not_equal, equal}
 /// whole collection, so a client that asked for one week received the entire
 /// calendar — RFC 4791 §7.8 makes the filter the defining part of the report,
 /// and §7.4 requires a time range to be resolved against recurrence.
+#derive(Debug, Eq)
 pub(all) struct Filter {
   root : CompFilter
   request_timezone : Bool
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Filter with @moonbitlang/core/debug.Debug::{to_repr}
@@ -107,12 +113,13 @@ pub extend Filter with Eq::{not_equal, equal}
 /// `valid-filter` for a body that is not a legal filter at all, and
 /// `supported-filter` for a legal filter asking about something this server
 /// cannot query. Both answer 403 with a `DAV:error` body naming the test.
+#derive(Debug, Eq)
 pub(all) suberror FilterError {
   InvalidFilter(message~ : String)
   UnsupportedFilter(element~ : String)
   UnsupportedCollation
   InvalidCalendarData
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend FilterError with @moonbitlang/core/debug.Debug::{to_repr}
@@ -894,9 +901,13 @@ fn param_matches(filter : ParamFilter, line : @text.ContentLine) -> Bool {
 /// `negate-condition`.
 fn text_matches(matcher : TextMatch, value : String) -> Bool {
   let found = if matcher.collation.to_lower() == "i;octet" {
-    value.view().find(matcher.text.view()) is Some(_)
+    value.to_string_view().find(matcher.text.to_string_view()) is Some(_)
   } else {
-    value.view().to_lower().find(matcher.text.view().to_lower()) is Some(_)
+    value
+    .to_string_view()
+    .to_lower()
+    .find(matcher.text.to_string_view().to_lower())
+    is Some(_)
   }
   if matcher.negate {
     !found

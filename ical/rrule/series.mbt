@@ -1,13 +1,14 @@
 ///|
 /// One effective occurrence after RRULE expansion, EXDATE removal, and
 /// RECURRENCE-ID override merging.
+#derive(Debug, Eq)
 pub(all) struct Occurrence {
   uid : String
   start : @model.IcalDateTime
   end : @model.IcalDateTime?
   summary : String?
   recurrence_id : @model.IcalDateTime
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Occurrence with @moonbitlang/core/debug.Debug::{to_repr}

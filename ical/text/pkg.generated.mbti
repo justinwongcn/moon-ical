@@ -15,10 +15,11 @@ pub fn unescape_value(String) -> String
 pub fn unfold(String) -> Array[String]
 
 // Errors
+#derive(Eq, @debug.Debug)
 pub(all) suberror ParseError {
   BadLine(line_no~ : Int32, line~ : String, message~ : String)
   BadRule(rule~ : String, message~ : String)
-} derive(Eq, @debug.Debug)
+}
 pub fn ParseError::equal(Self, Self) -> Bool
 pub fn ParseError::not_equal(Self, Self) -> Bool
 pub fn ParseError::output(Self, &Logger) -> Unit
@@ -27,20 +28,22 @@ pub fn ParseError::to_string(Self) -> String
 pub impl Show for ParseError
 
 // Types and methods
+#derive(Eq, @debug.Debug)
 pub struct ContentLine {
   name : String
   params : Array[PropertyParam]
   value : String
-} derive(Eq, @debug.Debug)
+}
 pub fn ContentLine::equal(Self, Self) -> Bool
 pub fn ContentLine::not_equal(Self, Self) -> Bool
 pub fn ContentLine::param(Self, String) -> String?
 pub fn ContentLine::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub struct PropertyParam {
   name : String
   value : String
-} derive(Eq, @debug.Debug)
+}
 pub fn PropertyParam::equal(Self, Self) -> Bool
 pub fn PropertyParam::not_equal(Self, Self) -> Bool
 pub fn PropertyParam::to_repr(Self) -> @debug.Repr

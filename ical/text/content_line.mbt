@@ -3,11 +3,12 @@
 ///
 /// `value` is still the escaped form as it appears on the wire; call
 /// [`unescape_value`] to get the text a human should see.
+#derive(Debug, Eq)
 pub struct ContentLine {
   name : String
   params : Array[PropertyParam]
   value : String
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend ContentLine with @moonbitlang/core/debug.Debug::{to_repr}
@@ -18,10 +19,11 @@ pub extend ContentLine with Eq::{not_equal, equal}
 ///|
 /// A single parameter of a content line, with surrounding quotes already
 /// stripped from its value.
+#derive(Debug, Eq)
 pub struct PropertyParam {
   name : String
   value : String
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend PropertyParam with @moonbitlang/core/debug.Debug::{to_repr}
@@ -47,7 +49,7 @@ pub extend PropertyParam with Eq::{not_equal, equal}
 /// }
 /// ```
 pub fn parse_content_line(line : String, line_no : Int32) -> ContentLine raise {
-  let view = line.view()
+  let view = line.to_string_view()
   let n = view.length()
   // The first ':' outside a quoted param value starts the value. A ':' inside
   // quotes belongs to that parameter, so splitting on ':' blindly is wrong.
@@ -94,7 +96,7 @@ pub fn parse_content_line(line : String, line_no : Int32) -> ContentLine raise {
 ///|
 /// Trim protocol whitespace without materializing an intermediate string.
 fn trim_ascii(s : StringView) -> StringView {
-  s.trim(chars=" \t".view())
+  s.trim(chars=" \t".to_string_view())
 }
 
 ///|

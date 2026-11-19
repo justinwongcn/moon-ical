@@ -1,5 +1,6 @@
 ///|
 /// Why an expansion can fail even though the rule parsed.
+#derive(Debug, Eq)
 pub(all) suberror ExpandError {
   /// The rule uses a feature outside this package's supported boundary.
   Unsupported(feature~ : String)
@@ -7,7 +8,7 @@ pub(all) suberror ExpandError {
   /// `DTSTART` it was given; these checks were deferred from parsing
   /// because only expansion knows the `DTSTART`.
   Invalid(message~ : String)
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend ExpandError with @moonbitlang/core/debug.Debug::{to_repr}

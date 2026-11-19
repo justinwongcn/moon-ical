@@ -231,7 +231,7 @@ test "quoted parameter whitespace survives a serialize round trip" {
   assert_eq(line.params[0].value, " John ")
   let wire = @serialize.serialize_content_line(line)
   assert_true(wire.contains("CN=\" John \""))
-  let stripped = wire.view()[0:wire.length() - 2].to_owned()
+  let stripped = wire.clamped_view(start=0, end=wire.length() - 2).to_owned()
   let back = @text.parse_content_line(stripped, 1)
   assert_eq(back.params[0].value, " John ")
 }

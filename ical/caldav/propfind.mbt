@@ -1,6 +1,7 @@
 ///|
 /// What a `PROPFIND` or `REPORT` body asks the server to return
 /// (RFC 4918 §9.1, RFC 4791 §9.5/§9.10).
+#derive(Debug, Eq)
 pub(all) enum PropFind {
   /// Every property the server knows on the resource. An empty `PROPFIND`
   /// request body MUST be read as this (RFC 4918 §9.1); a `REPORT` whose
@@ -13,7 +14,7 @@ pub(all) enum PropFind {
   /// resource has no answer for is answered 404 in its own propstat
   /// (RFC 4918 §9.1.2).
   Prop(Array[String])
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend PropFind with @moonbitlang/core/debug.Debug::{to_repr}
@@ -27,9 +28,10 @@ pub extend PropFind with Eq::{not_equal, equal}
 /// the three selection forms the DTD requires (RFC 4918 §14.20). On the
 /// wire this answers 400, the same refusal an unreadable `REPORT` body
 /// already gets.
+#derive(Debug, Eq)
 pub(all) suberror PropfindError {
   Malformed
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend PropfindError with @moonbitlang/core/debug.Debug::{to_repr}
@@ -53,7 +55,7 @@ pub extend PropfindError with Show::{to_string, output}
 /// three selection forms the DTD requires raises
 /// [`PropfindError::Malformed`].
 pub fn parse_propfind(body : String) -> PropFind raise PropfindError {
-  if body.view().trim().length() == 0 {
+  if body.to_string_view().trim().length() == 0 {
     return AllProp
   }
   guard parse_xml_element(body) is Some(root) else {

@@ -24,7 +24,7 @@ pub fn parse_duration(
   line_no~ : Int32,
   raw~ : String,
 ) -> Int64 raise {
-  let v = text.view()
+  let v = text.to_string_view()
   let n = v.length()
   let mut i = 0
   let mut sign : Int64 = 1

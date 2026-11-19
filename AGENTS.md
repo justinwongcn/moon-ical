@@ -80,13 +80,19 @@ Two non-negotiables:
 - In the last step, run `moon info` and check the `.mbti` diffs to see if the
   changes are expected.
 
-- **This tree is formatted by moonc ≥ v0.10.17, so `moon fmt` is safe again.**
-  That formatter canonicalizes three things, and new code should follow it:
+- **This tree is formatted by moonc ≥ v0.10.20, so `moon fmt` is safe again.**
+  That formatter canonicalizes five things, and new code should follow it:
   `Int` → `Int32` (the same type; since v0.10.17 `.mbti` also renders it as
   `Int32` — v0.10.15 used to render it back as `Int`), optional
   parameters `name? : T = d` → labeled `name~ : T = d` (**labeled means callers
-  must pass it by name — positional passing no longer compiles**), and
-  `a..=b` → `a..<=b`.
+  must pass it by name — positional passing no longer compiles**),
+  `a..=b` → `a..<=b`,
+  trailing `derive(...)` → `#derive(...)` before the type declaration
+  (v0.10.20 deprecates the trailing form), and
+  `String` view conversion `s.view()` → `s.to_string_view()` plus slice sugar
+  `s[a:b]` → `s.clamped_view(start=a, end=b)` (the parameterless `.view()` and
+  the `_[_:_]` sugar are deprecated; `clamped_view` is behavior-identical to
+  the slice, `exact_view` panics on invalid bounds — pick deliberately).
 
 - `.mbti` does **not** distinguish `name?` from `name~`: both render as
   `name? : T`. So "no `.mbti` diff" does not prove a calling convention is

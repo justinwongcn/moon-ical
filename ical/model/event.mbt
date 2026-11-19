@@ -13,6 +13,7 @@
 ///
 /// Recurrence dates and overrides are retained for the rrule package's
 /// series union, exclusions, and override merge.
+#derive(Debug)
 pub struct Event {
   uid : String?
   summary : String?
@@ -34,7 +35,7 @@ pub struct Event {
   exdates : Array[IcalDateTime]
   /// Every DATE or DATE-TIME RDATE in wire order. PERIOD is unsupported.
   rdates : Array[IcalDateTime]
-} derive(Debug)
+}
 
 ///|
 pub extend Event with @moonbitlang/core/debug.Debug::{to_repr}
@@ -260,7 +261,7 @@ fn text_of(component : Component, name : String) -> String? {
 /// `RDATE` lists are written.
 fn split_values(value : String) -> Array[String] {
   let parts : Array[String] = []
-  for part in value.view().split(",".view()) {
+  for part in value.to_string_view().split(",".to_string_view()) {
     parts.push(part.to_owned())
   }
   parts

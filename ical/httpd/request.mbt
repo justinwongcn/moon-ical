@@ -25,6 +25,7 @@ const MAX_HEADERS : Int32 = 100
 /// line, so this layer keeps it as a `String` — every method a client
 /// can spell can be read. When upstream opens the enum, the switch
 /// recipe in the seam register swaps this back.
+#derive(Debug, Eq)
 pub(all) struct HttpRequest {
   /// The method token exactly as sent (`GET`, `PUT`, `PROPFIND`, ...).
   /// Method tokens are case-sensitive by RFC 7230; nothing here folds
@@ -40,7 +41,7 @@ pub(all) struct HttpRequest {
   headers : Array[HttpHeader]
   /// The request body, decoded as UTF-8; empty when there is none.
   body : String
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend HttpRequest with @moonbitlang/core/debug.Debug::{to_repr}
@@ -50,10 +51,11 @@ pub extend HttpRequest with Eq::{not_equal, equal}
 
 ///|
 /// One header of an [`HttpRequest`], with the name lower-cased.
+#derive(Debug, Eq)
 pub(all) struct HttpHeader {
   name : String
   value : String
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend HttpHeader with @moonbitlang/core/debug.Debug::{to_repr}
@@ -66,11 +68,12 @@ pub extend HttpHeader with Eq::{not_equal, equal}
 /// status: `Malformed` → 400, `ChunkedBody` → 411 (the project boundary
 /// rejects chunked request bodies rather than half-implementing them),
 /// `BodyTooLarge` → 413.
+#derive(Debug, Eq)
 pub(all) suberror HttpParseError {
   Malformed(message~ : String)
   ChunkedBody
   BodyTooLarge(limit~ : Int32)
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend HttpParseError with @moonbitlang/core/debug.Debug::{to_repr}
@@ -250,7 +253,7 @@ fn finish_line(bytes : Array[Byte]) -> String raise {
   let text = @utf8.decode(Bytes::from_array(bytes.exact_view())) catch {
     _ => raise HttpParseError::Malformed(message="line is not valid UTF-8")
   }
-  let v = text.view()
+  let v = text.to_string_view()
   let n = v.length()
   if n > 0 && v[n - 1] == '\r' {
     v[:n - 1].to_owned()
@@ -264,7 +267,7 @@ fn finish_line(bytes : Array[Byte]) -> String raise {
 /// spacing real clients occasionally send.
 fn split_spaces(line : String) -> Array[String] {
   let parts : Array[String] = []
-  let v = line.view()
+  let v = line.to_string_view()
   let n = v.length()
   let mut start = -1
   for i in 0..<n {
@@ -287,7 +290,7 @@ fn split_spaces(line : String) -> Array[String] {
 /// `Name: value` → [`HttpHeader`] with a lower-cased name; `None` when
 /// there is no colon or the name is empty.
 fn parse_header(line : String) -> HttpHeader? {
-  let v = line.view()
+  let v = line.to_string_view()
   let n = v.length()
   let mut colon = -1
   for i in 0..<n {
@@ -401,7 +404,7 @@ fn[R] LineInput::take_bytes(
 /// multiply-add catches the boundary case the pre-check misses:
 /// `Int64::MAX / 10` times ten plus a digit above seven still wraps.
 fn parse_int(text : String) -> Int64? {
-  let v = text.view()
+  let v = text.to_string_view()
   let n = v.length()
   if n == 0 {
     return None

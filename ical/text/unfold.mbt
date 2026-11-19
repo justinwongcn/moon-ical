@@ -24,7 +24,7 @@ pub fn unfold(input : String) -> Array[String] {
   // the server's own body cap admits) extrapolated to minutes per
   // unfold, measured 281ms for a 385KB line before this became linear.
   let logical : Array[StringBuilder] = []
-  let view = input.view()
+  let view = input.to_string_view()
   let n = view.length()
   let mut start = 0
   let mut i = 0

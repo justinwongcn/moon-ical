@@ -241,7 +241,7 @@ test "calendar-multiget answers a missing href with a per-href 404" {
   assert_true(result.contains("404 Not Found"))
   // The differential: the present href is a 200 propstat answer, the
   // missing one carries no calendar data.
-  let gone_at = result.find("/cal/gone.ics".view()).unwrap_or(0)
+  let gone_at = result.find("/cal/gone.ics".to_string_view()).unwrap_or(0)
   let after = result[gone_at:].to_owned()
   assert_true(after.contains("404"))
   assert_false(after.contains("calendar-data"))

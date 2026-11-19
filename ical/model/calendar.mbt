@@ -3,11 +3,12 @@
 /// any nested components. Nesting is real (`VALARM` lives inside `VEVENT`,
 /// `VEVENT` inside `VCALENDAR`), so the model keeps a tree instead of a flat
 /// list, and properties stay in the order the feed sent them.
+#derive(Debug, Eq)
 pub struct Component {
   kind : String
   properties : Array[@text.ContentLine]
   children : Array[Component]
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Component with @moonbitlang/core/debug.Debug::{to_repr}

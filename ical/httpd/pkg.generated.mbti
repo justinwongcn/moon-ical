@@ -12,11 +12,12 @@ pub async fn[R : @io.Reader] read_request(R) -> HttpRequest?
 pub async fn[W : @io.Writer] respond(W, Int32, String, headers? : Array[(String, String)], body? : String) -> Unit
 
 // Errors
+#derive(Eq, @debug.Debug)
 pub(all) suberror HttpParseError {
   Malformed(message~ : String)
   ChunkedBody
   BodyTooLarge(limit~ : Int32)
-} derive(Eq, @debug.Debug)
+}
 pub fn HttpParseError::equal(Self, Self) -> Bool
 pub fn HttpParseError::not_equal(Self, Self) -> Bool
 pub fn HttpParseError::output(Self, &Logger) -> Unit
@@ -25,21 +26,23 @@ pub fn HttpParseError::to_string(Self) -> String
 pub impl Show for HttpParseError
 
 // Types and methods
+#derive(Eq, @debug.Debug)
 pub(all) struct HttpHeader {
   name : String
   value : String
-} derive(Eq, @debug.Debug)
+}
 pub fn HttpHeader::equal(Self, Self) -> Bool
 pub fn HttpHeader::not_equal(Self, Self) -> Bool
 pub fn HttpHeader::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct HttpRequest {
   meth : String
   path : String
   version : String
   headers : Array[HttpHeader]
   body : String
-} derive(Eq, @debug.Debug)
+}
 pub fn HttpRequest::equal(Self, Self) -> Bool
 pub fn HttpRequest::header(Self, String) -> String?
 pub fn HttpRequest::not_equal(Self, Self) -> Bool

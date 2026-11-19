@@ -4,6 +4,7 @@
 /// sent. Parsing only — what to persist, where, and in what format is
 /// the embedding server's deployment decision, not this package's
 /// (adjudicated: the library parses and exposes, the embedder stores).
+#derive(Debug, Eq)
 pub(all) struct MkCalendarProps {
   /// `DAV:displayname` — the human name for the new collection.
   displayname : String?
@@ -13,7 +14,7 @@ pub(all) struct MkCalendarProps {
   /// — read verbatim as opaque text since the extension defines no
   /// single canonical form.
   color : String?
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend MkCalendarProps with @moonbitlang/core/debug.Debug::{to_repr}

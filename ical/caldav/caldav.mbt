@@ -1,10 +1,11 @@
 ///|
 /// One calendar object exposed by a collection response.
+#derive(Debug, Eq)
 pub(all) struct DavResource {
   href : String
   etag : String
   calendar_data : String
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend DavResource with @moonbitlang/core/debug.Debug::{to_repr}
@@ -14,10 +15,11 @@ pub extend DavResource with Eq::{not_equal, equal}
 
 ///|
 /// The result of evaluating HTTP entity-tag preconditions.
+#derive(Debug, Eq)
 pub(all) enum Precondition {
   Pass
   Failed
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Precondition with @moonbitlang/core/debug.Debug::{to_repr}
@@ -68,8 +70,8 @@ fn tag_list_contains(value : String, current : String?) -> Bool {
     Some(tag) => {
       let quoted = "\"\{tag}\""
       let weak = "W/\{quoted}"
-      for part in value.view().split(",".view()) {
-        let item = part.trim(chars=" \t".view())
+      for part in value.to_string_view().split(",".to_string_view()) {
+        let item = part.trim(chars=" \t".to_string_view())
         if item.equal_to_string(quoted) ||
           item.equal_to_string(weak) ||
           item.equal_to_string(tag) {
@@ -88,6 +90,7 @@ fn tag_list_contains(value : String, current : String?) -> Bool {
 /// the failures answer differently on the wire: an unknown report is `400`,
 /// while the two filter preconditions of RFC 4791 §7.8 are `403` with a
 /// `DAV:error` body naming the test that failed.
+#derive(Debug, Eq)
 pub(all) enum ReportOutcome {
   /// A `DAV:multistatus` body listing the resources the report selected.
   Report(body~ : String)
@@ -96,7 +99,7 @@ pub(all) enum ReportOutcome {
   /// A precondition failed; `body` is the `DAV:error` document to send.
   PreconditionFailed(body~ : String)
   EvaluationFailed(reason~ : String)
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend ReportOutcome with @moonbitlang/core/debug.Debug::{to_repr}
@@ -273,7 +276,7 @@ fn multistatus(entries : Array[String]) -> String {
 /// inside a DAV response without being read as markup. The inverse of what a
 /// client does when it parses the response back.
 pub fn xml_escape(text : String) -> String {
-  let v = text.view()
+  let v = text.to_string_view()
   let n = v.length()
   // The common inputs (etags, hrefs, ASCII calendar data) carry no
   // metacharacter: one scan returns the input without building a copy.
@@ -300,7 +303,7 @@ pub fn xml_escape(text : String) -> String {
 
 ///|
 fn local_part(name : StringView) -> StringView {
-  match name.rev_find(":".view()) {
+  match name.rev_find(":".to_string_view()) {
     Some(colon) => name[colon + 1:]
     None => name
   }

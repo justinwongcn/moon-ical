@@ -6,12 +6,13 @@
 /// boundary (docs/development.html §08), so [`@rrule.parse_rule`] rejects
 /// them with an explicit error instead of silently narrowing or dropping
 /// them.
+#derive(Debug, Eq)
 pub(all) enum Freq {
   Yearly
   Monthly
   Weekly
   Daily
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Freq with @moonbitlang/core/debug.Debug::{to_repr}
@@ -25,11 +26,12 @@ pub extend Freq with Eq::{not_equal, equal}
 /// `TU` is any Tuesday (`ordinal = 0`), `1FR` the first Friday of the
 /// interval, `-2MO` the second-to-last Monday. RFC 5545 bounds the ordinal
 /// to ±53; expansion of qualified weekdays arrives with S8.
+#derive(Debug, Eq)
 pub struct Byday {
   /// Zero when the weekday stands alone.
   ordinal : Int32
   weekday : @time.Weekday
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Byday with @moonbitlang/core/debug.Debug::{to_repr}
@@ -50,6 +52,7 @@ pub extend Byday with Eq::{not_equal, equal}
 ///
 /// Defaults follow the RFC: `interval = 1` and `wkst = Monday` when their
 /// clauses are absent, and every BY* list is empty when absent.
+#derive(Debug, Eq)
 pub struct Rule {
   freq : Freq
   interval : Int32
@@ -60,7 +63,7 @@ pub struct Rule {
   bymonth : Array[Int32]
   bysetpos : Array[Int32]
   wkst : @time.Weekday
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend Rule with @moonbitlang/core/debug.Debug::{to_repr}

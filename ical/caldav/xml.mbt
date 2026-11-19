@@ -33,7 +33,7 @@ priv struct TagInfo {
 /// Parse the outermost element of an XML document, or `None` when no complete
 /// element is present or the nesting is deeper than [`MAX_XML_DEPTH`].
 fn parse_xml_element(input : String) -> XmlElement? {
-  let v = input.view()
+  let v = input.to_string_view()
   let n = v.length()
   let stack : Array[XmlElement] = []
   let mut root : XmlElement? = None
@@ -147,7 +147,7 @@ fn flush_text(stack : Array[XmlElement], chunk : String) -> Unit {
 /// or `None`.
 fn find_after(v : StringView, from : Int32, needle : String) -> Int32? {
   let rest = v[from:]
-  match rest.find(needle.view()) {
+  match rest.find(needle.to_string_view()) {
     Some(offset) => Some(from + offset + needle.length())
     None => None
   }
@@ -293,8 +293,8 @@ fn has_child(element : XmlElement, local_name : String) -> Bool {
 /// and just as well as `&#38;`, its numeric spelling: both decode
 /// before the comparison.
 fn decode_xml_entities(text : String) -> String {
-  let v = text.view()
-  if v.find("&".view()) is None {
+  let v = text.to_string_view()
+  if v.find("&".to_string_view()) is None {
     return text
   }
   let n = v.length()

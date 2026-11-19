@@ -15,10 +15,11 @@ const FETCH_TIMEOUT_SECONDS : Int32 = 30
 /// connections) surface as `@http`'s own errors; `BadStatus` exists so
 /// callers see the status code and the URL instead of a misleading parse
 /// error that would come from feeding an HTML error page into the parser.
+#derive(Debug, Eq)
 pub(all) suberror FetchError {
   BadStatus(status~ : Int32, url~ : String)
   TimedOut(seconds~ : Int32, url~ : String)
-} derive(Debug, Eq)
+}
 
 ///|
 pub extend FetchError with @moonbitlang/core/debug.Debug::{to_repr}

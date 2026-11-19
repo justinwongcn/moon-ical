@@ -8,10 +8,11 @@
 /// Only explicit fixed bindings are usable: UTC aliases, caller inserts, or
 /// a provably fixed VTIMEZONE. Regional names are not guessed. Unsupported
 /// feed declarations are retained as rejections and shadow default bindings.
+#derive(Debug)
 pub struct ZoneTable {
   entries : Map[String, Int32]
   rejected : Map[String, String]
-} derive(Debug)
+}
 
 ///|
 pub extend ZoneTable with @moonbitlang/core/debug.Debug::{to_repr}
@@ -33,7 +34,7 @@ pub fn ZoneTable::builtin_common() -> ZoneTable {
 ///|
 /// Normalise a zone name for table keys and lookups.
 fn normalize_zone_id(tzid : String) -> String {
-  tzid.view().trim(chars=" \t".view()).to_upper().to_owned()
+  tzid.to_string_view().trim(chars=" \t".to_string_view()).to_upper().to_owned()
 }
 
 ///|
@@ -96,7 +97,7 @@ pub fn parse_utc_offset(
   line_no~ : Int32,
   raw~ : String,
 ) -> Int32 raise {
-  let v = text.view()
+  let v = text.to_string_view()
   let n = v.length()
   // Sign, two-digit hour, optional two-digit minute, optional two-digit
   // second — and nothing else. The exact length is the whole check: a

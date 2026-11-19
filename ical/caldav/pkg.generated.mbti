@@ -25,12 +25,13 @@ pub fn root_propfind(selection? : PropFind) -> String
 pub fn xml_escape(String) -> String
 
 // Errors
+#derive(Eq, @debug.Debug)
 pub(all) suberror FilterError {
   InvalidFilter(message~ : String)
   UnsupportedFilter(element~ : String)
   UnsupportedCollation
   InvalidCalendarData
-} derive(Eq, @debug.Debug)
+}
 pub fn FilterError::equal(Self, Self) -> Bool
 pub fn FilterError::not_equal(Self, Self) -> Bool
 pub fn FilterError::output(Self, &Logger) -> Unit
@@ -38,9 +39,10 @@ pub fn FilterError::to_repr(Self) -> @debug.Repr
 pub fn FilterError::to_string(Self) -> String
 pub impl Show for FilterError
 
+#derive(Eq, @debug.Debug)
 pub(all) suberror PropfindError {
   Malformed
-} derive(Eq, @debug.Debug)
+}
 pub fn PropfindError::equal(Self, Self) -> Bool
 pub fn PropfindError::not_equal(Self, Self) -> Bool
 pub fn PropfindError::output(Self, &Logger) -> Unit
@@ -49,104 +51,115 @@ pub fn PropfindError::to_string(Self) -> String
 pub impl Show for PropfindError
 
 // Types and methods
+#derive(Eq, @debug.Debug)
 pub(all) struct CompFilter {
   name : String
   is_not_defined : Bool
   time_range : TimeRange?
   comps : Array[CompFilter]
   props : Array[PropFilter]
-} derive(Eq, @debug.Debug)
+}
 pub fn CompFilter::equal(Self, Self) -> Bool
 pub fn CompFilter::not_equal(Self, Self) -> Bool
 pub fn CompFilter::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct DavResource {
   href : String
   etag : String
   calendar_data : String
-} derive(Eq, @debug.Debug)
+}
 pub fn DavResource::equal(Self, Self) -> Bool
 pub fn DavResource::not_equal(Self, Self) -> Bool
 pub fn DavResource::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct Filter {
   root : CompFilter
   request_timezone : Bool
-} derive(Eq, @debug.Debug)
+}
 pub fn Filter::equal(Self, Self) -> Bool
 pub fn Filter::matches(Self, String) -> Bool raise
 pub fn Filter::not_equal(Self, Self) -> Bool
 pub fn Filter::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct MkCalendarProps {
   displayname : String?
   description : String?
   color : String?
-} derive(Eq, @debug.Debug)
+}
 pub fn MkCalendarProps::equal(Self, Self) -> Bool
 pub fn MkCalendarProps::not_equal(Self, Self) -> Bool
 pub fn MkCalendarProps::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct ParamFilter {
   name : String
   is_not_defined : Bool
   text_match : TextMatch?
-} derive(Eq, @debug.Debug)
+}
 pub fn ParamFilter::equal(Self, Self) -> Bool
 pub fn ParamFilter::not_equal(Self, Self) -> Bool
 pub fn ParamFilter::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) enum Precondition {
   Pass
   Failed
-} derive(Eq, @debug.Debug)
+}
 pub fn Precondition::equal(Self, Self) -> Bool
 pub fn Precondition::not_equal(Self, Self) -> Bool
 pub fn Precondition::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct PropFilter {
   name : String
   is_not_defined : Bool
   time_range : TimeRange?
   text_match : TextMatch?
   params : Array[ParamFilter]
-} derive(Eq, @debug.Debug)
+}
 pub fn PropFilter::equal(Self, Self) -> Bool
 pub fn PropFilter::not_equal(Self, Self) -> Bool
 pub fn PropFilter::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) enum PropFind {
   AllProp
   PropName
   Prop(Array[String])
-} derive(Eq, @debug.Debug)
+}
 pub fn PropFind::equal(Self, Self) -> Bool
 pub fn PropFind::not_equal(Self, Self) -> Bool
 pub fn PropFind::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) enum ReportOutcome {
   Report(body~ : String)
   UnsupportedReport
   PreconditionFailed(body~ : String)
   EvaluationFailed(reason~ : String)
-} derive(Eq, @debug.Debug)
+}
 pub fn ReportOutcome::equal(Self, Self) -> Bool
 pub fn ReportOutcome::not_equal(Self, Self) -> Bool
 pub fn ReportOutcome::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct TextMatch {
   text : String
   negate : Bool
   collation : String
-} derive(Eq, @debug.Debug)
+}
 pub fn TextMatch::equal(Self, Self) -> Bool
 pub fn TextMatch::not_equal(Self, Self) -> Bool
 pub fn TextMatch::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct TimeRange {
   start : Int64?
   end : Int64?
-} derive(Eq, @debug.Debug)
+}
 pub fn TimeRange::equal(Self, Self) -> Bool
 pub fn TimeRange::not_equal(Self, Self) -> Bool
 pub fn TimeRange::to_repr(Self) -> @debug.Repr
