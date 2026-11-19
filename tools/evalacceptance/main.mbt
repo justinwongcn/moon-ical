@@ -1,12 +1,3 @@
-----
-import {
-  "moonbitlang/async",
-  "moonbitlang/async/fs" @afs,
-  "moonbitlang/async/shell",
-  "moonbitlang/core/env",
-  "moonbitlang/x/fs",
-}
-----
 
 ///|
 // Run against an isolated live cmd/serve instance. Request skeletons follow

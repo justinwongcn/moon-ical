@@ -68,7 +68,7 @@ moon run cmd/serve --target native -- ./caldata 8437
 
 - `python3 -I tools/s5_acceptance.py` — 24 项 HTTP 存储检查：PUT/GET/DELETE 往返、ETag 变化、411、边界头、413 中途上传可达等。
 - `python3 -I tools/s6_acceptance.py` — 49 项活体 CalDAV：发现链、Depth 差分、`DAV:prop` 选择差分（R1+R2+R3）、filter 区间内外选择、403 前置条件、MKCALENDAR 生命周期、412 路径、裸 URL 301 差分、文件级 PROPFIND/REPORT 路由（S49 钉住，防 S48 型回归）等。两脚本自行启动、回收隔离服务；日志不可放进日历数据目录。
-- `moon run tools/s6_evaluation_acceptance.mbtx http://127.0.0.1:8459 <server-log-path>` — 在单独启动的空数据目录服务上检查 RDATE、成功空集、预算失败、动态时区拒绝、错误分类及响应/日志隐私。日志须在数据目录外；执行后停止该服务。此驱动单独记录，不并入原有 73 项计数。
+- `moon run tools/evalacceptance --target native -- http://127.0.0.1:8459 <server-log-path> <data-dir>` — 在单独启动的空数据目录服务上检查 RDATE、成功空集、预算失败、动态时区拒绝、错误分类及响应/日志隐私。**三个参数缺一不可**（第三个是服务器的数据目录，驱动要向它手工播种门不会存储的毒文件）。日志须在数据目录外；执行后停止该服务。此驱动单独记录，不并入计数。原 .mbtx 脚本形态因脚本模式的依赖缓存拉到与当前工具链 core 不兼容的 async 版本而无法编译（S75 起改为模块内主包，走 .mooncakes 的模块钉定版本）。
 
 2026-11-15 复跑三套活体验收全绿（S5 24/24、S6 49/49、求值驱动通过）。互操作现状以 [README.md](../README.md) 的矩阵为准：curl 73/73 活体通过；Thunderbird 155.0.1 的发现/CRUD 是此前的会话证据，没有在并发连接（S51 之后）与 PUT 前置校验（S53 之后）下重新联调；DAVx5 / Apple Calendar 未跑。**互操作通过不是协议完整的证据**（R6）——客户端会话只证明它使用的路径，Thunderbird 恰好绕开了 S10 的两条缺陷。
 
