@@ -2,7 +2,8 @@
 async fn request_of(raw : String) -> @httpd.HttpRequest? {
   let reader = @io.MemoryReader() <| w => { w.write(raw) }
   defer reader.close()
-  @httpd.read_request(reader)
+  let (request, _pending) = @httpd.read_request(reader)
+  request
 }
 
 ///|
@@ -265,4 +266,23 @@ async test "identical duplicate Content-Length headers collapse" {
     "PUT /cal/a.ics HTTP/1.1\r\nContent-Length: 2\r\nContent-Length: 2\r\n\r\nhi",
   ).unwrap()
   inspect(req.body, content="hi")
+}
+
+///|
+async test "a pipelined request survives the same read chunk" {
+  // Two requests inside one read chunk: the bytes past the first
+  // request used to be discarded with the LineInput buffer, leaving the
+  // client waiting for a response that never came. The leftover buffer
+  // now travels back to the caller.
+  let reader = @io.MemoryReader() <| w => {
+    w.write(
+      "GET /one HTTP/1.1\r\nHost: x\r\n\r\nGET /two HTTP/1.1\r\nHost: x\r\n\r\n",
+    )
+  }
+  defer reader.close()
+  let (first, pending) = @httpd.read_request(reader)
+  assert_eq(first.unwrap().path, "/one")
+  let (second, tail) = @httpd.read_request(reader, buf=pending)
+  assert_eq(second.unwrap().path, "/two")
+  assert_true(tail.length() == 0)
 }

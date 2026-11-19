@@ -380,6 +380,25 @@ def main():
         code, _, _ = request("DELETE", "/cal/s62-ok.ics")
         check("S62 cleanup of the control", code == 204)
 
+        # S67 conditional GET (RFC 7232 3.2): GET and HEAD are exactly the
+        # methods that must honor If-None-Match - a match answers 304 with
+        # the entity tag and no body, a stale tag answers 200 (R1 pair),
+        # and the weak spelling matches because 3.2 prescribes the weak
+        # comparison here.
+        code, headers, body = request("GET", "/cal/s6.ics", headers=[f"If-None-Match: {tag}"])
+        check("GET with If-None-Match current tag answers 304", code == 304 and body == "" and bool(headers.get("etag")))
+        code, _, _ = request("GET", "/cal/s6.ics", headers=['If-None-Match: "stale"'])
+        check("GET with a stale If-None-Match answers 200", code == 200)
+        code, _, _ = request("GET", "/cal/s6.ics", headers=[f"If-None-Match: W/{tag}"])
+        check("GET weak-spelling If-None-Match also matches", code == 304)
+        code, _, rep_body = request(
+            "REPORT",
+            "/cal/",
+            '<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="vevent"/></C:comp-filter></C:filter></C:calendar-query>',
+            ["Depth: 1"],
+        )
+        check("S70 lowercase comp-filter selects the same events", code == 207 and "/cal/s6.ics" in rep_body)
+
         code, _, _ = request("DELETE", "/cal/s6.ics", headers=[f"If-Match: {tag}"])
         check("matching conditional delete succeeds", code == 204)
         # The DELETE precondition must be evaluated, not assumed: a stale

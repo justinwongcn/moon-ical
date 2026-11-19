@@ -80,7 +80,18 @@ pub async fn VdirStore::put(
   if !@fs.exists(self.root) {
     @fs.mkdir(self.root, recursive=true)
   }
-  @fs.write_file(path_of(self.root, name), text)
+  // The replacement is written to a dot-prefixed temporary beside the
+  // target and renamed over it. write_file's default mode truncates the
+  // target in place, so a reader landing between the truncate and the
+  // completed write would see a partial event — the store's own comment
+  // promised "either the old complete event or the new one", and only
+  // rename(2) delivers that. The dot prefix keeps the temporary out of
+  // list()/collections() (they require is_store_name, which rejects
+  // dotfiles) and unreachable over HTTP (check_name refuses them), so
+  // a temporary orphaned by a crash is invisible to every client.
+  let tmp = ".\{name}.tmp"
+  @fs.write_file(path_of(self.root, tmp), text)
+  @fs.rename(path_of(self.root, tmp), path_of(self.root, name), replace=true)
   etag_of(text)
 }
 

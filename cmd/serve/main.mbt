@@ -158,14 +158,19 @@ async fn handle_connection(
   conn : @socket.Tcp,
   store : @store.VdirStore,
 ) -> Unit {
+  // Bytes that arrived past the last parsed request: a pipelined
+  // request sharing the previous read's chunk, carried here so the next
+  // round parses it instead of the socket having swallowed it.
+  let mut pending : Array[Byte] = []
   for ;; {
     // Everything that can refuse a request — reading it and routing
     // it — sits inside one try, so every refusal gets its proper
     // response instead of escaping as a failed connection.
     let outcome = try {
-      match @httpd.read_request(conn) {
-        None => Stop // clean disconnect between requests
-        Some(request) =>
+      match @httpd.read_request(conn, buf=pending) {
+        (None, _) => Stop // clean disconnect between requests
+        (Some(request), rest) => {
+          pending = rest
           // A failure below the request layer (store, filesystem) is the
           // server's, not the client's: say so on stderr, answer 500 on
           // this request's log line, and drop the connection.
@@ -184,6 +189,7 @@ async fn handle_connection(
               Stop
             }
           }
+        }
       }
     } catch {
       @httpd.HttpParseError::ChunkedBody => {
@@ -562,18 +568,34 @@ async fn event_method(
   } else if request.meth == "GET" || request.meth == "HEAD" {
     match store.get(name) {
       Some(file) =>
-        reply(
-          conn,
-          request,
-          200,
-          "OK",
-          headers=[
-            ("Content-Type", "text/calendar; charset=utf-8"),
+        // RFC 7232 §3.2: GET and HEAD are exactly the methods that MUST
+        // honor If-None-Match (weak comparison) — a match answers 304
+        // with the entity tag and no body, the conditional-GET step
+        // every sync client takes on each poll. Without it the poll
+        // re-downloads the whole collection on every refresh.
+        if @caldav.check_preconditions(
+            Some(file.etag),
+            None,
+            request.header("If-None-Match"),
+          )
+          is @caldav.Precondition::Failed {
+          reply(conn, request, 304, "Not Modified", headers=[
             ("ETag", "\"\{file.etag}\""),
-          ],
-          body=file.text,
-          head=request.meth == "HEAD",
-        )
+          ])
+        } else {
+          reply(
+            conn,
+            request,
+            200,
+            "OK",
+            headers=[
+              ("Content-Type", "text/calendar; charset=utf-8"),
+              ("ETag", "\"\{file.etag}\""),
+            ],
+            body=file.text,
+            head=request.meth == "HEAD",
+          )
+        }
       None => reply(conn, request, 404, "Not Found")
     }
   } else if request.meth == "PUT" {

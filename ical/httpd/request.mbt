@@ -112,12 +112,17 @@ pub fn HttpRequest::header(self : HttpRequest, name : String) -> String? {
 ///|
 /// Read one HTTP/1.1 request from `reader`: request line, headers, then
 /// a `Content-Length`-sized body. Lines tolerate both CRLF and bare LF
-/// endings. Returns `None` when the peer hangs up cleanly before any
-/// request bytes arrive — a normal keep-alive disconnect, not an error.
-/// Raises [`HttpParseError`] for anything this layer refuses: a
-/// `Transfer-Encoding: chunked` body (`ChunkedBody`), a body over
-/// [`MAX_BODY`] (`BodyTooLarge`), or a request line / header that does
-/// not parse (`Malformed`).
+/// endings. Returns the request and the buffered bytes that arrived past
+/// it — a pipelined request sharing the last `read_some` chunk would
+/// otherwise be consumed from the socket and silently dropped, leaving
+/// the client waiting forever for a response that never comes. Pass the
+/// returned buffer back as `buf` on the next call to continue the
+/// stream. Returns `None` (with the buffer it had) when the peer hangs
+/// up cleanly before any request bytes arrive — a normal keep-alive
+/// disconnect, not an error. Raises [`HttpParseError`] for anything this
+/// layer refuses: a `Transfer-Encoding: chunked` body (`ChunkedBody`), a
+/// body over [`MAX_BODY`] (`BodyTooLarge`), or a request line / header
+/// that does not parse (`Malformed`).
 ///
 /// This reads the *raw* byte stream (a `@socket.Tcp`, say): upstream's
 /// `ServerConnection` reader is body-framed by an already-parsed
@@ -129,12 +134,15 @@ pub fn HttpRequest::header(self : HttpRequest, name : String) -> String? {
 /// ```mbt nocheck
 /// async fn test_example() {
 ///   let r = @io.MemoryReader() <| w => { w.write("GET /a.ics HTTP/1.1\r\n\r\n") }
-///   let req = @httpd.read_request(r).unwrap()
-///   assert_eq(req.meth, "GET")
+///   let (req, _pending) = @httpd.read_request(r)
+///   assert_eq(req.unwrap().meth, "GET")
 /// }
 /// ```
-pub async fn[R : @io.Reader] read_request(reader : R) -> HttpRequest? {
-  let input : LineInput[R] = { reader, buf: [], }
+pub async fn[R : @io.Reader] read_request(
+  reader : R,
+  buf~ : Array[Byte] = [],
+) -> (HttpRequest?, Array[Byte]) {
+  let input : LineInput[R] = { reader, buf, }
   // Leading blank lines before a request line are tolerated (RFC 7230
   // §3.5); a clean EOF anywhere in this loop is a disconnect.
   let mut first = input.read_line()
@@ -143,7 +151,7 @@ pub async fn[R : @io.Reader] read_request(reader : R) -> HttpRequest? {
   }
   let request_line = match first {
     Some(line) => line
-    None => return None
+    None => return (None, input.buf)
   }
   let parts = split_spaces(request_line)
   if parts.length() != 3 || parts[2].length() < 5 || parts[2][0:5] != "HTTP/" {
@@ -179,7 +187,7 @@ pub async fn[R : @io.Reader] read_request(reader : R) -> HttpRequest? {
   if is_chunked(request) {
     raise HttpParseError::ChunkedBody
   }
-  Some(read_body(input, request))
+  (Some(read_body(input, request)), input.buf)
 }
 
 ///|

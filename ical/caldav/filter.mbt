@@ -534,11 +534,16 @@ fn comp_matches(
   scope : Array[@model.Component],
   view : ResourceView,
 ) -> Bool raise {
+  // RFC 5545 3.6: component names are case-insensitive on the wire, so a
+  // client's name="vevent" filters the same events as name="VEVENT" —
+  // matching it case-sensitively silently hid the collection's events
+  // behind a 207 that looked empty.
+  let want = String::to_upper(filter.name)
   if filter.is_not_defined {
-    return !scope.any(component => component.kind == filter.name)
+    return !scope.any(component => component.kind == want)
   }
   for component in scope {
-    if component.kind == filter.name && comp_tests_pass(filter, component, view) {
+    if component.kind == want && comp_tests_pass(filter, component, view) {
       return true
     }
   }

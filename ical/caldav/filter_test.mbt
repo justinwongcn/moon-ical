@@ -822,3 +822,22 @@ test "CDATA content is character data, never structure" {
   assert_true(c == t)
   assert_true(r != c)
 }
+
+///|
+test "comp-filter names match case-insensitively" {
+  // RFC 5545 3.6: component names are case-insensitive on the wire, so
+  // a client's name="vevent" must select the same events as
+  // name="VEVENT" — a case-sensitive compare answered 207 with the
+  // collection's events silently missing (R1 pair).
+  // §9.7.1 pins the filter root at VCALENDAR; the component under test
+  // is the VEVENT inside it.
+  let lower = "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><C:filter><C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"vevent\"/></C:comp-filter></C:filter></C:calendar-query>"
+  let upper = "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><C:filter><C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\"/></C:comp-filter></C:filter></C:calendar-query>"
+  let resource : @caldav.DavResource = {
+    href: "/cal/a.ics",
+    etag: "t",
+    calendar_data: "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:c\r\nDTSTART:20260915T090000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+  }
+  assert_eq(report_body(lower, [resource]), report_body(upper, [resource]))
+  assert_true(report_body(lower, [resource]).contains("/cal/a.ics"))
+}

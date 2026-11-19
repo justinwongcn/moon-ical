@@ -7,7 +7,7 @@ import {
 }
 
 // Values
-pub async fn[R : @io.Reader] read_request(R) -> HttpRequest?
+pub async fn[R : @io.Reader] read_request(R, buf? : Array[Byte]) -> (HttpRequest?, Array[Byte])
 
 pub async fn[W : @io.Writer] respond(W, Int32, String, headers? : Array[(String, String)], body? : String, head? : Bool) -> Unit
 
