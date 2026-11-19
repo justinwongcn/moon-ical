@@ -70,9 +70,12 @@ pub extend HttpHeader with Eq::{not_equal, equal}
 /// `BodyTooLarge` → 413.
 #derive(Debug, Eq)
 pub(all) suberror HttpParseError {
-  Malformed(message~ : String)
-  ChunkedBody
-  BodyTooLarge(limit~ : Int32)
+  /// `meth` carries the request line's method where parsing got far
+  /// enough to know one, so the refusal site can keep a HEAD answer
+  /// bodyless (RFC 9110 §9.3.2). "" = the method itself was unreadable.
+  Malformed(message~ : String, meth~ : String)
+  ChunkedBody(meth~ : String)
+  BodyTooLarge(limit~ : Int32, meth~ : String)
 }
 
 ///|
@@ -84,10 +87,10 @@ pub extend HttpParseError with Eq::{not_equal, equal}
 ///|
 pub impl Show for HttpParseError with fn output(self, logger) {
   match self {
-    Malformed(message=m) => logger.write_string("malformed request: \{m}")
-    ChunkedBody =>
+    Malformed(message=m, ..) => logger.write_string("malformed request: \{m}")
+    ChunkedBody(..) =>
       logger.write_string("chunked request bodies are not supported")
-    BodyTooLarge(limit=k) =>
+    BodyTooLarge(limit=k, ..) =>
       logger.write_string("request body exceeds \{k} bytes")
   }
 }
@@ -155,13 +158,20 @@ pub async fn[R : @io.Reader] read_request(
   }
   let parts = split_spaces(request_line)
   if parts.length() != 3 || parts[2].length() < 5 || parts[2][0:5] != "HTTP/" {
-    raise HttpParseError::Malformed(message="bad request line: \{request_line}")
+    raise HttpParseError::Malformed(
+      message="bad request line: \{request_line}",
+      meth="",
+    )
   }
   let headers : Array[HttpHeader] = []
   let mut blank = false
   while !blank {
     match input.read_line() {
-      None => raise HttpParseError::Malformed(message="EOF in headers")
+      None =>
+        raise HttpParseError::Malformed(
+          message="EOF in headers",
+          meth=if parts.length() == 3 { parts[0] } else { "" },
+        )
       Some("") => blank = true
       Some(h) =>
         match parse_header(h) {
@@ -169,11 +179,16 @@ pub async fn[R : @io.Reader] read_request(
             if headers.length() >= MAX_HEADERS {
               raise HttpParseError::Malformed(
                 message="too many header lines (over \{MAX_HEADERS})",
+                meth=if parts.length() == 3 { parts[0] } else { "" },
               )
             }
             headers.push(parsed)
           }
-          None => raise HttpParseError::Malformed(message="bad header: \{h}")
+          None =>
+            raise HttpParseError::Malformed(
+              message="bad header: \{h}",
+              meth=if parts.length() == 3 { parts[0] } else { "" },
+            )
         }
     }
   }
@@ -185,7 +200,7 @@ pub async fn[R : @io.Reader] read_request(
     body: "",
   }
   if is_chunked(request) {
-    raise HttpParseError::ChunkedBody
+    raise HttpParseError::ChunkedBody(meth=request.meth)
   }
   (Some(read_body(input, request)), input.buf)
 }
@@ -234,6 +249,7 @@ async fn[R : @io.Reader] LineInput::read_line(self : LineInput[R]) -> String? {
         if self.buf.length() > MAX_LINE_BYTES {
           raise HttpParseError::Malformed(
             message="line too long (over \{MAX_LINE_BYTES} bytes)",
+            meth="",
           )
         } else {
           match self.reader.read_some(max_len=4096) {
@@ -259,7 +275,11 @@ async fn[R : @io.Reader] LineInput::read_line(self : LineInput[R]) -> String? {
 /// Decode one line's bytes as UTF-8 and strip a trailing CR.
 fn finish_line(bytes : Array[Byte]) -> String raise {
   let text = @utf8.decode(Bytes::from_array(bytes.exact_view())) catch {
-    _ => raise HttpParseError::Malformed(message="line is not valid UTF-8")
+    _ =>
+      raise HttpParseError::Malformed(
+        message="line is not valid UTF-8",
+        meth="",
+      )
   }
   let v = text.to_string_view()
   let n = v.length()
@@ -351,6 +371,7 @@ async fn[R : @io.Reader] read_body(
         if h.name == "content-length" && h.value != text {
           raise HttpParseError::Malformed(
             message="conflicting Content-Length header values",
+            meth=request.meth,
           )
         }
       }
@@ -362,11 +383,12 @@ async fn[R : @io.Reader] read_body(
         None =>
           raise HttpParseError::Malformed(
             message="Content-Length is not a plain integer: \{text}",
+            meth=request.meth,
           )
         Some(len) => len
       }
       if length > MAX_BODY.to_int64() {
-        raise HttpParseError::BodyTooLarge(limit=MAX_BODY)
+        raise HttpParseError::BodyTooLarge(limit=MAX_BODY, meth=request.meth)
       }
       let length = Int64::to_int(length)
       // The body's first bytes may already sit in the line reader's
@@ -378,6 +400,7 @@ async fn[R : @io.Reader] read_body(
           _ =>
             raise HttpParseError::Malformed(
               message="truncated body: expected \{length} bytes",
+              meth=request.meth,
             )
         }
         head.add(tail)
@@ -385,7 +408,11 @@ async fn[R : @io.Reader] read_body(
         head
       }
       let body = @utf8.decode(bytes) catch {
-        _ => raise HttpParseError::Malformed(message="body is not valid UTF-8")
+        _ =>
+          raise HttpParseError::Malformed(
+            message="body is not valid UTF-8",
+            meth=request.meth,
+          )
       }
       { ..request, body, }
     }

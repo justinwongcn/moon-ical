@@ -135,7 +135,13 @@ async fn reply(
   body~ : String = "",
   head~ : Bool = false,
 ) -> Unit {
-  @httpd.respond(conn, code, reason, headers~, body~, head~)
+  // Every answer to a HEAD request is bodyless — RFC 9110 §9.3.2's
+  // "MUST NOT send content in a HEAD response" covers the error paths
+  // too, not just the GET-shaped success the callers that pass head~
+  // already handled. A 413 with a textual refusal used to write its
+  // body onto a HEAD response verbatim.
+  let bodyless = head || request.meth == "HEAD"
+  @httpd.respond(conn, code, reason, headers~, body~, head=bodyless)
   stdio_lock.acquire()
   @stdio.stdout.write("\{request.meth} \{request.path} -> \{code}\n")
   stdio_lock.release()
@@ -192,23 +198,31 @@ async fn handle_connection(
         }
       }
     } catch {
-      @httpd.HttpParseError::ChunkedBody => {
-        @httpd.respond(conn, 411, "Length Required", headers=[
-          ("Connection", "close"),
-        ])
+      @httpd.HttpParseError::ChunkedBody(meth=m) => {
+        // RFC 9110 §9.3.2: a HEAD answer never carries content, error
+        // or not — the method is known here because the refusal fires
+        // after the request line parsed.
+        @httpd.respond(
+          conn,
+          411,
+          "Length Required",
+          headers=[("Connection", "close")],
+          head=m == "HEAD",
+        )
         // The client may still be mid-upload of the chunked body.
         // Draining it lets the response actually reach the client
         // before the close, instead of an RST discarding it.
         drain(conn)
         Stop
       }
-      @httpd.HttpParseError::BodyTooLarge(limit=k) => {
+      @httpd.HttpParseError::BodyTooLarge(limit=k, meth=m) => {
         @httpd.respond(
           conn,
           413,
           "Payload Too Large",
           headers=[("Connection", "close")],
           body="body over \{k} bytes refused",
+          head=m == "HEAD",
         )
         // Same shape as the 411 branch: the client is still sending the
         // oversized body when the refusal goes out. Closing with that
@@ -218,7 +232,7 @@ async fn handle_connection(
         drain(conn)
         Stop
       }
-      @httpd.HttpParseError::Malformed(message=m) => {
+      @httpd.HttpParseError::Malformed(message=m, meth=mth) => {
         // A malformed request stream cannot be trusted to
         // resynchronise; answer 400 and drop the connection. The
         // refusal may fire while the client is still mid-upload — an
@@ -234,6 +248,7 @@ async fn handle_connection(
           "Bad Request",
           headers=[("Connection", "close")],
           body="malformed request: \{m}",
+          head=mth == "HEAD",
         )
         drain(conn)
         Stop

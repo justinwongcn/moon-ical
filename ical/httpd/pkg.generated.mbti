@@ -14,9 +14,9 @@ pub async fn[W : @io.Writer] respond(W, Int32, String, headers? : Array[(String,
 // Errors
 #derive(Eq, @debug.Debug)
 pub(all) suberror HttpParseError {
-  Malformed(message~ : String)
-  ChunkedBody
-  BodyTooLarge(limit~ : Int32)
+  Malformed(message~ : String, meth~ : String)
+  ChunkedBody(meth~ : String)
+  BodyTooLarge(limit~ : Int32, meth~ : String)
 }
 pub fn HttpParseError::equal(Self, Self) -> Bool
 pub fn HttpParseError::not_equal(Self, Self) -> Bool

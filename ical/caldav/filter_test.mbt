@@ -841,3 +841,17 @@ test "comp-filter names match case-insensitively" {
   assert_eq(report_body(lower, [resource]), report_body(upper, [resource]))
   assert_true(report_body(lower, [resource]).contains("/cal/a.ics"))
 }
+
+///|
+test "an inverted time-range is the valid-filter refusal" {
+  // RFC 4791 §9.9: with both attributes present, "end MUST be greater
+  // than start" — an inverted window is an invalid filter, and §7.8's
+  // CALDAV:valid-filter precondition prescribes exactly this 403 with
+  // this element. Pinned as defined behavior, not a bug.
+  let body = "<C:calendar-query xmlns:D=\"DAV:\" xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><D:prop><D:getetag/></D:prop><C:filter><C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\"><C:time-range start=\"20261001T000000Z\" end=\"20260101T000000Z\"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>"
+  match @caldav.report(body, resources()) {
+    @caldav.ReportOutcome::PreconditionFailed(body~) =>
+      assert_true(body.contains("<C:valid-filter/>"))
+    outcome => fail("expected the valid-filter refusal, got \{Repr(outcome)}")
+  }
+}
