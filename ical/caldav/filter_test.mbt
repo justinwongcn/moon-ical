@@ -494,3 +494,56 @@ test "the shape parser skips declarations and keeps the first root" {
   let parsed = @caldav.parse_filter(body)
   assert_eq(parsed.root.name, "VCALENDAR")
 }
+
+///|
+test "each UID-less event is judged on its own interval" {
+  // RFC 5545 §3.8.4.7 requires UID; the parse layer tolerates its absence,
+  // but a UID-less event anchors no series — judging the siblings on the
+  // first one's interval used to hide the second one's overlap entirely.
+  let data = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" +
+    "BEGIN:VEVENT\r\nDTSTART:20260901T090000Z\r\nSUMMARY:first\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nDTSTART:20260901T150000Z\r\nSUMMARY:second\r\nEND:VEVENT\r\n" +
+    "END:VCALENDAR\r\n"
+  assert_true(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20260901T140000Z\" end=\"20260901T160000Z\"/>",
+      ),
+      data,
+    ),
+  )
+  assert_false(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20260901T170000Z\" end=\"20260901T180000Z\"/>",
+      ),
+      data,
+    ),
+  )
+}
+
+///|
+test "a zero-length event matches a range that starts on its DTSTART" {
+  // RFC 4791 §9.9's DURATION=0 row: (start <= DTSTART AND end > DTSTART).
+  // Both boundary sides are pinned so the inclusive start cannot regress
+  // into the DTEND row's strict comparison.
+  let data = calendar(
+    "UID:zero\r\nDTSTART:20260901T140000Z\r\nDURATION:PT0S\r\n",
+  )
+  assert_true(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20260901T140000Z\" end=\"20260901T160000Z\"/>",
+      ),
+      data,
+    ),
+  )
+  assert_false(
+    matches(
+      event_filter(
+        "<C:time-range start=\"20260901T090000Z\" end=\"20260901T140000Z\"/>",
+      ),
+      data,
+    ),
+  )
+}

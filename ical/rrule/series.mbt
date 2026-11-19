@@ -20,7 +20,9 @@ pub extend Occurrence with Eq::{not_equal, equal}
 /// Expand and merge one UID's VEVENT series. A cancelled override removes its
 /// instance; a moved override replaces that instance; RANGE=THISANDFUTURE
 /// shifts the selected instance and every later generated instance by the
-/// same wall-clock delta.
+/// same wall-clock delta, and a duration modified on the override (an
+/// explicit `DTEND`) becomes the duration of every later instance — RFC
+/// 5545 §3.8.4.4.
 pub fn expand_series(
   events : Array[@model.Event],
   limit~ : Int32 = 200,
@@ -173,10 +175,23 @@ pub fn expand_series_query(
                       (Some(from), Some(to)) => {
                         let delta = to.instant_seconds() -
                           from.instant_seconds()
+                        // RFC 5545 §3.8.4.4: a duration modified on the
+                        // THISANDFUTURE instance becomes the duration of
+                        // every subsequent instance. Without an explicit
+                        // end the override modifies nothing, so the
+                        // master's shifted duration stands (delta also
+                        // moves the old end, keeping its length).
+                        let future_duration = match event.dtend {
+                          Some(finish) =>
+                            Some(
+                              finish.instant_seconds() - to.instant_seconds(),
+                            )
+                          None => duration
+                        }
                         out.push({
                           uid,
                           start: slot.shift_seconds(delta),
-                          end: shifted_end(slot, duration, delta),
+                          end: shifted_end(slot, future_duration, delta),
                           summary: match event.summary {
                             Some(value) => Some(value)
                             None => base.summary

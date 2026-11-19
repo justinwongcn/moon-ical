@@ -266,3 +266,81 @@ test "a series defined by DURATION gives every occurrence an end" {
   assert_eq(merged[0].end.unwrap().to_string(), "2026-09-01T09:45:00Z")
   assert_eq(merged[1].end.unwrap().to_string(), "2026-09-02T13:45:00Z")
 }
+
+///|
+test "YEARLY ordinal BYDAY + BYMONTHDAY without BYMONTH is year-scoped" {
+  // RFC 5545 §3.3.10 (the 20MO example): with no BYMONTH the ordinal counts
+  // within the year, and BYMONTHDAY only limits — positive and negative
+  // ordinals alike. The per-month reading used to emit every month that
+  // starts (or ends) on the chosen weekday instead.
+  assert_eq(
+    expand_strings("FREQ=YEARLY;BYMONTHDAY=1;BYDAY=1MO", "20240101T090000", 4),
+    [
+      "2024-01-01T09:00:00", "2029-01-01T09:00:00", "2035-01-01T09:00:00", "2046-01-01T09:00:00",
+    ],
+  )
+  assert_eq(
+    expand_strings("FREQ=YEARLY;BYMONTHDAY=-1;BYDAY=-1MO", "20240101T090000", 4),
+    [
+      "2029-12-31T09:00:00", "2035-12-31T09:00:00", "2040-12-31T09:00:00", "2046-12-31T09:00:00",
+    ],
+  )
+}
+
+///|
+test "THISANDFUTURE duration change becomes the duration of later instances" {
+  // RFC 5545 §3.8.4.4: "if the duration of the given recurrence instance is
+  // modified, then all subsequence instances are also modified to have this
+  // same duration" — the override's DTEND, not the master's, governs the
+  // instances after it.
+  let text = "BEGIN:VCALENDAR\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T093000Z\r\nRRULE:FREQ=DAILY;COUNT=4\r\nSUMMARY:base\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nRECURRENCE-ID;RANGE=THISANDFUTURE:20260903T090000Z\r\nDTSTART:20260903T100000Z\r\nDTEND:20260903T120000Z\r\nSUMMARY:moved\r\nEND:VEVENT\r\n" +
+    "END:VCALENDAR\r\n"
+  let merged = @rrule.expand_series(@model.parse_events(text))
+  assert_eq(merged.map(x => x.start.to_string()), [
+    "2026-09-01T09:00:00Z", "2026-09-02T09:00:00Z", "2026-09-03T10:00:00Z", "2026-09-04T10:00:00Z",
+  ])
+  assert_eq(merged.map(x => x.end.map(e => e.to_string())), [
+    Some("2026-09-01T09:30:00Z"),
+    Some("2026-09-02T09:30:00Z"),
+    Some("2026-09-03T12:00:00Z"),
+    Some("2026-09-04T12:00:00Z"),
+  ])
+}
+
+///|
+test "a duration-only THISANDFUTURE change moves every later end" {
+  let text = "BEGIN:VCALENDAR\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T093000Z\r\nRRULE:FREQ=DAILY;COUNT=4\r\nSUMMARY:base\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nRECURRENCE-ID;RANGE=THISANDFUTURE:20260903T090000Z\r\nDTSTART:20260903T090000Z\r\nDTEND:20260903T120000Z\r\nSUMMARY:longer\r\nEND:VEVENT\r\n" +
+    "END:VCALENDAR\r\n"
+  let merged = @rrule.expand_series(@model.parse_events(text))
+  assert_eq(merged.map(x => x.start.to_string()), [
+    "2026-09-01T09:00:00Z", "2026-09-02T09:00:00Z", "2026-09-03T09:00:00Z", "2026-09-04T09:00:00Z",
+  ])
+  assert_eq(merged.map(x => x.end.map(e => e.to_string())), [
+    Some("2026-09-01T09:30:00Z"),
+    Some("2026-09-02T09:30:00Z"),
+    Some("2026-09-03T12:00:00Z"),
+    Some("2026-09-04T12:00:00Z"),
+  ])
+}
+
+///|
+test "a THISANDFUTURE override without DTEND keeps the master's shifted length" {
+  // No explicit end on the override modifies no duration, so the master's
+  // length survives the shift (RFC 5545 §3.8.4.4 covers only the modified
+  // case; the unmodified fallback is the shift contract).
+  let text = "BEGIN:VCALENDAR\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T093000Z\r\nRRULE:FREQ=DAILY;COUNT=4\r\nSUMMARY:base\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nUID:s\r\nRECURRENCE-ID;RANGE=THISANDFUTURE:20260903T090000Z\r\nDTSTART:20260903T100000Z\r\nSUMMARY:moved\r\nEND:VEVENT\r\n" +
+    "END:VCALENDAR\r\n"
+  let merged = @rrule.expand_series(@model.parse_events(text))
+  assert_eq(merged.map(x => x.end.map(e => e.to_string())), [
+    Some("2026-09-01T09:30:00Z"),
+    Some("2026-09-02T09:30:00Z"),
+    Some("2026-09-03T10:30:00Z"),
+    Some("2026-09-04T10:30:00Z"),
+  ])
+}

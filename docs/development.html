@@ -74,7 +74,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   <p class="sub">记录项目范围、架构、里程碑与验收证据。当前状态见 §02，历史步骤见 §04，能力证据见 §11；跨会话交接由本地 docs/PROGRESS.md 负责。</p>
   <div class="meta">
     <span>更新日期 <b>2026-10-31</b></span>
-    <span>进度 <b>S0–S34 / R1–R14 已入库</b>（0.4.0 与 0.5.0 均已发布 mooncakes）</span>
+    <span>进度 <b>S0–S37 / R1–R14 已入库</b>（0.4.0 与 0.5.0 均已发布 mooncakes；S36 = moonc v0.10.20 工具链迁移，S37 = 递归/变更语义四处修复）</span>
     <span>工具链 <b>moon 0.1.20261104 / moonc v0.10.20</b>（<span class="mono">rr_moon_mod + rr_moon_pkg</span>；S10 后源码已按新 formatter 迁移 <code>Int→Int32</code>，S10.5 起 <code>.mbti</code> 也直接渲染 <code>Int32</code>，S36 起 <code>#derive</code> 前置与 <code>to_string_view()/clamped_view()</code> 视图转换）</span>
     <span>依赖 <b>moonbitlang/async@0.22.5 · moonbitlang/x@0.5.6</b></span>
     <span>状态 <b>严格四目标 251/234/251/261；S5 24、S6 39；新 HTTP 求值另计</b></span>
@@ -128,7 +128,7 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font:12
   </tbody>
 </table></div>
 
-<p><b>合计</b>：0.5.0 开发分支严格全目标测试为 wasm 251、wasm-gc 234、JavaScript 251、native 261；S5 24 项与 S6 47 项真实 curl 活体验收全绿；独立 <code>tools/s6_evaluation_acceptance.mbtx</code> 求值驱动另计（不并入原 71 项）。代码审核快照为 250/233/250/260，README 受检示例每目标新增 1。包表统计当前非测试源码行数（含注释）与测试声明，不等同各目标运行数。0.4.0 已发布到 mooncakes（2026-10-26）。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调；该历史会话未重新验证本轮语义，DAVx5/Apple 未跑。</p>
+<p><b>合计</b>：严格全目标测试为 wasm 270、wasm-gc 253、JavaScript 270、native 280（S37 修复波 +6 差分测试后）；S5 24 项与 S6 47 项真实 curl 活体验收全绿；独立 <code>tools/s6_evaluation_acceptance.mbtx</code> 求值驱动另计（不并入原 71 项）。包表统计当前非测试源码行数（含注释）与测试声明，不等同各目标运行数。0.4.0 已发布到 mooncakes（2026-10-26）。Thunderbird 155.0.1（Windows）已完成发现、读取、创建、原位修改与删除的真实 CalDAV 联调；该历史会话未重新验证本轮语义，DAVx5/Apple 未跑。</p>
 
 <!-- ============================================================ -->
 <h2 id="s03"><span class="num">03</span>架构与数据流</h2>
@@ -191,6 +191,8 @@ ical/caldav: Filter::matches(Self, String) -&gt; Bool raise
     <tr><td class="c">S7</td><td>真实客户端联调：以 Thunderbird 完整 CRUD 为首版验收；DAVx5 / Apple 日历降为赛后互操作候选</td><td class="c">0.5–1 天</td><td>≥1 个真实客户端完整走通；产出互操作矩阵（客户端 × 操作 × 结果）</td><td><span class="chip done">完成（Thunderbird 155.0.1 CRUD）</span></td></tr>
     <tr><td class="c">S8</td><td>库层深度：RECURRENCE-ID 覆盖合并（改期/取消/THISANDFUTURE）+ 第二档 BY*（BYSETPOS/WKST/序数 BYDAY/负 BYMONTHDAY）+ ZoneTable 接入展开链</td><td class="c">~500–700</td><td>附录 A 全 32 用例按档位通过；RECURRENCE-ID 合并用例通过</td><td><span class="chip done">完成（S8）</span></td></tr>
     <tr><td class="c">S9</td><td>发布打磨：CI（check/test --target all + fmt + info）、mooncakes 发布、申报书、根包 re-export 门面、互操作矩阵进 README</td><td class="c">0.5 天</td><td>CI 绿、<code>moon publish</code> 成功、申报书一页</td><td><span class="chip done">完成（0.1.0 已发布，scope frozen）</span></td></tr>
+    <tr><td class="c">S36</td><td>工具链迁移 moonc v0.10.20：尾随 <code>derive</code> 前置 <code>#derive</code>（29 处）、<code>.view()</code>/<code>切片糖</code> → <code>to_string_view()/clamped_view()</code>（44 处）、.mbti 重渲染（API 零变化）；CI 不锁版本，下次 push 三闸将红</td><td class="c">~0.25 天</td><td>check/test --target all --deny-warn 0 告警、fmt --check、native 构建绿</td><td><span class="chip done">完成（181b6c1）</span></td></tr>
+    <tr><td class="c">S37</td><td>递归/变更语义四处修复（JEV 审计 R1-R7 纪律）：YEARLY 序号 BYDAY 无 BYMONTH 时按年计数（含负序数，expand.mbt 守卫）、THISANDFUTURE 改时长后 RFC 5545 §3.8.4.4 时长继承（series.mbt）、无 UID VEVENT 单独判定不并组（filter.mbt §9.7.1）、DURATION=0 行起点边界包容（interval_overlaps）；+6 差分测试</td><td class="c">~0.25 天</td><td>四组差分测试钉死（dateutil 对拍/边界对）、全目标 270/253/270/280 绿、.mbti 零 diff</td><td><span class="chip done">完成</span></td></tr>
     <tr><td class="c">R1</td><td>系列合并性能：一次索引同 UID overrides/EXDATE，按序游标应用 THISANDFUTURE</td><td class="c">~100</td><td>2000 occurrences + 500 无关 overrides 的 native release 基准由 20.27 ms 降至 1.64 ms；语义回归与全目标测试通过</td><td><span class="chip done">完成（约 12.4×）</span></td></tr>
     <tr><td class="c">R2</td><td>CalDAV REPORT 热路径：StringView 零拷贝扫描 + href 哈希选择</td><td class="c">~100</td><td>500 hrefs × 500 resources 的 native release 基准由 68.17 ms 降至 3.87 ms；命名空间前缀回归与全目标测试通过</td><td><span class="chip done">完成（约 17.6×）</span></td></tr>
     <tr><td class="c">R3</td><td>0.2 根门面收口：新增整文档 <code>parse_calendar</code>，顶层只暴露完整 parse / recurrence / serialize 工作流</td><td class="c">~50</td><td><code>pkg.generated.mbti</code> 明确移除协议与文本层拼装 API；子包高级入口保留；门面往返测试通过</td><td><span class="chip done">完成（0.2.0 已发布）</span></td></tr>

@@ -32,6 +32,7 @@
 `parse_rule` 支持 DAILY/WEEKLY/MONTHLY/YEARLY，以及 INTERVAL、COUNT、UNTIL、序数 BYDAY、正负 BYMONTHDAY、BYMONTH、BYSETPOS、WKST。sub-daily 频率与 BYWEEKNO/BYYEARDAY/BYHOUR/BYMINUTE/BYSECOND 明确拒绝。
 
 - 候选日期按周期排序、去重后再应用 BYSETPOS 和 COUNT。重复 BYMONTH 或归一到同一天的月日不重复计数。
+- 序数 BYDAY 的作用域随 BYMONTH 而定：YEARLY 无 BYMONTH 时按年计数（RFC 5545 §3.3.10 的 20MO 示例），BYMONTHDAY 只做过滤、正负序数同理；有 BYMONTH 时才按月计数。组合此前被按月解释而多报实例，差分钉死在 tier2_test。
 - 不存在的日期跳过，不钳位成月末。
 - COUNT 与 UNTIL 不能并存；UNTIL 的时间域必须符合起点。
 - 步进使用 Int64；越出 year 9999 自然终止。
@@ -41,7 +42,7 @@
 
 ## RDATE 与系列合并
 
-`expand_series` 接受一个 UID 的系列。候选由 RRULE 前缀（没有 RRULE 时为 DTSTART）与 master 的全部 RDATE 合并，按原始 recurrence slot 去重，再应用 EXDATE、改期、取消和 THISANDFUTURE，最后按实际开始排序。
+`expand_series` 接受一个 UID 的系列。候选由 RRULE 前缀（没有 RRULE 时为 DTSTART）与 master 的全部 RDATE 合并，按原始 recurrence slot 去重，再应用 EXDATE、改期、取消和 THISANDFUTURE，最后按实际开始排序。THISANDFUTURE 的改期把选中及后续实例整体平移；覆盖件带显式 DTEND 时，RFC 5545 §3.8.4.4 要求后续实例改用该时长，无 DTEND 则维持 master 时长平移（长度不变）。
 
 RDATE 支持 DATE/DATE-TIME、多值和重复属性行。它可以早于 DTSTART 或晚于 UNTIL，不占 RRULE COUNT，也不会因生成预算而静默截断。相同 slot 优先保留已有 RRULE/DTSTART 表示。EXDATE 优先于同槽 override；RDATE slot 同样可改期、取消并继承时长。
 
@@ -67,7 +68,7 @@ PERIOD、空值、VALUE 与值形状不一致明确拒绝。重复集合需要 D
 
 `Filter::matches(calendar_data)` 可以抛错。资源树先读取，时间只在相关测试需要时解析。SUMMARY 筛选、GET 和 multiget 不依赖重复规则或时区计算能力。
 
-VEVENT time-range 按当前组件自身 UID 取系列，避免另一组件代为通过；成功的空系列不回退 master。非重复 VTODO 使用 RFC 4791 §9.9 的任务状态表；重复 VTODO 等未实现的组件重复计算明确失败。
+VEVENT time-range 按当前组件自身 UID 取系列，避免另一组件代为通过；成功的空系列不回退 master。无 UID 的 VEVENT（RFC 5545 §3.8.4.7 必填，解析层容忍缺失）不锚定系列，按自身单独判定——把无 UID 兄弟并进第一个的系列会静默漏判。零时长 DATE-TIME（DURATION 为零或 DTEND 等于 DTSTART）采用 §9.9 的 DURATION=0 行，区间起点边界包容。非重复 VTODO 使用 RFC 4791 §9.9 的任务状态表；重复 VTODO 等未实现的组件重复计算明确失败。
 
 `report` 区分四种结果：报告成功、未知报告、请求前置条件失败、资源求值失败。
 

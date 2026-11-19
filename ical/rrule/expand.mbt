@@ -413,11 +413,14 @@ fn monthly_candidates(
 }
 
 ///|
-/// `YEARLY`: the year `period * interval` years on. Months come from
-/// `BYMONTH`, or every month when `BYDAY`/`BYMONTHDAY` need a whole year
-/// to range over, or just `DTSTART`'s month when nothing constrains it.
-/// Inside each month the same day selection as `MONTHLY` applies, so the
-/// `DTSTART` fallback yields the anniversary date.
+/// `YEARLY`: the year `period * interval` years on. With `BYMONTH`, the
+/// ordinal `BYDAY` counts within each specified month (RFC 5545 §3.3.10).
+/// Without `BYMONTH`, an ordinal `BYDAY` counts within the *year* — the
+/// "Nth Monday of the year" reading the RFC's own `20MO` example fixes —
+/// so the whole year is scanned and `BYMONTHDAY` only *limits* it (plain
+/// `BYDAY` entries stay weekday filters). With neither, the same day
+/// selection as `MONTHLY` applies per month, so the `DTSTART` fallback
+/// yields the anniversary date.
 fn yearly_candidates(
   normalized : NormalizedRule,
   start : @time.PlainDate,
@@ -430,15 +433,17 @@ fn yearly_candidates(
     return None
   }
   let year = Int64::to_int(year)
-  if rule.bymonth.length() == 0 &&
-    rule.bymonthday.length() == 0 &&
-    has_ordinal_byday(rule.byday) {
+  if rule.bymonth.length() == 0 && has_ordinal_byday(rule.byday) {
     let out : Array[@time.PlainDate] = []
     for month in 1..<=12 {
       let dim = @time.PlainDate::of(year, month, 1).days_in_month()
       for day in 1..<=dim {
         let date = @time.PlainDate::of(year, month, day)
-        if weekday_selected_in_year(rule.byday, date) {
+        if weekday_selected_in_year(rule.byday, date) &&
+          (
+            rule.bymonthday.length() == 0 ||
+            int_selected(normalized.monthdays_by_length[dim - 28], day)
+          ) {
           out.push(date)
         }
       }

@@ -573,7 +573,11 @@ fn comp_tests_pass(
 /// `RECURRENCE-ID` instances, and `RANGE=THISANDFUTURE` shifts. Scoping
 /// to the component's series is what §9.7.1 asks: every test of a
 /// comp-filter applies to one component instance, so another event's
-/// overlap must not satisfy this event's time-range. The other component
+/// overlap must not satisfy this event's time-range. A `VEVENT` without a
+/// `UID` (RFC 5545 §3.8.4.7 requires one, but the parse layer tolerates
+/// the lack) anchors no series and is judged alone — grouping the
+/// UID-less siblings together used to evaluate them all on the first
+/// one's series, silently hiding the others. The other component
 /// types are judged on their own `DTSTART` / `DTEND` / `DUE` interval,
 /// which is the extent of what this build interprets for them.
 fn component_overlaps(
@@ -583,14 +587,21 @@ fn component_overlaps(
 ) -> Bool raise {
   if component.kind == "VEVENT" {
     let zones = temporal_zones(view)
+    let uid = component_uid(component)
     let series : Array[@model.Event] = []
-    for root in view.roots {
-      for child in root.children {
-        if child.kind == "VEVENT" &&
-          component_uid(child) == component_uid(component) {
-          match child.event(zones~) {
-            Some(event) => series.push(event)
-            None => ()
+    if uid is "" {
+      match component.event(zones~) {
+        Some(event) => series.push(event)
+        None => ()
+      }
+    } else {
+      for root in view.roots {
+        for child in root.children {
+          if child.kind == "VEVENT" && component_uid(child) == uid {
+            match child.event(zones~) {
+              Some(event) => series.push(event)
+              None => ()
+            }
           }
         }
       }
@@ -694,6 +705,8 @@ fn component_uid(component : @model.Component) -> String {
 
 ///|
 /// Whether any occurrence of any series in this resource overlaps the range.
+/// Each named UID forms one series; a UID-less event anchors no series and
+/// is judged on its own instead of collapsing into its UID-less siblings.
 fn events_overlap(
   events : Array[@model.Event],
   range : TimeRange,
@@ -701,11 +714,17 @@ fn events_overlap(
   let visited : Map[String, Unit] = Map([])
   for event in events {
     let uid = event.uid.unwrap_or("")
-    if visited.contains(uid) {
-      continue
+    if uid != "" {
+      if visited.contains(uid) {
+        continue
+      }
+      visited[uid] = ()
     }
-    visited[uid] = ()
-    let group = events.filter(item => item.uid.unwrap_or("") == uid)
+    let group = if uid == "" {
+      [event]
+    } else {
+      events.filter(item => item.uid.unwrap_or("") == uid)
+    }
     if series_overlaps(group, range) {
       return true
     }
@@ -919,10 +938,15 @@ fn text_matches(matcher : TextMatch, value : String) -> Bool {
 ///|
 /// The RFC 4791 §9.9 overlap rule for one component interval.
 ///
-/// The three branches are the three states the RFC enumerates: an interval
-/// with an end is open at both comparisons, a `DATE-TIME` with no end is an
-/// instant whose range start is inclusive, and a `DATE` with no end occupies
-/// its whole day.
+/// The branches are the states the RFC enumerates: an interval with an end
+/// is open at both comparisons, a `DATE-TIME` with no end is an instant
+/// whose range start is inclusive, and a `DATE` with no end occupies its
+/// whole day. A zero-length `DATE-TIME` interval (`DTEND` or `DURATION`
+/// equal to `DTSTART`) takes the `DURATION=0` row, whose range start is
+/// inclusive — `start <= DTSTART AND end > DTSTART`. An explicit `DTEND`
+/// equal to `DTSTART` is nonconforming input (RFC 5545 requires it later
+/// than `DTSTART`), so folding it into that row keeps every valid input
+/// exact and only reclassifies garbage.
 fn interval_overlaps(
   start : Int64,
   finish : Int64?,
@@ -930,7 +954,12 @@ fn interval_overlaps(
   range : TimeRange,
 ) -> Bool {
   match finish {
-    Some(end) => before(range.start, end) && after(range.end, start)
+    Some(end) =>
+      if !all_day && end == start {
+        at_or_before(range.start, start) && after(range.end, start)
+      } else {
+        before(range.start, end) && after(range.end, start)
+      }
     None =>
       if all_day {
         before(range.start, start + DAY_SECONDS) && after(range.end, start)
