@@ -119,6 +119,7 @@ pub(all) suberror FilterError {
   UnsupportedFilter(element~ : String)
   UnsupportedCollation
   InvalidCalendarData
+  InvalidCalendarObjectResource
 }
 
 ///|
@@ -135,6 +136,10 @@ pub impl Show for FilterError with fn output(self, logger) {
       logger.write_string("unsupported filter element: \{e}")
     UnsupportedCollation => logger.write_string("unsupported collation")
     InvalidCalendarData => logger.write_string("invalid request timezone")
+    InvalidCalendarObjectResource =>
+      logger.write_string(
+        "calendar object resource not supported by the collection",
+      )
   }
 }
 

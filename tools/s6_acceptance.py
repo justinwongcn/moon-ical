@@ -243,6 +243,13 @@ def main():
         check("the created collection lists its own event", code == 207 and "/cal/work/w.ics" in body)
         code, _, body = request("REPORT", "/cal/work/", query, ["Content-Type: application/xml"])
         check("calendar-query is scoped to the collection", code == 207 and "UID:s6-work@moon-ical" in body and "UID:s6@moon-ical" not in body)
+        # S44: the same reports apply to a single calendar object (RFC 4918
+        # 9.1), and S48 guards against the misplaced-branch regression that
+        # let a file report leak other collections' events.
+        code, _, body = request("PROPFIND", "/cal/work/w.ics", headers=["Depth: 0"])
+        check("file-level PROPFIND answers 207", code == 207 and "/cal/work/w.ics" in body)
+        code, _, body = request("REPORT", "/cal/work/w.ics", query, ["Content-Type: application/xml"])
+        check("file-level calendar-query is scoped to the object", code == 207 and "UID:s6-work@moon-ical" in body and "UID:s6@moon-ical" not in body)
         # A collection URL without its trailing slash redirects to the
         # canonical form instead of routing the collection into the event
         # methods (which PUT/DELETE a directory: 500 on Windows, a silent

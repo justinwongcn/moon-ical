@@ -366,3 +366,24 @@ pub fn collection_propfind(
   }
   multistatus(entries)
 }
+
+///|
+/// A DAV multistatus body for one calendar object resource — the
+/// `PROPFIND` answer on a non-collection resource. RFC 4918 §9.1 requires
+/// the method to work on any resource, and Thunderbird-style etag probes
+/// issue exactly this; RFC 4791 §9.6 keeps `calendar-data` out of PROPFIND
+/// answers, so the object reports its WebDAV properties only. `href` is
+/// the request URI the client used.
+pub fn calendar_object_propfind(
+  resource : DavResource,
+  href~ : String,
+  selection~ : PropFind = AllProp,
+) -> String {
+  multistatus([
+    propfind_response(
+      href,
+      resource_props(resource, PropfindContext),
+      selection,
+    ),
+  ])
+}

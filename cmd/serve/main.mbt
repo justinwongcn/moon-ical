@@ -14,6 +14,10 @@
 /// - `REPORT /cal/` — calendar-query / calendar-multiget over the collection
 /// - `MKCALENDAR /cal/<cal>/` — create a calendar collection (201), 405 when
 ///   one is already there
+/// /// - `PROPFIND|REPORT /cal/<name>.ics` — the same reports on one calendar
+///   object (RFC 4918 §9.1; `calendar-data` stays out of PROPFIND answers)
+/// - `HEAD` — the GET framing with the body withheld (RFC 7231 §4.1), on
+///   collections and objects alike
 /// - `PROPFIND|REPORT|GET|DELETE /cal/<cal>/` — the same operations on a
 ///   created collection; its events live at `/cal/<cal>/<name>.ics`
 ///
@@ -36,6 +40,16 @@
 /// ```bash
 /// moon run cmd/serve --target native -- ./caldata 8437
 /// ```
+
+///|
+/// Serializes every handler write to `@stdio`. The native backend aborts
+/// the whole process when two async tasks write `@stdio.stdout`/`stderr`
+/// concurrently (probed live: two parallel requests killed the server with
+/// zero output; a stdout-free minimal server survives the same burst), so
+/// the access log and the error log take this one-slot lock first.
+let stdio_lock : @async.Semaphore = @async.Semaphore(1)
+
+///|
 async fn main {
   let args = @env.args()
   let root = if args.length() > 1 { args[1] } else { "./caldata" }
@@ -91,16 +105,21 @@ async fn reply(
   reason : String,
   headers~ : Array[(String, String)] = [],
   body~ : String = "",
+  head~ : Bool = false,
 ) -> Unit {
-  @httpd.respond(conn, code, reason, headers~, body~)
+  @httpd.respond(conn, code, reason, headers~, body~, head~)
+  stdio_lock.acquire()
   @stdio.stdout.write("\{request.meth} \{request.path} -> \{code}\n")
+  stdio_lock.release()
 }
 
 ///|
 /// A failure that is the server's, not the client's, goes to stderr so
 /// an operator sees more than a bare 500.
 async fn log_error(err : Error) -> Unit {
+  stdio_lock.acquire()
   @stdio.stderr.write("handler error: \{err}\n")
+  stdio_lock.release()
 }
 
 ///|
@@ -131,7 +150,9 @@ async fn handle_connection(
               @httpd.respond(conn, 500, "Internal Server Error", headers=[
                 ("Connection", "close"),
               ])
+              stdio_lock.acquire()
               @stdio.stdout.write("\{request.meth} \{request.path} -> 500\n")
+              stdio_lock.release()
               Stop
             }
           }
@@ -306,8 +327,13 @@ async fn discovery_request(
       None =>
         reply(conn, request, 400, "Bad Request", body="malformed PROPFIND")
     }
+  } else if request.meth == "HEAD" {
+    dav_response(conn, request, build(AllProp), head=true)
   } else if request.meth == "OPTIONS" {
-    options_response(conn, request)
+    // The discovery resources answer PROPFIND (and now HEAD) only — the
+    // shared Allow list used to advertise GET/PUT/DELETE/MKCALENDAR, all
+    // of which answer 405 here.
+    options_response(conn, request, allow="OPTIONS, HEAD, PROPFIND")
   } else {
     method_not_allowed(conn, request)
   }
@@ -322,8 +348,8 @@ async fn home_request(
   store : @store.VdirStore,
   request : @httpd.HttpRequest,
 ) -> Unit {
-  if request.meth == "GET" {
-    list_events(conn, request, store)
+  if request.meth == "GET" || request.meth == "HEAD" {
+    list_events(conn, request, store, head=request.meth == "HEAD")
   } else if request.meth == "OPTIONS" {
     options_response(conn, request)
   } else if request.meth == "PROPFIND" {
@@ -361,8 +387,8 @@ async fn collection_request(
         reply(conn, request, 404, "Not Found")
       }
     Some(nested) =>
-      if request.meth == "GET" {
-        list_events(conn, request, nested)
+      if request.meth == "GET" || request.meth == "HEAD" {
+        list_events(conn, request, nested, head=request.meth == "HEAD")
       } else if request.meth == "OPTIONS" {
         options_response(conn, request)
       } else if request.meth == "PROPFIND" {
@@ -443,8 +469,15 @@ async fn event_method(
     // could never be an event is simply not found.
     reply(conn, request, 404, "Not Found")
   } else if request.meth == "OPTIONS" {
-    options_response(conn, request)
-  } else if request.meth == "GET" {
+    // A calendar object supports everything here except MKCALENDAR —
+    // creating a collection inside a file is meaningless, and the shared
+    // Allow list used to advertise it on file targets (Jev re-review r3).
+    options_response(
+      conn,
+      request,
+      allow="OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, REPORT",
+    )
+  } else if request.meth == "GET" || request.meth == "HEAD" {
     match store.get(name) {
       Some(file) =>
         reply(
@@ -457,24 +490,41 @@ async fn event_method(
             ("ETag", "\"\{file.etag}\""),
           ],
           body=file.text,
+          head=request.meth == "HEAD",
         )
       None => reply(conn, request, 404, "Not Found")
     }
   } else if request.meth == "PUT" {
-    let current = store.get(name)
-    let current_tag = current.map(file => file.etag)
-    if @caldav.check_preconditions(
-        current_tag,
-        request.header("If-Match"),
-        request.header("If-None-Match"),
-      )
-      is @caldav.Precondition::Failed {
-      reply(conn, request, 412, "Precondition Failed")
-    } else {
-      let etag = store.put(name, request.body)
-      let code = if current is Some(_) { 204 } else { 201 }
-      let reason = if code == 204 { "No Content" } else { "Created" }
-      reply(conn, request, code, reason, headers=[("ETag", "\"\{etag}\"")])
+    // RFC 4791 §5.3.2: a body the evaluation cannot read is refused at the
+    // door (403 with the matching precondition) instead of poisoning the
+    // collection's reports with a 500 that names the resource.
+    match @caldav.calendar_object_precondition(request.body) {
+      Some(element) =>
+        reply(
+          conn,
+          request,
+          403,
+          "Forbidden",
+          headers=[("Content-Type", "application/xml; charset=utf-8")],
+          body=@caldav.precondition_document(element),
+        )
+      None => {
+        let current = store.get(name)
+        let current_tag = current.map(file => file.etag)
+        if @caldav.check_preconditions(
+            current_tag,
+            request.header("If-Match"),
+            request.header("If-None-Match"),
+          )
+          is @caldav.Precondition::Failed {
+          reply(conn, request, 412, "Precondition Failed")
+        } else {
+          let etag = store.put(name, request.body)
+          let code = if current is Some(_) { 204 } else { 201 }
+          let reason = if code == 204 { "No Content" } else { "Created" }
+          reply(conn, request, code, reason, headers=[("ETag", "\"\{etag}\"")])
+        }
+      }
     }
   } else if request.meth == "DELETE" {
     let current = store.get(name)
@@ -491,6 +541,46 @@ async fn event_method(
     } else {
       reply(conn, request, 404, "Not Found")
     }
+  } else if request.meth == "REPORT" {
+    // RFC 4791 §7: calendar-query and calendar-multiget apply to
+    // non-collection resources too, and the Allow header already promises
+    // REPORT here — refusing it after advertising it was the defect. The
+    // resource set is the object itself; the same evaluation/failure
+    // contract as the collection report applies.
+    match store.get(name) {
+      None => reply(conn, request, 404, "Not Found")
+      Some(file) =>
+        report_resources(conn, request, [
+          { href: request.path, etag: file.etag, calendar_data: file.text, },
+        ])
+    }
+  } else if request.meth == "PROPFIND" {
+    // RFC 4918 §9.1: PROPFIND applies to non-collection resources too, and
+    // etag-probing clients (Thunderbird, DAVx5) issue exactly this. A file
+    // has no children, so any Depth answers the object itself; the body
+    // selection is mandatory-to-parse here for the same reason the
+    // collection branch treats an unreadable body as 400.
+    match propfind_selection(request) {
+      Some(selection) =>
+        match store.get(name) {
+          Some(file) =>
+            dav_response(
+              conn,
+              request,
+              @caldav.calendar_object_propfind(
+                {
+                  href: request.path,
+                  etag: file.etag,
+                  calendar_data: file.text,
+                },
+                href=request.path,
+                selection~,
+              ),
+            )
+          None => reply(conn, request, 404, "Not Found")
+        }
+      None => reply(conn, request, 400, "Bad Request")
+    }
   } else {
     method_not_allowed(conn, request)
   }
@@ -503,6 +593,7 @@ async fn list_events(
   conn : @socket.Tcp,
   request : @httpd.HttpRequest,
   store : @store.VdirStore,
+  head~ : Bool = false,
 ) -> Unit {
   reply(
     conn,
@@ -511,6 +602,7 @@ async fn list_events(
     "OK",
     headers=[("Content-Type", "text/plain; charset=utf-8")],
     body=store.list().join("\n") + "\n",
+    head~,
   )
 }
 
@@ -575,12 +667,25 @@ async fn report_request(
   request : @httpd.HttpRequest,
   href : String,
 ) -> Unit {
-  match @caldav.report(request.body, load_resources(store, href)) {
+  report_resources(conn, request, load_resources(store, href))
+}
+
+///|
+/// Evaluate a REPORT body over an explicit resource set — the shared
+/// outcome mapping for the collection report and the single-object one.
+async fn report_resources(
+  conn : @socket.Tcp,
+  request : @httpd.HttpRequest,
+  resources : Array[@caldav.DavResource],
+) -> Unit {
+  match @caldav.report(request.body, resources) {
     @caldav.ReportOutcome::Report(body~) => dav_response(conn, request, body)
     @caldav.ReportOutcome::UnsupportedReport =>
       reply(conn, request, 400, "Bad Request", body="unsupported REPORT")
     @caldav.ReportOutcome::EvaluationFailed(reason~) => {
+      stdio_lock.acquire()
       @stdio.stderr.write("REPORT evaluation failed: \{reason}\n")
+      stdio_lock.release()
       reply(
         conn,
         request,
@@ -608,7 +713,7 @@ async fn method_not_allowed(
   request : @httpd.HttpRequest,
 ) -> Unit {
   reply(conn, request, 405, "Method Not Allowed", headers=[
-    ("Allow", "OPTIONS, GET, PUT, DELETE, PROPFIND, REPORT, MKCALENDAR"),
+    ("Allow", "OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, REPORT, MKCALENDAR"),
   ])
 }
 
@@ -627,9 +732,10 @@ async fn already_exists(
 async fn options_response(
   conn : @socket.Tcp,
   request : @httpd.HttpRequest,
+  allow~ : String = "OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, REPORT, MKCALENDAR",
 ) -> Unit {
   reply(conn, request, 200, "OK", headers=[
-    ("Allow", "OPTIONS, GET, PUT, DELETE, PROPFIND, REPORT, MKCALENDAR"),
+    ("Allow", allow),
     ("DAV", "1, 3, calendar-access"),
   ])
 }
@@ -639,6 +745,7 @@ async fn dav_response(
   conn : @socket.Tcp,
   request : @httpd.HttpRequest,
   body : String,
+  head~ : Bool = false,
 ) -> Unit {
   reply(
     conn,
@@ -647,6 +754,7 @@ async fn dav_response(
     "Multi-Status",
     headers=[("Content-Type", "application/xml; charset=utf-8")],
     body~,
+    head~,
   )
 }
 

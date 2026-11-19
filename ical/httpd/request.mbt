@@ -446,7 +446,12 @@ pub async fn[W : @io.Writer] respond(
   reason : String,
   headers~ : Array[(String, String)] = [],
   body~ : String = "",
+  head~ : Bool = false,
 ) -> Unit {
+  // `head~` marks a HEAD answer: the framing stays identical to GET
+  // (RFC 7231 §4.3.2 says HEAD sends GET's header fields, notably the
+  // Content-Length of what GET would return) and only the body bytes are
+  // withheld.
   let out = StringBuilder()
   out.write_string("HTTP/1.1 \{code} \{reason}\r\n")
   for pair in headers {
@@ -455,7 +460,9 @@ pub async fn[W : @io.Writer] respond(
   }
   out.write_string("Content-Length: \{utf8_byte_len(body)}")
   out.write_string("\r\n\r\n")
-  out.write_string(body)
+  if !head {
+    out.write_string(body)
+  }
   writer.write(out.to_string())
 }
 

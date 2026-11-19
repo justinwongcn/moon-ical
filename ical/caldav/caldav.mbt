@@ -211,6 +211,10 @@ fn query_report(
       return PreconditionFailed(body=error_document("<C:valid-filter/>"))
     FilterError::InvalidCalendarData =>
       return PreconditionFailed(body=error_document("<C:valid-calendar-data/>"))
+    FilterError::InvalidCalendarObjectResource =>
+      return PreconditionFailed(
+        body=error_document("<C:valid-calendar-object-resource/>"),
+      )
     FilterError::UnsupportedCollation =>
       return PreconditionFailed(body=error_document("<C:supported-collation/>"))
     FilterError::UnsupportedFilter(element~) =>

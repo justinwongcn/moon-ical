@@ -6,6 +6,10 @@ import {
 }
 
 // Values
+pub fn calendar_object_precondition(String) -> String?
+
+pub fn calendar_object_propfind(DavResource, href~ : String, selection? : PropFind) -> String
+
 pub fn check_preconditions(String?, String?, String?) -> Precondition
 
 pub fn collection_propfind(Array[DavResource], Int32, href? : String, displayname? : String, children? : Array[(String, String)], selection? : PropFind) -> String
@@ -15,6 +19,8 @@ pub fn parse_filter(String) -> Filter raise FilterError
 pub fn parse_mkcalendar(String) -> MkCalendarProps
 
 pub fn parse_propfind(String) -> PropFind raise PropfindError
+
+pub fn precondition_document(String) -> String
 
 pub fn principal_propfind(selection? : PropFind) -> String
 
@@ -31,6 +37,7 @@ pub(all) suberror FilterError {
   UnsupportedFilter(element~ : String)
   UnsupportedCollation
   InvalidCalendarData
+  InvalidCalendarObjectResource
 }
 pub fn FilterError::equal(Self, Self) -> Bool
 pub fn FilterError::not_equal(Self, Self) -> Bool

@@ -569,3 +569,128 @@ test "a REPORT with a trailing self-closing root still answers" {
   let result = report_body(body, resources())
   assert_true(result.contains("multistatus"))
 }
+
+///|
+test "calendar_object_propfind answers a file PROPFIND without calendar-data" {
+  // RFC 4918 §9.1 makes PROPFIND apply to non-collection resources — the
+  // etag-probe shape clients sync with. RFC 4791 §9.6 keeps calendar-data
+  // out of PROPFIND answers, so the object reports its WebDAV properties.
+  let resource : @caldav.DavResource = {
+    href: "/cal/a.ics",
+    etag: "t1",
+    calendar_data: "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n",
+  }
+  let result = @caldav.calendar_object_propfind(resource, href="/cal/a.ics")
+  assert_true(result.contains("/cal/a.ics"))
+  assert_true(result.contains("getetag"))
+  assert_true(!result.contains("calendar-data"))
+}
+
+///|
+test "calendar_object_propfind answers 404 propstat for calendar-data" {
+  // S34 adjudication, file scope: naming calendar-data in PROPFIND gets
+  // the 404 propstat RFC 4791 §9.6 asks for, not silence.
+  let selection = @caldav.parse_propfind(
+    "<D:propfind xmlns:D=\"DAV:\"><D:prop><C:calendar-data xmlns:C=\"urn:ietf:params:xml:ns:caldav\"/></D:prop></D:propfind>",
+  )
+  let resource : @caldav.DavResource = {
+    href: "/cal/a.ics",
+    etag: "t1",
+    calendar_data: "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n",
+  }
+  let result = @caldav.calendar_object_propfind(
+    resource,
+    href="/cal/a.ics",
+    selection~,
+  )
+  assert_true(result.contains("404"))
+}
+
+///|
+test "calendar_object_precondition refuses unreadable bodies" {
+  // S53: the door check mirrors evaluation. Garbage, a PERIOD-valued
+  // DTSTART (legal in the tree, illegal in the typed event), and an
+  // ordinal-WEEKLY RRULE (check_expandable refuses at expansion) all get
+  // the valid-calendar-data precondition instead of poisoning reports.
+  assert_eq(
+    @caldav.calendar_object_precondition("this is not an ics"),
+    Some("<C:valid-calendar-data/>"),
+  )
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:n\r\nDTSTART;VALUE=PERIOD:20260101T090000Z/PT1H\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:valid-calendar-data/>"),
+  )
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:n\r\nDTSTART:20260101T090000Z\r\nRRULE:FREQ=WEEKLY;BYDAY=2FR\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:valid-calendar-data/>"),
+  )
+}
+
+///|
+test "calendar_object_precondition refuses recurring non-VEVENT components" {
+  // Evaluation answers "recurring VTODO time-range is not implemented"
+  // with a 500 — storing one would poison every time-range report, so the
+  // component-set precondition refuses it at the door.
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:t\r\nDTSTART:20260101T090000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nEND:VTODO\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:valid-calendar-object-resource/>"),
+  )
+}
+
+///|
+test "calendar_object_precondition accepts everything evaluation reads" {
+  let valid = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:ok\r\nDTSTART:20260101T090000Z\r\nDTEND:20260101T100000Z\r\nEXDATE:20260102T090000Z\r\nSUMMARY:a\u{0000}b\r\nEND:VEVENT\r\nBEGIN:VTODO\r\nUID:todo\r\nDUE:20260201T090000Z\r\nEND:VTODO\r\nBEGIN:VTIMEZONE\r\nTZID:FIXED-Z\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\nTZOFFSETFROM:+0900\r\nTZOFFSETTO:+0900\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\nEND:VCALENDAR\r\n"
+  assert_eq(@caldav.calendar_object_precondition(valid), None)
+  // A VEVENT without DTSTART is the R8-tolerated degenerate shape: it
+  // poisons no evaluation, so the door accepts it too.
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:bare\r\nSUMMARY:no start\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    None,
+  )
+}
+
+///|
+test "calendar_object_precondition mirrors the series type-agreement raise" {
+  // A DATE-valued master with a DATE-TIME override passes each component's
+  // own parse but fails expand_series_query's agreement check — the door
+  // must mirror it or the override poisons every time-range report.
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:m\r\nDTSTART;VALUE=DATE:20260101\r\nRRULE:FREQ=DAILY;COUNT=3\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:m\r\nRECURRENCE-ID:20260102T090000Z\r\nDTSTART:20260102T110000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:valid-calendar-data/>"),
+  )
+  // Agreement within the group stays accepted.
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:m\r\nDTSTART:20260101T090000Z\r\nRRULE:FREQ=DAILY;COUNT=3\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:m\r\nRECURRENCE-ID:20260102T090000Z\r\nDTSTART:20260102T110000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    None,
+  )
+}
+
+///|
+test "calendar_object_precondition mirrors the VTODO state raises" {
+  // DURATION without DTSTART, and DUE before DTSTART, are the two rows
+  // todo_overlaps raises on — the door refuses both.
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:t\r\nDURATION:PT5M\r\nEND:VTODO\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:valid-calendar-data/>"),
+  )
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:t\r\nDTSTART:20260201T090000Z\r\nDUE:20260101T090000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:valid-calendar-data/>"),
+  )
+}
