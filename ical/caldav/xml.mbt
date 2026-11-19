@@ -93,8 +93,16 @@ fn parse_xml_element(input : String) -> XmlElement? {
             text: "",
           }
           if tag.self_closing {
-            if stack.length() == 0 && root is None {
-              root = Some(element)
+            if stack.length() == 0 {
+              if root is None {
+                root = Some(element)
+              }
+              // A trailing self-closing element after the document root is
+              // ignored, exactly like a trailing open tag: the first root
+              // is what the request said. This branch used to fall through
+              // to an index-at-minus-one when the root was already set —
+              // an uncatchable process kill, confirmed live with a single
+              // PROPFIND body carrying two roots.
             } else {
               let last = stack.length() - 1
               stack[last].children.push(element)

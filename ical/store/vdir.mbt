@@ -302,8 +302,15 @@ fn check_name(name : String) -> Unit raise {
 /// Whether a name is one plain token a store accepts, without raising — the
 /// form the routing layer needs, where an unusable name is a 404 rather than
 /// an error.
+///
+/// The length cap is the filesystem's own `NAME_MAX` floor (255 bytes on
+/// macOS and Linux): a longer token can never be a file here, and without
+/// the cap an oversized name reached `@fs.exists`, whose `OSError` escaped
+/// the routing layer as a 500 — an attacker-trivial path (probed live with
+/// an 8000-character name). The charset loop below already rejects every
+/// non-ASCII byte, so 255 characters here are 255 bytes.
 pub fn is_store_name(name : String) -> Bool {
-  if name.length() == 0 || name[0] == '.' {
+  if name.length() == 0 || name.length() > 255 || name[0] == '.' {
     return false
   }
   if is_windows_reserved_device(name) {

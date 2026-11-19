@@ -344,3 +344,28 @@ test "a THISANDFUTURE override without DTEND keeps the master's shifted length" 
     Some("2026-09-04T10:30:00Z"),
   ])
 }
+
+///|
+test "an impossible ordinal BYDAY is provably empty, not a budget error" {
+  // RFC 5545 §3.3.10: a month holds at most five of any weekday, a year at
+  // most 53 (without BYMONTH). A rule every BYDAY entry of which is
+  // impossible ends naturally empty instead of walking the period budget
+  // to an error — which over CalDAV let one stored resource fail a whole
+  // collection's REPORT.
+  let dt = @model.parse_single_date_time(
+    "20260101T090000Z",
+    @model.ZoneTable::empty(),
+  )
+  assert_eq(
+    @rrule.expand(@rrule.parse_rule("FREQ=MONTHLY;BYDAY=8MO"), dt, limit=5),
+    [],
+  )
+  assert_eq(
+    @rrule.expand(
+      @rrule.parse_rule("FREQ=YEARLY;BYMONTH=2;BYDAY=8MO"),
+      dt,
+      limit=5,
+    ),
+    [],
+  )
+}

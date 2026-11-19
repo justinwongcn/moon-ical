@@ -84,3 +84,16 @@ test "Windows reserved device names are refused as store names" {
   assert_eq(@store.is_store_name("auxiliary"), true)
   assert_eq(@store.is_store_name("a.ics"), true)
 }
+
+///|
+test "names over the filesystem NAME_MAX floor are refused" {
+  // A 255-character name is the longest a macOS/Linux filesystem accepts;
+  // anything longer reached @fs.exists and its OSError escaped routing as
+  // a 500 (probed live with an 8000-character path). The charset loop
+  // already rejects non-ASCII, so characters here are bytes.
+  let long_ok = String::make(255, 'a')
+  let too_long = String::make(256, 'a')
+  assert_eq(@store.is_store_name(long_ok), true)
+  assert_eq(@store.is_store_name(too_long), false)
+  assert_eq(@store.is_store_name("a"), true)
+}

@@ -246,3 +246,23 @@ async test "an Int64-overflowing Content-Length still answers 413" {
     "request body exceeds 10485760 bytes",
   )
 }
+
+///|
+async test "conflicting duplicate Content-Length headers are refused" {
+  // RFC 7230 §3.3.2: differing values make the message invalid — the
+  // smuggling-class shape where each reader could pick a different length.
+  inspect(
+    request_error_of(
+      "PUT /cal/a.ics HTTP/1.1\r\nContent-Length: 5\r\nContent-Length: 6\r\n\r\nHELLO!",
+    ),
+    content="malformed request: conflicting Content-Length header values",
+  )
+}
+
+///|
+async test "identical duplicate Content-Length headers collapse" {
+  let req = request_of(
+    "PUT /cal/a.ics HTTP/1.1\r\nContent-Length: 2\r\nContent-Length: 2\r\n\r\nhi",
+  ).unwrap()
+  inspect(req.body, content="hi")
+}

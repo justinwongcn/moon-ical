@@ -246,3 +246,35 @@ test "calendar-multiget answers a missing href with a per-href 404" {
   assert_true(after.contains("404"))
   assert_false(after.contains("calendar-data"))
 }
+
+///|
+test "xml_escape keeps XML 1.0 valid over stored control characters" {
+  // The data layer stores whatever a PUT delivered; the response layer must
+  // still emit parseable XML. TAB/LF/CR are XML 1.0's three legal controls
+  // and pass through; everything else below U+0020 becomes U+FFFD.
+  assert_eq(
+    @caldav.xml_escape("a\u{0000}b\u{0001}c\u{000B}d"),
+    "a\u{FFFD}b\u{FFFD}c\u{FFFD}d",
+  )
+  assert_eq(
+    @caldav.xml_escape("x\u{0009}\u{000A}\u{000D}y"),
+    "x\u{0009}\u{000A}\u{000D}y",
+  )
+  assert_eq(@caldav.xml_escape("plain&<text>"), "plain&amp;&lt;text&gt;")
+}
+
+///|
+test "a poisoned resource cannot break the multistatus document" {
+  // Differential: one resource whose SUMMARY carries U+0000 used to put a
+  // raw NUL on the wire, making the whole multistatus unparseable for the
+  // clients syncing the collection. The document must stay valid XML and
+  // the replacement character must mark where the poison was.
+  let poison = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:p\r\nDTSTART:20260101T090000Z\r\nSUMMARY:a\u{0000}b\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+  let body = "<C:calendar-multiget xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><D:href xmlns:D=\"DAV:\">/cal/p.ics</D:href></C:calendar-multiget>"
+  let result = report_body(body, [
+    { href: "/cal/p.ics", etag: "t1", calendar_data: poison, },
+  ])
+  assert_true(!result.contains("\u{0000}"))
+  assert_true(result.contains("\u{FFFD}"))
+  assert_true(result.contains("C:calendar-data"))
+}

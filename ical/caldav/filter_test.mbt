@@ -547,3 +547,25 @@ test "a zero-length event matches a range that starts on its DTSTART" {
     ),
   )
 }
+
+///|
+test "a trailing self-closing root cannot abort the parser" {
+  // The two-root body used to abort the whole process (Array::at(-1))
+  // when the trailing root was self-closing: an empty stack plus an
+  // already-set root fell through to the child-push branch. Confirmed
+  // live — a single PROPFIND killed the server process. The first root
+  // wins and the trailing one is ignored, exactly as with a trailing
+  // open tag.
+  let body = "<D:propfind xmlns:D=\"DAV:\"><D:prop><D:getetag/></D:prop></D:propfind>" +
+    "<D:propfind xmlns:D=\"DAV:\"/>"
+  let parsed = @caldav.parse_propfind(body)
+  assert_true("\{Repr(parsed)}".contains("getetag"))
+}
+
+///|
+test "a REPORT with a trailing self-closing root still answers" {
+  let body = "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><C:filter><C:comp-filter name=\"VCALENDAR\"/></C:filter></C:calendar-query>" +
+    "<C:calendar-query xmlns:C=\"urn:ietf:params:xml:ns:caldav\"/>"
+  let result = report_body(body, resources())
+  assert_true(result.contains("multistatus"))
+}

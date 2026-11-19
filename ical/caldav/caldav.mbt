@@ -272,16 +272,39 @@ fn multistatus(entries : Array[String]) -> String {
 }
 
 ///|
-/// Escape the five XML metacharacters so a calendar value or an href can sit
-/// inside a DAV response without being read as markup. The inverse of what a
-/// client does when it parses the response back.
+/// Escape the five XML metacharacters and replace the control characters
+/// XML 1.0 forbids, so a calendar value or an href can sit inside a DAV
+/// response without being read as markup and without making the whole
+/// document unparseable. The inverse of what a client does when it parses
+/// the response back.
+///
+/// Stored bytes are served verbatim from the data layer — the store keeps
+/// whatever a PUT delivered, and `PUT` does not validate body content. A
+/// `SUMMARY` containing U+0000 therefore reaches this function and used to
+/// reach the wire raw: XML 1.0 allows only TAB/LF/CR below U+0020, so one
+/// poisoned resource made every `PROPFIND`/multiget/`calendar-query`
+/// response over the collection unparseable for the clients syncing it.
+/// Each forbidden control character becomes U+FFFD — the document stays
+/// valid XML and the position stays visible — while TAB, LF, and CR (the
+/// three legal ones) and every other character pass through untouched.
 pub fn xml_escape(text : String) -> String {
   let v = text.to_string_view()
   let n = v.length()
   // The common inputs (etags, hrefs, ASCII calendar data) carry no
-  // metacharacter: one scan returns the input without building a copy.
+  // metacharacter or forbidden control: one scan returns the input without
+  // building a copy.
   let mut i = 0
-  while i < n && !(v[i] is ('&' | '<' | '>' | '"' | '\'')) {
+  while i < n &&
+        !(v[i]
+        is ('&'
+        | '<'
+        | '>'
+        | '"'
+        | '\''
+        | '\u{0000}'..<='\u{0008}'
+        | '\u{000B}'
+        | '\u{000C}'
+        | '\u{000E}'..<='\u{001F}')) {
     i = i + 1
   }
   if i == n {
@@ -295,7 +318,16 @@ pub fn xml_escape(text : String) -> String {
       '>' => out.write_string("&gt;")
       '\"' => out.write_string("&quot;")
       '\'' => out.write_string("&apos;")
-      _ => out.write_char(c)
+      _ =>
+        if c
+          is ('\u{0000}'..<='\u{0008}'
+          | '\u{000B}'
+          | '\u{000C}'
+          | '\u{000E}'..<='\u{001F}') {
+          out.write_string("\u{FFFD}")
+        } else {
+          out.write_char(c)
+        }
     }
   }
   out.to_string()

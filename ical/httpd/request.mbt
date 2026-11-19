@@ -335,6 +335,17 @@ async fn[R : @io.Reader] read_body(
   match request.header("Content-Length") {
     None => request
     Some(text) => {
+      // RFC 7230 §3.3.2: multiple Content-Length header fields whose
+      // values disagree make the message invalid — a smuggling-class
+      // shape, since each downstream reader could pick a different
+      // length. Identical duplicates collapse to the one value.
+      for h in request.headers {
+        if h.name == "content-length" && h.value != text {
+          raise HttpParseError::Malformed(
+            message="conflicting Content-Length header values",
+          )
+        }
+      }
       // A length that is not a plain integer is a malformed header
       // (RFC 7230 §3.3.2, 400); a well-formed but huge one is a size
       // refusal (413). Before S22 the parser capped digits at nine to

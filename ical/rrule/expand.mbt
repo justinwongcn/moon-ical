@@ -100,6 +100,16 @@ fn expand_generated(
   limit~ : Int32,
 ) -> (Array[@model.IcalDateTime], Bool) raise {
   check_expandable(rule, dtstart)
+  if provably_empty(rule) {
+    // Every ordinal BYDAY value names an occurrence that cannot exist in
+    // the scoped period — a month holds at most five of any weekday, a
+    // year at most 53. No other BY clause can rescue an empty BYDAY set,
+    // so the series is empty by construction. Ending here (instead of
+    // walking MAX_PERIODS empty periods) keeps a never-matching rule from
+    // surfacing as a budget error — which, over CalDAV, let one stored
+    // resource fail every REPORT over its collection.
+    return ([], true)
+  }
   if limit <= 0 {
     // A cap of zero or less caps everything. The semantic checks above
     // still ran, so an invalid rule is reported rather than silently
@@ -627,4 +637,43 @@ fn int_selected(list : Array[Int32], value : Int32) -> Bool {
 /// The calendar date of a wall-clock value.
 fn plain_date_of(wall : @time.PlainDateTime) -> @time.PlainDate raise {
   @time.PlainDate::of(wall.year(), wall.month(), wall.day())
+}
+
+///|
+/// Whether the rule can never produce a single occurrence by construction.
+/// Only the all-impossible-ordinal `BYDAY` shape qualifies: a month holds
+/// at most five of any weekday and a year at most 53, so an ordinal past
+/// those bounds (with no plain weekday entry to fall back on, and — for
+/// yearly rules — no `BYMONTH` to change the scoping) can never match,
+/// whatever the other `BY` clauses say.
+fn provably_empty(rule : Rule) -> Bool {
+  let entries = rule.byday
+  if entries.length() == 0 {
+    return false
+  }
+  for entry in entries {
+    if entry.ordinal == 0 {
+      return false
+    }
+  }
+  match rule.freq {
+    Monthly => all_ordinals_beyond(entries, 5)
+    Yearly =>
+      if rule.bymonth.length() == 0 {
+        all_ordinals_beyond(entries, 53)
+      } else {
+        all_ordinals_beyond(entries, 5)
+      }
+    _ => false
+  }
+}
+
+///|
+fn all_ordinals_beyond(entries : Array[Byday], bound : Int32) -> Bool {
+  for entry in entries {
+    if entry.ordinal <= bound && entry.ordinal >= -bound {
+      return false
+    }
+  }
+  true
 }

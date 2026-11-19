@@ -101,6 +101,18 @@ Two non-negotiables:
 - Run `moon test` to check tests pass. MoonBit supports snapshot testing; when
   changes affect outputs, run `moon test --update` to refresh snapshots.
 
+- **`moon run x.mbtx` at the module root resolves self-module imports from
+  the mooncakes registry, not the working tree.** A script that imports
+  `justinwongcn/moon-ical/ical/rrule` silently tests the *published* 0.5.0
+  code — proven by adding a syntax error to the local package and watching
+  the script still run. Any behavior verification of the working tree must
+  use a temporary in-module main package (`tmpfuzz/` with `pkgtype(kind:
+  "executable")`, then `moon run tmpfuzz --`), deleted afterwards. When
+  differencing recurrence behavior against references, also mind that
+  python-dateutil returns an empty set for a BYDAY list mixing ordinal and
+  plain entries (each works alone) — the per-entry OR reading is what
+  RFC 5545 §3.3.10 specifies.
+
 ## Verification must discriminate
 
 S10 shipped two defects — `calendar-query` ignoring `CALDAV:filter`, and
