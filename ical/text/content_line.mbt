@@ -8,6 +8,10 @@ pub struct ContentLine {
   name : String
   params : Array[PropertyParam]
   value : String
+  /// The logical line number this content line came from (1-based, after
+  /// unfolding) — the data typed-layer diagnostics need when a property
+  /// combination raises, so errors stop reporting `line 0`.
+  line_no : Int32
 }
 
 ///|
@@ -90,7 +94,7 @@ pub fn parse_content_line(line : String, line_no : Int32) -> ContentLine raise {
     let pvalue = unquote(trim_ascii(raw[eq + 1:])).to_owned()
     params.push({ name: pname, value: pvalue, })
   }
-  { name, params, value, }
+  { name, params, value, line_no, }
 }
 
 ///|

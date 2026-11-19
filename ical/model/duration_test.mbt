@@ -101,5 +101,7 @@ test "DTEND and DURATION on one VEVENT is the loud spec violation" {
   } catch {
     err => err.to_string()
   }
-  assert_eq(error, "line 0: VEVENT carries both DTEND and DURATION (in `PT1H`)")
+  // The DURATION sits on logical line 6 of the feed — S74 made the typed
+  // layer carry real line numbers instead of a placeholder 0.
+  assert_eq(error, "line 6: VEVENT carries both DTEND and DURATION (in `PT1H`)")
 }

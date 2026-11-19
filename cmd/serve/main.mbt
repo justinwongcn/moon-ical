@@ -143,8 +143,34 @@ async fn reply(
   let bodyless = head || request.meth == "HEAD"
   @httpd.respond(conn, code, reason, headers~, body~, head=bodyless)
   stdio_lock.acquire()
-  @stdio.stdout.write("\{request.meth} \{request.path} -> \{code}\n")
+  // A 4xx/5xx answer whose body is a DAV:error document gets the
+  // violated element's name on the log line — "PUT /cal/x -> 403"
+  // alone left ops guessing which precondition fired, when the name is
+  // sitting in the body being written anyway.
+  let tag = if code >= 400 { error_element(body) } else { "" }
+  let suffix = if tag != "" { " [\{tag}]" } else { "" }
+  @stdio.stdout.write("\{request.meth} \{request.path} -> \{code}\{suffix}\n")
   stdio_lock.release()
+}
+
+///|
+/// The local name of the CALDAV error element in a `DAV:error` body —
+/// `"<C:no-uid-conflict>..."` reads back as `no-uid-conflict`. Empty for
+/// anything that is not an error element shape.
+fn error_element(body : String) -> String {
+  let v = body.to_string_view()
+  match v.find("<C:".to_string_view()) {
+    None => ""
+    Some(start) => {
+      let rest = v[start + 3:]
+      let mut i = 0
+      let n = rest.length()
+      while i < n && rest[i] != '/' && rest[i] != '>' {
+        i = i + 1
+      }
+      rest[:i].to_owned()
+    }
+  }
 }
 
 ///|
@@ -173,11 +199,16 @@ async fn handle_connection(
     // it — sits inside one try, so every refusal gets its proper
     // response instead of escaping as a failed connection.
     let outcome = try {
-      match @httpd.read_request(conn, buf=pending, notify_continue=Some(() => {
-        // RFC 9110 §10.1.1: the interim response goes out before the
-        // body is read, unblocking clients that wait for it.
-        conn.write(b"HTTP/1.1 100 Continue\r\n\r\n")
-      })) {
+      match
+        @httpd.read_request(
+          conn,
+          buf=pending,
+          notify_continue=Some(() => {
+            // RFC 9110 §10.1.1: the interim response goes out before the
+            // body is read, unblocking clients that wait for it.
+            conn.write(b"HTTP/1.1 100 Continue\r\n\r\n")
+          }),
+        ) {
         (None, _) => Stop // clean disconnect between requests
         (Some(request), rest) => {
           pending = rest

@@ -147,9 +147,10 @@ fn event_from_component(
   // forbids carrying both) — duplicates there stay tolerated with the
   // first line winning, the same reading dateutil and icalendar give.
   for name in ["DTSTART", "UID", "RECURRENCE-ID"] {
-    if component.properties_named(name).length() > 1 {
+    let lines = component.properties_named(name)
+    if lines.length() > 1 {
       raise @text.ParseError::BadLine(
-        line_no=0,
+        line_no=lines[1].line_no,
         line=name,
         message="VEVENT carries more than one \{name}",
       )
@@ -165,7 +166,7 @@ fn event_from_component(
   let duration_line = component.property("DURATION")
   if dtend_line is Some(_) && duration_line is Some(_) {
     raise @text.ParseError::BadLine(
-      line_no=0,
+      line_no=duration_line.unwrap().line_no,
       line=duration_line.unwrap().value,
       message="VEVENT carries both DTEND and DURATION",
     )
@@ -179,7 +180,7 @@ fn event_from_component(
       let end = parse_date_time(line, zones)
       if end.all_day != start.all_day {
         raise @text.ParseError::BadLine(
-          line_no=0,
+          line_no=line.line_no,
           line=line.value,
           message="DTEND value type must agree with DTSTART",
         )
@@ -191,7 +192,7 @@ fn event_from_component(
     (Some(start), Some(line)) =>
       if start.all_day && line.value.contains("T") {
         raise @text.ParseError::BadLine(
-          line_no=0,
+          line_no=line.line_no,
           line=line.value,
           message="DURATION on a DATE-valued event must be days or weeks",
         )
@@ -203,7 +204,11 @@ fn event_from_component(
     None =>
       match (duration_line, dtstart) {
         (Some(line), Some(start)) => {
-          let seconds = parse_duration(line.value, line_no=0, raw=line.value)
+          let seconds = parse_duration(
+            line.value,
+            line_no=line.line_no,
+            raw=line.value,
+          )
           Some(start.shift_seconds(seconds))
         }
         _ => None
@@ -215,22 +220,8 @@ fn event_from_component(
   let recurrence_range = component
     .property("RECURRENCE-ID")
     .bind(line => line.param("RANGE"))
-  let exdates = recurrence_dates(component, "EXDATE", zones)
-  let rdates = recurrence_dates(component, "RDATE", zones)
-  for date in exdates + rdates {
-    match dtstart {
-      Some(start) =>
-        if date.all_day != start.all_day ||
-          date.is_floating() != start.is_floating() {
-          raise @text.ParseError::BadLine(
-            line_no=0,
-            line=date.to_string(),
-            message="recurrence date value type must agree with DTSTART",
-          )
-        }
-      None => ()
-    }
-  }
+  let exdates = recurrence_dates(component, "EXDATE", zones, dtstart~)
+  let rdates = recurrence_dates(component, "RDATE", zones, dtstart~)
   {
     uid: text_of(component, "UID"),
     summary: text_of(component, "SUMMARY"),
@@ -252,20 +243,21 @@ fn recurrence_dates(
   component : Component,
   name : String,
   zones : ZoneTable,
+  dtstart~ : IcalDateTime?,
 ) -> Array[IcalDateTime] raise {
   let out : Array[IcalDateTime] = []
   for line in component.properties_named(name) {
     let kind = line.param("VALUE").map(v => v.to_upper()).unwrap_or("DATE-TIME")
     if kind == "PERIOD" {
       raise @text.ParseError::BadLine(
-        line_no=0,
+        line_no=line.line_no,
         line=line.value,
         message="unsupported \{name} VALUE=PERIOD",
       )
     }
     if kind != "DATE" && kind != "DATE-TIME" {
       raise @text.ParseError::BadLine(
-        line_no=0,
+        line_no=line.line_no,
         line=line.value,
         message="unsupported \{name} VALUE: \{kind}",
       )
@@ -274,19 +266,33 @@ fn recurrence_dates(
       // Materialize the default so bare dates cannot masquerade as DATE-TIME.
       if kind == "DATE-TIME" && value.length() == 8 {
         raise @text.ParseError::BadLine(
-          line_no=0,
+          line_no=line.line_no,
           line=value,
           message="\{name} VALUE=DATE-TIME with a date value",
         )
       }
-      out.push(
-        parse_date_time_value(
-          value,
-          zones,
-          tzid=line.param("TZID"),
-          value_is_date=kind == "DATE",
-        ),
+      let date = parse_date_time_value(
+        value,
+        zones,
+        tzid=line.param("TZID"),
+        value_is_date=kind == "DATE",
       )
+      // The domain-agreement check runs here, where the offending line's
+      // number is still in hand — the old post-parse loop could only
+      // report "line 0" because the values had left their lines behind.
+      match dtstart {
+        Some(start) =>
+          if date.all_day != start.all_day ||
+            date.is_floating() != start.is_floating() {
+            raise @text.ParseError::BadLine(
+              line_no=line.line_no,
+              line=date.to_string(),
+              message="recurrence date value type must agree with DTSTART",
+            )
+          }
+        None => ()
+      }
+      out.push(date)
     }
   }
   out

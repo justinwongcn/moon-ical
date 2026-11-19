@@ -240,10 +240,18 @@ fn fixed_vtimezone(vtz : Component) -> Int32? raise {
     if start.all_day || !start.is_floating() {
       return None
     }
-    let from = child.property("TZOFFSETFROM").unwrap().value
-    let to = child.property("TZOFFSETTO").unwrap().value
-    let from_seconds = parse_utc_offset(from, line_no=0, raw=from)
-    let seconds = parse_utc_offset(to, line_no=0, raw=to)
+    let from_line = child.property("TZOFFSETFROM").unwrap()
+    let to_line = child.property("TZOFFSETTO").unwrap()
+    let from_seconds = parse_utc_offset(
+      from_line.value,
+      line_no=from_line.line_no,
+      raw=from_line.value,
+    )
+    let seconds = parse_utc_offset(
+      to_line.value,
+      line_no=to_line.line_no,
+      raw=to_line.value,
+    )
     if from_seconds != seconds {
       return None
     }

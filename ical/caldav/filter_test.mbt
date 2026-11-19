@@ -888,15 +888,29 @@ test "an inverted DTEND interval answers the §9.9 pairwise condition" {
   }
   fn window(s : String, e : String) -> String raise {
     report_body(
-      "<C:calendar-query xmlns:D=\"DAV:\" xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><D:prop><D:getetag/></D:prop><C:filter><C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\"><C:time-range start=\"" + s + "\" end=\"" + e + "\"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>",
+      "<C:calendar-query xmlns:D=\"DAV:\" xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><D:prop><D:getetag/></D:prop><C:filter><C:comp-filter name=\"VCALENDAR\"><C:comp-filter name=\"VEVENT\"><C:time-range start=\"" +
+      s +
+      "\" end=\"" +
+      e +
+      "\"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>",
       [resource],
     )
   }
   // The swapped span [09:00..10:00]: windows overlapping it select,
   // windows outside do not.
-  assert_true(window("20260915T083000Z", "20260915T103000Z").contains("/cal/inverted.ics"))
-  assert_true(!window("20260915T103000Z", "20260915T110000Z").contains("/cal/inverted.ics"))
-  assert_true(!window("20260915T083000Z", "20260915T090000Z").contains("/cal/inverted.ics"))
+  assert_true(
+    window("20260915T083000Z", "20260915T103000Z").contains("/cal/inverted.ics"),
+  )
+  assert_true(
+    !window("20260915T103000Z", "20260915T110000Z").contains(
+      "/cal/inverted.ics",
+    ),
+  )
+  assert_true(
+    !window("20260915T083000Z", "20260915T090000Z").contains(
+      "/cal/inverted.ics",
+    ),
+  )
   let door = @caldav.calendar_object_precondition(resource.calendar_data)
   assert_eq(door, None)
 }

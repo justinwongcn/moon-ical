@@ -144,7 +144,7 @@ pub fn HttpRequest::header(self : HttpRequest, name : String) -> String? {
 pub async fn[R : @io.Reader] read_request(
   reader : R,
   buf~ : Array[Byte] = [],
-  notify_continue~ : (async () -> Unit raise)? = None,
+  notify_continue~ : (async () -> Unit)? = None,
 ) -> (HttpRequest?, Array[Byte]) {
   let input : LineInput[R] = { reader, buf, }
   // Leading blank lines before a request line are tolerated (RFC 7230

@@ -33,6 +33,7 @@ pub struct ContentLine {
   name : String
   params : Array[PropertyParam]
   value : String
+  line_no : Int32
 }
 pub fn ContentLine::equal(Self, Self) -> Bool
 pub fn ContentLine::not_equal(Self, Self) -> Bool
