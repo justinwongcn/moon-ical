@@ -39,9 +39,11 @@ not install a substitute or send data elsewhere without consent.
 
 In A (this project's configured route), Jev calls go through the TokenRhythm
 channel that the sibling `jev-decision` skill already provides — no
-OpenRouter/TypeSafe account and no `jev-decide` CLI are involved. The key
-comes from `TOKENRHYTHM_API_KEY` in the environment or from
-`.agents/skills/jev-decision/.env`; requests run as
+OpenRouter/TypeSafe account and no `jev-decide` CLI are involved. The channel
+config comes from `TOKENRHYTHM_API_KEY` / `TOKENRHYTHM_API_BASE` /
+`TOKENRHYTHM_MODEL` in the environment or from
+`.agents/skills/jev-decision/.env` (the local Magpie facade is the
+configured default; the TokenRhythm cloud is the fallback); requests run as
 `node .agents/skills/jev-decision/scripts/decide.mjs <request.json>` from the
 repository root. `--dry-run` validates the request locally; it neither
 classifies nor makes a network call, and it does not read the key.
@@ -52,10 +54,13 @@ In Jev API mode, use the TokenRhythm channel script
 `.agents/skills/jev-decision/scripts/decide.mjs` (Node, zero dependencies) —
 this project's already-configured route. Do not install the upstream
 `jev-decide` CLI and do not ask for OpenRouter/TypeSafe keys. The script reads
-`TOKENRHYTHM_API_KEY` from the environment or from
+`TOKENRHYTHM_API_KEY` (bearer token), `TOKENRHYTHM_API_BASE` and
+`TOKENRHYTHM_MODEL` (routing) from the environment or from
 `.agents/skills/jev-decision/.env` and never prints credentials; the key never
-goes into a prompt or request file. Requests without an explicit `model` field
-get the TokenRhythm model (`NeoHorse-Jev-4B`) filled in automatically; the
+goes into a prompt or request file. The configured default is the local Magpie
+facade (`jev/NeoHorse-Jev-4B`); `TOKENRHYTHM_MODEL` also overrides an explicit
+`model` field in the request, so a request file naming the cloud model still
+routes correctly through the facade. the
 bundled examples' `typesafe/jev-1.13` id is not valid here and has been
 replaced in this installation.
 Actual UI, file, mailbox or simulation actions require the host's own tools.

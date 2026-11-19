@@ -57,3 +57,25 @@ COUNT=0、year-9999、BOM/DOCTYPE 双根、i;octet、negate、世纪闰年、负
 **否证补录**:MKCALENDAR 撞事件名 405、文件作集合下 PUT 404、行首 CRLF 容忍、HTTP/1.0 200、CL "+5" 400 / "0005" 按 5、chunked 扩展+trailer 整体 411(既定口径)、CALDAV:expand 未知元素 207 忽略(不展开=声明的能力边界)、multiget 指集合 404 propstat、curl -X HEAD 挂起是探针误用(S45 无体正确)。
 
 **探针自身 bug 三连**:嵌套 XML 没闭合、不存在的 timeout 参数(百万次 TypeError 假异常)、s6 钉子变量复用(body 残留空体)——三次都是判别器先错,判别器也要过 R1。
+
+## 第三轮(收敛轮,S71 + 收敛判定)
+
+新面:HEAD 错误路径分帧、ICS 文本层对抗形、日期/时长边界、倒置时间窗。
+
+- **S71 `af2a35b`(修复)**:HEAD 的错误应答携带正文——HEAD+超限体得 413 带体、HEAD+坏头得 400 带体(原始 socket 实测),违反 RFC 9110 §9.3.2 的 MUST NOT。修复:解析错误变体携带请求行方法(`meth`),`reply()` 对一切 HEAD 应答去体,411/413/400 传递;请求行本身不可读的 400 保留 GET 形(方法不可知,声明)。
+- **区间倒置(start>end)→ 403 CALDAV:valid-filter = 正确行为**:RFC 4791 §9.9 原文 "the value of the end attribute MUST be greater than the value of the start attribute",§7.8 的 valid-filter 前置条件规定的恰是这个 403。钉住测试(filter_test),不改行为。
+- NUL 内容容忍再证(SUMMARY/UID 内 NUL → 201);探针曾误报"PUT 404"——是文件名撞了 S31 的 Windows 保留设备名守卫("nul.ics" 的 NUL 设备名),守卫工作正常。
+- 否证:重定向 Location 回显在 store-name 白名单之后(CR 无法注入);multiget href 全走 xml_escape;bare-CR/混合行尾存储逐字往返;fold-in-property-name 按 RFC 折叠展开后正常解析;年份 0001/9999、P9999999W、巨时长事件在 2027 窗口 207 不 500。
+
+## 第四轮(第 2 个收敛判定轮)
+
+- **EXDATE 即时语义**跨 TZID 证实:排除按 instant(18:00+09:00 ≡ 09:00Z),TZID 拼写无关,两种拼写的排除行为逐字一致——主流口径,记录为定义语义。
+- 重复 If-Match 头行:首行求值(412),不合并(逗号合并会是 204)——记录为定义边界,主流宽容差异极小。
+- 行长上限实测:64KB 边界有"至多一个 4KB 读块"的滑移间隙(65552 字节行通过),256KB 行正确 400——内存界仍成立,真实上限记为 ~64KB+4KB,声明而非缺陷。
+- Depth: infinity 按 0(207)、RFC 4918 If 头忽略 200、TRACE 405、CL=MAX_BODY+1 → 413、头数超限 400——全部定义应答。
+
+## 收敛声明
+
+第 3 轮发现 1 项并修复(S71);第 4 轮与第 5 轮(全回归 waves/waves2/waves3/waves4 + 微面)连续两轮零新发现——按用户停止条件(连续两轮无新问题)收束。
+
+**JEV 状态(已完成复核)**:TokenRhythm 云端密钥过期(401),改经本地 facade `127.0.0.1:11434/v1/systemone`(模型 `jev/NeoHorse-Jev-4B`,同引擎 NeoHorse-Jev-4B)重跑存档请求。**三项判定与过渡结论全部一致**:q1 HEAD 错误应答带体是应修复缺陷 **0.984**(已修 S71);q2 区间倒置 403 valid-filter 非缺陷 **0.062**(行为正确,已钉);q3 无需同面继续深挖 **0.072**。收据:`/tmp/jev-moonical/jev-round2fix-request-local.json` + `jev-round2fix-response-local.json`。

@@ -38,18 +38,25 @@ visible and testable. Writing out the table often shows gaps in the business log
 combination of judgments with no defined outcome is a design question about the system, and it is
 best settled in code.
 
-## 供应商 API（TokenRhythm，tokenrhythm.studio）
+## 调用通道（本地 facade 与 TokenRhythm 云端）
 
-Jev 通过 TokenRhythm 平台调用，模型 ID 固定为 `NeoHorse-Jev-4B`。是否可用及当前价格以平台
-模型目录返回的状态和价格为准；调用次数及上游可确认的 Token 用量出现在用户中心和调用日志。
+Jev 引擎固定为 `NeoHorse-Jev-4B`，有两个等价调用通道，由 `.env`（或环境变量）里的三个键选择：
+
+- **本地 facade（当前默认）**：`TOKENRHYTHM_API_BASE=http://127.0.0.1:11434`、
+  `TOKENRHYTHM_API_KEY=magpie`、`TOKENRHYTHM_MODEL=jev/NeoHorse-Jev-4B`。Magpie 网关把
+  `jev/` 前缀路由到同一 NeoHorse-Jev-4B 引擎，只暴露 System One 兼容路径
+  `POST /v1/systemone`（`decide.mjs` 在自定义 BASE 下自动默认走它）。判定概率与云端一致。
+- **TokenRhythm 云端**：`TOKENRHYTHM_API_BASE=https://tokenrhythm.studio`（或不设）+
+  `sk_` 密钥、模型 `NeoHorse-Jev-4B`。端点 `POST /v1/decision` 与
+  `POST /v1/systemone`（同一请求体，返回可另含 `usage`、`extensions`）；是否可用与价格以
+  平台模型目录为准。2026-11-19 起云端密钥过期（401），`.env` 里留有注释行，续期后改回。
 
 ### 接口与鉴权
 
-- 推荐端点：`POST https://tokenrhythm.studio/v1/decision`
-- System One 兼容格式：`POST https://tokenrhythm.studio/v1/systemone`（同一请求体，返回可另含
-  `usage`、`extensions`）
-- 鉴权：`Authorization: Bearer sk_平台密钥`，请求头 `Content-Type: application/json`
-- 两个接口均为**非流式 JSON**；API Key 的模型权限和账号灰度名单同时生效
+- 鉴权：`Authorization: Bearer <令牌>`（云端 `sk_` 密钥；本地 facade 固定 `magpie`），请求头
+  `Content-Type: application/json`；两个通道均为**非流式 JSON**。
+- `decide.mjs` 从环境变量或 `.env` 读 `TOKENRHYTHM_API_KEY`（Bearer 令牌）、
+  `TOKENRHYTHM_API_BASE`（服务根址）、`TOKENRHYTHM_MODEL`（设置后覆盖请求体的 model 字段）。
 
 ### 请求体
 
@@ -123,8 +130,8 @@ node scripts/decide.mjs request.json --endpoint systemone
 
 密钥约定：
 
-- 来源：环境变量 `TOKENRHYTHM_API_KEY` 优先，其次本技能根目录的 `.env`
-  （格式见 `.env.example`）。`.env` 已加入 `.gitignore`，禁止提交到仓库。
+- 来源：环境变量优先，其次本技能根目录的 `.env`
+  （三个键与示例见 `.env.example`）。`.env` 已加入 `.gitignore`，禁止提交到仓库。
 - 密钥保护：把真实 key 写入 `.env` 后，运行 `bash scripts/protect-env.sh` 收紧权限
   （移除继承，仅当前 Windows 用户可访问）；需要再编辑时先 `icacls .env /reset` 恢复。
 - 注意：脚本调用模型时必须读到密钥，因此 `.env` 不能对当前用户"完全不可读"。如果要求连本机

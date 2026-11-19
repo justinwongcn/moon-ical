@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * JEV 决策模型调用脚本（TokenRhythm / tokenrhythm.studio，模型固定为 NeoHorse-Jev-4B）
+ * JEV 决策模型调用脚本（TokenRhythm 云端或本地 facade，引擎 NeoHorse-Jev-4B）
  *
  * 用法：
  *   echo '<json>' | node decide.mjs                      # 请求体从 stdin 读入
@@ -10,7 +10,11 @@
  *                                                        # 不读密钥、不发网络请求
  *
  * 请求体形如 {"state": "...", "questions": {...}}，model 可省略（脚本默认补全）。
- * 密钥来源：环境变量 TOKENRHYTHM_API_KEY 优先，其次本技能根目录的 .env 文件。
+ * 密钥/通道来源：环境变量优先，其次本技能根目录的 .env 文件——
+ *   TOKENRHYTHM_API_KEY  Bearer 令牌（云端 sk_ 密钥；本地 facade 为 magpie）
+ *   TOKENRHYTHM_API_BASE 服务根址（默认 https://tokenrhythm.studio；本地 facade 为 http://127.0.0.1:11434）
+ *   TOKENRHYTHM_MODEL    模型 ID（默认 NeoHorse-Jev-4B；facade 路由为 jev/NeoHorse-Jev-4B，
+ *                        设置后覆盖请求体里的 model 字段）
  * 成功时把返回的结构化 JSON 原样打印到 stdout；失败时把 code/message/traceId 打印到 stderr
  * 并以非零退出码结束，便于上层把"调用失败"当错误处理，而不是当成某个答案。
  */
@@ -20,14 +24,26 @@ import { fileURLToPath } from 'node:url';
 
 const SKILL_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_MODEL = 'NeoHorse-Jev-4B';
-const ENDPOINTS = {
-  decision: 'https://tokenrhythm.studio/v1/decision',
-  systemone: 'https://tokenrhythm.studio/v1/systemone',
-};
+const DEFAULT_BASE = 'https://tokenrhythm.studio';
+
+// ---- 配置：环境变量优先，其次技能根目录 .env ----
+function readEnv(name) {
+  if (process.env[name]) return process.env[name].trim();
+  const envPath = join(SKILL_ROOT, '.env');
+  if (!existsSync(envPath)) return null;
+  const prefix = `${name}=`;
+  const line = readFileSync(envPath, 'utf8')
+    .split(/\r?\n/)
+    .find((l) => l.startsWith(prefix));
+  if (!line) return null;
+  return line.slice(prefix.length).trim().replace(/^["']|["']$/g, '');
+}
 
 // ---- 参数解析 ----
 const args = process.argv.slice(2);
-let endpoint = 'decision';
+const base = (readEnv('TOKENRHYTHM_API_BASE') || DEFAULT_BASE).replace(/\/+$/, '');
+// 本地 facade 通常只暴露 System One 兼容路径；显式 --endpoint 仍然优先。
+let endpoint = base === DEFAULT_BASE ? 'decision' : 'systemone';
 let inputPath = '-';
 let dryRun = false;
 for (let i = 0; i < args.length; i++) {
@@ -38,11 +54,11 @@ for (let i = 0; i < args.length; i++) {
     process.exit(0);
   } else inputPath = args[i];
 }
-const url = ENDPOINTS[endpoint];
-if (!url) {
+if (endpoint !== 'decision' && endpoint !== 'systemone') {
   console.error(`未知端点：${endpoint}（可选 decision | systemone）`);
   process.exit(2);
 }
+const url = `${base}/v1/${endpoint}`;
 
 // ---- 读取并校验请求体 ----
 let payload;
@@ -53,7 +69,8 @@ try {
   console.error(`读取或解析请求体失败：${err.message}`);
   process.exit(2);
 }
-if (!payload.model) payload.model = DEFAULT_MODEL;
+const configuredModel = readEnv('TOKENRHYTHM_MODEL');
+payload.model = configuredModel || payload.model || DEFAULT_MODEL;
 if (!payload.questions || typeof payload.questions !== 'object' || Array.isArray(payload.questions)) {
   console.error('请求体缺少 questions 对象（键为问题 ID，值为 {type, instructions?, criteria?}）');
   process.exit(2);
@@ -64,20 +81,10 @@ if (dryRun) {
   process.exit(0);
 }
 
-// ---- 读取密钥 ----
-function loadApiKey() {
-  if (process.env.TOKENRHYTHM_API_KEY) return process.env.TOKENRHYTHM_API_KEY.trim();
-  const envPath = join(SKILL_ROOT, '.env');
-  if (!existsSync(envPath)) return null;
-  const line = readFileSync(envPath, 'utf8')
-    .split(/\r?\n/)
-    .find((l) => l.startsWith('TOKENRHYTHM_API_KEY='));
-  if (!line) return null;
-  return line.slice('TOKENRHYTHM_API_KEY='.length).trim().replace(/^["']|["']$/g, '');
-}
-const apiKey = loadApiKey();
+// ---- 读取 Bearer 令牌 ----
+const apiKey = readEnv('TOKENRHYTHM_API_KEY');
 if (!apiKey || apiKey.includes('填入')) {
-  console.error('未找到平台密钥：请设置环境变量 TOKENRHYTHM_API_KEY，或把 sk_ 开头的密钥写入本技能根目录的 .env');
+  console.error('未找到 Bearer 令牌：请设置环境变量 TOKENRHYTHM_API_KEY，或写入本技能根目录的 .env（云端 sk_ 密钥；本地 facade 为 magpie）');
   process.exit(2);
 }
 
