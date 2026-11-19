@@ -744,3 +744,81 @@ test "calendar_object_precondition mirrors the series type-agreement raise" {
     None,
   )
 }
+
+///|
+test "calendar_object_precondition refuses duplicated single-occurrence properties" {
+  // S62: RFC 5545 marks DTSTART/DTEND/DURATION/UID/RECURRENCE-ID/RRULE
+  // "MUST NOT occur more than once"; the typed parse raises and the door
+  // mirrors it as invalid-calendar-data instead of storing a document
+  // whose meaning depends on which line a reader happened to pick.
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:d1\r\nDTSTART:20260915T090000Z\r\nRRULE:FREQ=DAILY;COUNT=2\r\nRRULE:FREQ=WEEKLY;COUNT=2\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:valid-calendar-data/>"),
+  )
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:d2\r\nDTSTART:20260915T090000Z\r\nDTSTART:20260916T090000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:valid-calendar-data/>"),
+  )
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:d3\r\nUID:d4\r\nDTSTART:20260915T090000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:valid-calendar-data/>"),
+  )
+}
+
+///|
+test "calendar_object_precondition refuses DTEND types that disagree with DTSTART" {
+  // S62: RFC 5545 3.8.2.2 — the DTEND value type must match DTSTART's,
+  // and a DURATION on a DATE-valued event must be days or weeks.
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:d5\r\nDTSTART;VALUE=DATE:20260915\r\nDTEND:20260916T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:valid-calendar-data/>"),
+  )
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:d6\r\nDTSTART;VALUE=DATE:20260915\r\nDURATION:PT1H\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    Some("<C:valid-calendar-data/>"),
+  )
+  // Matching pairs stay legal.
+  assert_eq(
+    @caldav.calendar_object_precondition(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:d7\r\nDTSTART;VALUE=DATE:20260915\r\nDTEND;VALUE=DATE:20260916\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ),
+    None,
+  )
+}
+
+///|
+test "CDATA content is character data, never structure" {
+  // S66: a CDATA-wrapped element used to have its inner markup eaten by
+  // the skip-to-first-`>` DOCTYPE branch and injected as structure,
+  // silently changing what the request selected. The content now lands
+  // in the element's text — verbatim, inert, and equal to the same
+  // request with plain text in the same spot (R1 pair).
+  let head = "<?xml version=\"1.0\"?><D:propfind xmlns:D=\"DAV:\"><D:prop>"
+  let tail = "</D:prop></D:propfind>"
+  fn shape(body : String) -> @caldav.PropFind? {
+    Some(@caldav.parse_propfind(body)) catch {
+      _ => None
+    }
+  }
+  let cdata = shape(head + "<![CDATA[<D:getetag/>]]>" + tail)
+  let text = shape(head + "getetag" + tail)
+  let real = shape(head + "<D:getetag/>" + tail)
+  guard cdata is Some(c) && text is Some(t) && real is Some(r) else {
+    fail("all three bodies parse")
+  }
+  // The injected markup must not have become a selection: the CDATA
+  // body and the plain-text body parse to the same shape, and the real
+  // element differs from both.
+  assert_true(c == t)
+  assert_true(r != c)
+}

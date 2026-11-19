@@ -30,6 +30,8 @@ pub extend Precondition with Eq::{not_equal, equal}
 ///|
 /// Evaluate `If-Match` and `If-None-Match` against the current entity tag.
 /// Header values may be `*`, a quoted tag, or a comma-separated tag list.
+/// `If-Match` compares with the strong function (RFC 7232 §3.1: a weak
+/// tag can never match) and `If-None-Match` with the weak one (§3.2).
 pub fn check_preconditions(
   current : String?,
   if_match : String?,
@@ -41,7 +43,7 @@ pub fn check_preconditions(
         if current is None {
           return Failed
         }
-      } else if !tag_list_contains(value, current) {
+      } else if !tag_list_contains(value, current, weak=false) {
         return Failed
       }
     None => ()
@@ -54,7 +56,7 @@ pub fn check_preconditions(
         } else {
           Pass
         }
-      } else if tag_list_contains(value, current) {
+      } else if tag_list_contains(value, current, weak=true) {
         Failed
       } else {
         Pass
@@ -64,17 +66,21 @@ pub fn check_preconditions(
 }
 
 ///|
-fn tag_list_contains(value : String, current : String?) -> Bool {
+/// Whether the tag list names `current`. The list items are the wire
+/// forms — `"tag"` strong, `W/"tag"` weak — and an unquoted token is no
+/// entity tag at all, never a match. Strong comparison ignores the weak
+/// spelling; weak comparison accepts it, which is exactly the
+/// If-None-Match function.
+fn tag_list_contains(value : String, current : String?, weak~ : Bool) -> Bool {
   match current {
     None => false
     Some(tag) => {
       let quoted = "\"\{tag}\""
-      let weak = "W/\{quoted}"
+      let weak_form = "W/\{quoted}"
       for part in value.to_string_view().split(",".to_string_view()) {
         let item = part.trim(chars=" \t".to_string_view())
         if item.equal_to_string(quoted) ||
-          item.equal_to_string(weak) ||
-          item.equal_to_string(tag) {
+          (weak && item.equal_to_string(weak_form)) {
           return true
         }
       }

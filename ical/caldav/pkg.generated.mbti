@@ -14,6 +14,8 @@ pub fn check_preconditions(String?, String?, String?) -> Precondition
 
 pub fn collection_propfind(Array[DavResource], Int32, href? : String, displayname? : String, children? : Array[(String, String)], selection? : PropFind) -> String
 
+pub fn first_uid(String) -> String?
+
 pub fn parse_filter(String) -> Filter raise FilterError
 
 pub fn parse_mkcalendar(String) -> MkCalendarProps
@@ -27,6 +29,8 @@ pub fn principal_propfind(selection? : PropFind) -> String
 pub fn report(String, Array[DavResource]) -> ReportOutcome
 
 pub fn root_propfind(selection? : PropFind) -> String
+
+pub fn uid_conflict(String?, String?, String, Map[String, String]) -> String?
 
 pub fn xml_escape(String) -> String
 

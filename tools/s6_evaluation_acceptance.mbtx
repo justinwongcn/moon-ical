@@ -1,6 +1,7 @@
 ----
 import {
   "moonbitlang/async",
+  "moonbitlang/async/fs" @afs,
   "moonbitlang/async/shell",
   "moonbitlang/core/env",
   "moonbitlang/x/fs",
@@ -100,13 +101,19 @@ async fn main {
   let (code, body) = request(base, "REPORT", "/cal/", temporal)
   assert_eq(code, "207")
   assert_single_href(body, path)
-  ignore(request(base, "PUT", path, bad))
+  // The S53 door moved the "unimplemented recurrence" contract to the
+  // write path: a sub-daily rule is a 403 with valid-calendar-data at
+  // PUT, and the stored resource — still the good event — keeps
+  // answering clean reports. The fail-closed 500 remains the contract
+  // for content that bypassed the door (hand-seeded files below), not
+  // for anything HTTP stored.
+  let (put, put_body) = request(base, "PUT", path, bad)
+  assert_eq(put, "403")
+  assert_true(put_body.contains("<C:valid-calendar-data/>"))
   let (code, body) = request(base, "REPORT", "/cal/", temporal)
-  assert_eq(code, "500")
-  assert_true(body.has_prefix(path + ":"))
-  assert_true(body.contains("recurrence rule"))
-  assert_false(body.contains("<C:supported-filter"))
-  assert_false(body.contains("<D:multistatus"))
+  assert_eq(code, "207")
+  assert_single_href(body, path)
+  assert_false(body.contains("recurrence rule"))
   let (code, body) = request(base, "REPORT", "/cal/", text)
   assert_eq(code, "207")
   assert_single_href(body, path)
@@ -120,7 +127,7 @@ async fn main {
   assert_empty_report(body)
   let (code, body) = request(base, "GET", path, "")
   assert_eq(code, "200")
-  assert_eq(body, bad)
+  assert_eq(body, good)
   let (code, body) = request(
     base,
     "REPORT",
@@ -238,26 +245,36 @@ async fn main {
     old="END:VTIMEZONE",
     new="BEGIN:DAYLIGHT\r\nDTSTART:19700308T020000\r\nTZOFFSETFROM:+0900\r\nTZOFFSETTO:+1000\r\nEND:DAYLIGHT\r\nEND:VTIMEZONE",
   )
-  ignore(request(base, "PUT", path, dynamic))
+  // Same contract move: a zone binding the typed parse refuses is a
+  // 403 at PUT, and the last door-accepted resource keeps serving.
+  let (put, put_body) = request(base, "PUT", path, dynamic)
+  assert_eq(put, "403")
+  assert_true(put_body.contains("<C:valid-calendar-data/>"))
   let (code, body) = request(base, "REPORT", "/cal/", narrow)
-  assert_eq(code, "500")
-  assert_true(body.contains("calendar date or structure"))
+  assert_eq(code, "207")
+  assert_single_href(body, path)
   let (code, body) = request(base, "REPORT", "/cal/", text)
   assert_eq(code, "207")
   assert_single_href(body, path)
   let (code, body) = request(base, "GET", path, "")
   assert_eq(code, "200")
-  assert_eq(body, dynamic)
+  assert_eq(body, zoned)
+  // S60 narrowed the door to the advertised VEVENT-only set: a VTODO
+  // is a 403 with supported-calendar-component before it can be stored,
+  // and the VTODO-filtered query answers an empty report — nothing is
+  // there to fail closed on.
   let todo = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:evaluation-live\r\nDTSTART:20260101T090000Z\r\nRRULE:FREQ=DAILY;COUNT=2\r\nEND:VTODO\r\nEND:VCALENDAR\r\n"
-  ignore(request(base, "PUT", path, todo))
+  let (put, put_body) = request(base, "PUT", path, todo)
+  assert_eq(put, "403")
+  assert_true(put_body.contains("<C:supported-calendar-component/>"))
   let (code, body) = request(
     base,
     "REPORT",
     "/cal/",
     first.replace(old="VEVENT", new="VTODO"),
   )
-  assert_eq(code, "500")
-  assert_true(body.contains("unsupported temporal evaluation"))
+  assert_eq(code, "207")
+  assert_empty_report(body)
   ignore(request(base, "PUT", path, good))
   let (code, body) = request(
     base,
@@ -281,23 +298,37 @@ async fn main {
   )
   assert_eq(code, "403")
   assert_true(body.contains("<C:valid-calendar-data/>"))
+  // The door refuses both poison shapes at PUT — a sentinel can never
+  // reach the store through HTTP. The privacy receipt therefore moves
+  // to a hand-seeded file: the one shape that bypasses the door, and
+  // the reason the fail-closed path still exists at all.
   for
     private_data in [
       event("FREQ=DAILY;COUNT=1", "DURATION:PRIVATE-SENTINEL\r\n"),
       "PRIVATE-SENTINEL",
     ] {
-    ignore(request(base, "PUT", path, private_data))
+    let (put, _) = request(base, "PUT", path, private_data)
+    assert_eq(put, "403")
     let (code, body) = request(base, "REPORT", "/cal/", first)
-    assert_eq(code, "500")
+    assert_eq(code, "207")
+    assert_single_href(body, path)
     assert_false(body.contains("PRIVATE-SENTINEL"))
-    assert_true(body.has_prefix(path + ":"))
   }
+  // args[3] is the server's data directory. Hand-seed what the door
+  // would never store, then watch the report fail closed naming the
+  // href while the log carries the reason but never the sentinel.
+  let seed = event("FREQ=DAILY;COUNT=1", "DURATION:PRIVATE-SENTINEL\r\n")
+  @afs.write_file(args[3] + "/seed-private.ics", seed)
+  let (code, body) = request(base, "REPORT", "/cal/", first)
+  assert_eq(code, "500")
+  assert_false(body.contains("PRIVATE-SENTINEL"))
+  assert_true(body.has_prefix("/cal/seed-private.ics:"))
   let log = @fs.read_file_to_string(args[2])
   assert_false(log.contains("PRIVATE-SENTINEL"))
   assert_true(log.contains("REPORT evaluation failed:"))
   let (code, _) = request(base, "DELETE", path, "")
   assert_eq(code, "204")
   println(
-    "HTTP evaluation acceptance passed: recurrence/empty/cap/collation/VTODO/timezone/text/GET",
+    "HTTP evaluation acceptance passed: door/empty/cap/collation/VTODO/timezone/text/GET/log",
   )
 }

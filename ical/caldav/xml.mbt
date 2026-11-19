@@ -58,6 +58,27 @@ fn parse_xml_element(input : String) -> XmlElement? {
         Some(after) => i = after
         None => break
       }
+    } else if i + 9 <= n &&
+      v[i + 1] == '!' &&
+      v[i + 2] == '[' &&
+      v[i + 3] == 'C' &&
+      v[i + 4] == 'D' &&
+      v[i + 5] == 'A' &&
+      v[i + 6] == 'T' &&
+      v[i + 7] == 'A' &&
+      v[i + 8] == '[' {
+      // A CDATA section is character data by definition — markup inside
+      // it must not become structure. Skip-to-the-first-`>` used to eat
+      // the section and hand its inner tags to the parser, silently
+      // changing what the request selected; the content now lands in
+      // the open element's text, verbatim and inert.
+      match find_after(v, i + 9, "]]>") {
+        Some(after) => {
+          flush_text(stack, v[i + 9:after - 3].to_owned())
+          i = after
+        }
+        None => break
+      }
     } else if i + 1 < n && v[i + 1] == '!' {
       // DOCTYPE and friends: skip to the first `>`.
       match find_char(v, i, '>') {

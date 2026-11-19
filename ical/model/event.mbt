@@ -138,6 +138,20 @@ fn event_from_component(
   component : Component,
   zones : ZoneTable,
 ) -> Event raise {
+  // RFC 5545 marks each of these properties "MUST NOT occur more than
+  // once" on a VEVENT (§3.8.2.4 DTSTART, §3.8.2.2 DTEND, §3.8.2.3
+  // DURATION, §3.8.4.7 UID, §3.8.4.6 RECURRENCE-ID, §3.8.5.3 RRULE).
+  // The first-occurrence readers would silently pick one line and drop
+  // the rest — an invalid document must be loud, not interpreted.
+  for name in ["DTSTART", "DTEND", "DURATION", "RRULE", "UID", "RECURRENCE-ID"] {
+    if component.properties_named(name).length() > 1 {
+      raise @text.ParseError::BadLine(
+        line_no=0,
+        line=name,
+        message="VEVENT carries more than one \{name}",
+      )
+    }
+  }
   let dtstart = component
     .property("DTSTART")
     .map(line => parse_date_time(line, zones))
@@ -152,6 +166,34 @@ fn event_from_component(
       line=duration_line.unwrap().value,
       message="VEVENT carries both DTEND and DURATION",
     )
+  }
+  // §3.8.2.2: the DTEND value type must be the same as DTSTART's, and a
+  // DURATION on an all-day event must be whole days or weeks — a mixed
+  // pair would make the event's own extent a guess between the two
+  // calendars' conventions.
+  match (dtstart, dtend_line) {
+    (Some(start), Some(line)) => {
+      let end = parse_date_time(line, zones)
+      if end.all_day != start.all_day {
+        raise @text.ParseError::BadLine(
+          line_no=0,
+          line=line.value,
+          message="DTEND value type must agree with DTSTART",
+        )
+      }
+    }
+    _ => ()
+  }
+  match (dtstart, duration_line) {
+    (Some(start), Some(line)) =>
+      if start.all_day && line.value.contains("T") {
+        raise @text.ParseError::BadLine(
+          line_no=0,
+          line=line.value,
+          message="DURATION on a DATE-valued event must be days or weeks",
+        )
+      }
+    _ => ()
   }
   let dtend = match dtend_line {
     Some(line) => Some(parse_date_time(line, zones))

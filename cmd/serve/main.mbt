@@ -50,6 +50,34 @@
 let stdio_lock : @async.Semaphore = @async.Semaphore(1)
 
 ///|
+/// Serializes the read-index-then-write section of a `PUT`. The
+/// no-uid-conflict index is rebuilt per write from the collection's
+/// files, so two concurrent `PUT`s could each scan before either writes
+/// and both would store the same UID — measured live (two 201s on the
+/// same UID). Same cure as `stdio_lock` (S51).
+let put_lock : @async.Semaphore = @async.Semaphore(1)
+
+///|
+/// Run `f` holding [`put_lock`], releasing it on the error path too —
+/// a release skipped on a raise would deadlock every later write.
+async fn[T] put_locked(f : async () -> T) -> T {
+  put_lock.acquire()
+  errdefer put_lock.release()
+  let out = f()
+  put_lock.release()
+  out
+}
+
+///|
+/// The verdict of the locked write section: the body stored as new, the
+/// body stored over the same resource, or the no-uid-conflict payload.
+priv enum PutOutcome {
+  Conflict(String)
+  Created(String)
+  Replaced(String)
+}
+
+///|
 async fn main {
   let args = @env.args()
   let root = if args.length() > 1 { args[1] } else { "./caldata" }
@@ -186,7 +214,14 @@ async fn handle_connection(
       }
       @httpd.HttpParseError::Malformed(message=m) => {
         // A malformed request stream cannot be trusted to
-        // resynchronise; answer 400 and drop the connection.
+        // resynchronise; answer 400 and drop the connection. The
+        // refusal may fire while the client is still mid-upload — an
+        // over-long request line raises the moment its cap trips, with
+        // kilobytes still inbound — and closing with that unread data
+        // kills the response with an RST, exactly the measured loss the
+        // 411/413 branches drain against. Drain before the close so the
+        // 400 actually reaches the client; whatever arrives past the
+        // cap is garbage that trips the same cap and stops at it.
         @httpd.respond(
           conn,
           400,
@@ -194,6 +229,7 @@ async fn handle_connection(
           headers=[("Connection", "close")],
           body="malformed request: \{m}",
         )
+        drain(conn)
         Stop
       }
       err => {
@@ -456,6 +492,52 @@ async fn store_for(
 }
 
 ///|
+/// The `CALDAV:no-uid-conflict` verdict for a PUT, or `None`. The server
+/// is stateless, so the per-collection UID uniqueness RFC 4791
+/// §5.3.2.1 demands is rebuilt per write: every sibling file's first
+/// UID is read into an index, and the decision itself is the pure
+/// [`@caldav.uid_conflict`]. The scan costs O(collection) reads on the
+/// write path — the price a vdir store pays for UID uniqueness without
+/// a persistent index.
+async fn no_uid_conflict(
+  store : @store.VdirStore,
+  name : String,
+  request : @httpd.HttpRequest,
+  current : @store.VdirFile?,
+) -> String? {
+  let body_uid = @caldav.first_uid(request.body)
+  let current_uid = match current {
+    Some(file) => @caldav.first_uid(file.text)
+    None => None
+  }
+  // The href of any sibling is the request's own collection prefix plus
+  // the sibling's name: the routing that produced `name` guarantees the
+  // request path ends with it.
+  let path = request.path.to_string_view()
+  let prefix = path
+    .clamped_view(start=0, end=path.length() - name.length() - 1)
+    .to_owned()
+  let index : Map[String, String] = Map([])
+  for sibling in store.list() {
+    if sibling == name {
+      continue
+    }
+    match store.get(sibling) {
+      Some(file) =>
+        match @caldav.first_uid(file.text) {
+          Some(uid) =>
+            if !index.contains(uid) {
+              index[uid] = "\{prefix}/\{sibling}"
+            }
+          None => ()
+        }
+      None => ()
+    }
+  }
+  @caldav.uid_conflict(body_uid, current_uid, request.path, index)
+}
+
+///|
 /// The event methods, unchanged from the single-collection server — the
 /// nested store has the same shape, so they work on either.
 async fn event_method(
@@ -519,10 +601,46 @@ async fn event_method(
           is @caldav.Precondition::Failed {
           reply(conn, request, 412, "Precondition Failed")
         } else {
-          let etag = store.put(name, request.body)
-          let code = if current is Some(_) { 204 } else { 201 }
-          let reason = if code == 204 { "No Content" } else { "Created" }
-          reply(conn, request, code, reason, headers=[("ETag", "\"\{etag}\"")])
+          // RFC 4791 §5.3.2.1: a UID another resource already holds, or
+          // an overwrite that changes the resource's UID, is refused
+          // with the no-uid-conflict precondition naming the conflict —
+          // letting it through would store one logical series under two
+          // URLs and answer every report twice. The index is rebuilt
+          // per write, so the scan and the store run together under
+          // [`put_lock`]: unlocked, two concurrent PUTs of one UID both
+          // scanned an empty index and both stored.
+          let outcome = put_locked(() => {
+            match no_uid_conflict(store, name, request, current) {
+              Some(inner) => PutOutcome::Conflict(inner)
+              None => {
+                let etag = store.put(name, request.body)
+                if current is Some(_) {
+                  PutOutcome::Replaced(etag)
+                } else {
+                  PutOutcome::Created(etag)
+                }
+              }
+            }
+          })
+          match outcome {
+            Conflict(inner) =>
+              reply(
+                conn,
+                request,
+                403,
+                "Forbidden",
+                headers=[("Content-Type", "application/xml; charset=utf-8")],
+                body=@caldav.precondition_document(inner),
+              )
+            Created(etag) =>
+              reply(conn, request, 201, "Created", headers=[
+                ("ETag", "\"\{etag}\""),
+              ])
+            Replaced(etag) =>
+              reply(conn, request, 204, "No Content", headers=[
+                ("ETag", "\"\{etag}\""),
+              ])
+          }
         }
       }
     }

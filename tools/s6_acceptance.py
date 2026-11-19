@@ -308,7 +308,12 @@ def main():
         )
         code, _, _ = request("GET", "/cal/poison-todo.ics")
         check("refused VTODO body was not stored", code == 404)
-        code, _, _ = request("PUT", "/cal/s6-clean.ics", EVENT, ["If-None-Match: *"])
+        code, _, _ = request(
+            "PUT",
+            "/cal/s6-clean.ics",
+            EVENT.replace("UID:s6@moon-ical", "UID:s6-clean@moon-ical"),
+            ["If-None-Match: *"],
+        )
         check("the R1 canary VEVENT still stores", code == 201)
         code, _, body = request("PROPFIND", "/cal/", headers=["Depth: 1"])
         check(
@@ -317,6 +322,63 @@ def main():
         )
         code, _, _ = request("DELETE", "/cal/s6-clean.ics")
         check("cleanup of the S60 canary", code == 204)
+
+        # S61 no-uid-conflict (RFC 4791 5.3.2.1): a UID another resource
+        # already holds must be refused naming that resource's href, an
+        # overwrite that changes the UID must be refused naming itself,
+        # and the same UID over the same resource stays the normal
+        # replace. Each refusal leaves nothing behind (R2).
+        uid_a = EVENT.replace("UID:s6@moon-ical", "UID:uid-a@moon-ical")
+        code, _, _ = request("PUT", "/cal/uid-a.ics", uid_a, ["If-None-Match: *"])
+        check("S61 fresh UID on a fresh resource stores", code == 201)
+        code, _, body = request("PUT", "/cal/uid-b.ics", uid_a)
+        check(
+            "S61 duplicate UID on another URL refused naming the holder",
+            code == 403 and "no-uid-conflict" in body and "/cal/uid-a.ics" in body,
+        )
+        code, _, _ = request("GET", "/cal/uid-b.ics")
+        check("S61 refused duplicate body was not stored", code == 404)
+        code, _, body = request("PUT", "/cal/uid-a.ics", EVENT)
+        check(
+            "S61 overwrite changing the UID refused naming itself",
+            code == 403 and "no-uid-conflict" in body and "/cal/uid-a.ics" in body,
+        )
+        code, _, _ = request("PUT", "/cal/uid-a.ics", uid_a)
+        check("S61 same UID over the same resource stays a replace", code == 204)
+        code, _, _ = request("DELETE", "/cal/uid-a.ics")
+        check("S61 cleanup of the UID pin", code == 204)
+
+        # S62 single-occurrence properties (RFC 5545 3.8): a body whose
+        # meaning would depend on which line a reader picks is refused as
+        # invalid-calendar-data and leaves nothing behind (R2/R3). The
+        # matching-type pair stays legal (R1 control).
+        code, _, body = request(
+            "PUT",
+            "/cal/poison-dup.ics",
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//s6//x\r\nBEGIN:VEVENT\r\nUID:dup@moon-ical\r\nDTSTART:20260915T090000Z\r\nRRULE:FREQ=DAILY;COUNT=2\r\nRRULE:FREQ=WEEKLY;COUNT=2\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+        )
+        check(
+            "S62 two RRULE refused as valid-calendar-data",
+            code == 403 and "valid-calendar-data" in body,
+        )
+        code, _, _ = request("GET", "/cal/poison-dup.ics")
+        check("S62 refused duplicate body was not stored", code == 404)
+        code, _, body = request(
+            "PUT",
+            "/cal/poison-mix.ics",
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//s6//x\r\nBEGIN:VEVENT\r\nUID:mix@moon-ical\r\nDTSTART;VALUE=DATE:20260915\r\nDTEND:20260916T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+        )
+        check(
+            "S62 DATE DTSTART with DATE-TIME DTEND refused",
+            code == 403 and "valid-calendar-data" in body,
+        )
+        code, _, _ = request("PUT", "/cal/s62-ok.ics",
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//s6//x\r\nBEGIN:VEVENT\r\nUID:s62ok@moon-ical\r\nDTSTART;VALUE=DATE:20260915\r\nDTEND;VALUE=DATE:20260916\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+            ["If-None-Match: *"],
+        )
+        check("S62 matching DATE pair still stores", code == 201)
+        code, _, _ = request("DELETE", "/cal/s62-ok.ics")
+        check("S62 cleanup of the control", code == 204)
 
         code, _, _ = request("DELETE", "/cal/s6.ics", headers=[f"If-Match: {tag}"])
         check("matching conditional delete succeeds", code == 204)

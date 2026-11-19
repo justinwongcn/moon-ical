@@ -165,3 +165,72 @@ test "an unknown TZID on an event is an error, never a silent guess" {
   assert_true(msg.contains("unknown TZID"))
   assert_true(msg.contains("Mars/Olympus"))
 }
+
+///|
+test "a repeated single-occurrence property is loud, never first-wins" {
+  // RFC 5545 marks DTSTART (3.8.2.4), DTEND (3.8.2.2), DURATION (3.8.2.3),
+  // UID (3.8.4.7), RECURRENCE-ID (3.8.4.6) and RRULE (3.8.5.3) "MUST NOT
+  // occur more than once"; the first-occurrence readers used to pick one
+  // line and drop the rest silently.
+  let pairs : Array[(String, String)] = [
+    ("DTSTART", "DTSTART:20260915T090000Z\r\nDTSTART:20260916T090000Z\r\n"),
+    ("DTEND", "DTEND:20260915T100000Z\r\nDTEND:20260915T110000Z\r\n"),
+    ("DURATION", "DURATION:PT1H\r\nDURATION:PT2H\r\n"),
+    ("RRULE", "RRULE:FREQ=DAILY;COUNT=2\r\nRRULE:FREQ=WEEKLY;COUNT=2\r\n"),
+    ("UID", "UID:first@x\r\nUID:second@x\r\n"),
+    (
+      "RECURRENCE-ID", "RECURRENCE-ID:20260916T090000Z\r\nRECURRENCE-ID:20260917T090000Z\r\n",
+    ),
+  ]
+  for pair in pairs {
+    let (name, lines) = pair
+    let msg = feed_error_of(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n" +
+      lines +
+      "DTSTART:20260915T090000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    )
+    assert_true(msg.contains("more than one \{name}"))
+  }
+}
+
+///|
+test "DTEND and DURATION must match DTSTART's value type" {
+  // RFC 5545 3.8.2.2: the DTEND value type must be the same as DTSTART's,
+  // and a DURATION on a DATE-valued event must be dur-day or dur-week —
+  // a mixed pair makes the event's extent a guess.
+  let mixed_dtend = feed_error_of(
+    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:m1\r\n" +
+    "DTSTART;VALUE=DATE:20260915\r\nDTEND:20260916T100000Z\r\n" +
+    "END:VEVENT\r\nEND:VCALENDAR\r\n",
+  )
+  assert_true(mixed_dtend.contains("DTEND value type must agree"))
+  let mixed_other = feed_error_of(
+    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:m2\r\n" +
+    "DTSTART:20260915T090000Z\r\nDTEND;VALUE=DATE:20260916\r\n" +
+    "END:VEVENT\r\nEND:VCALENDAR\r\n",
+  )
+  assert_true(mixed_other.contains("DTEND value type must agree"))
+  let timed_duration = feed_error_of(
+    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:m3\r\n" +
+    "DTSTART;VALUE=DATE:20260915\r\nDURATION:PT1H\r\n" +
+    "END:VEVENT\r\nEND:VCALENDAR\r\n",
+  )
+  assert_true(timed_duration.contains("must be days or weeks"))
+}
+
+///|
+test "matching value types stay accepted" {
+  // Controls: the pairings the rule above deliberately keeps legal.
+  let day_pair = @model.parse_events(
+    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:ok1\r\n" +
+    "DTSTART;VALUE=DATE:20260915\r\nDTEND;VALUE=DATE:20260916\r\n" +
+    "END:VEVENT\r\nEND:VCALENDAR\r\n",
+  )
+  assert_eq(day_pair.length(), 1)
+  let day_duration = @model.parse_events(
+    "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:ok2\r\n" +
+    "DTSTART;VALUE=DATE:20260915\r\nDURATION:P1D\r\n" +
+    "END:VEVENT\r\nEND:VCALENDAR\r\n",
+  )
+  assert_eq(day_duration.length(), 1)
+}

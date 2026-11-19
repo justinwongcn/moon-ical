@@ -148,9 +148,26 @@ test "entity-tag preconditions cover create update and lists" {
     @caldav.check_preconditions(Some("aaa"), Some("\"aaa\""), None),
     @caldav.Precondition::Pass,
   )
+  // RFC 7232 3.1: If-Match uses the strong comparison, so a weak tag in
+  // the list can never match - the weak spelling used to pass here.
   assert_eq(
     @caldav.check_preconditions(Some("aaa"), Some("\"bbb\", W/\"aaa\""), None),
-    @caldav.Precondition::Pass,
+    @caldav.Precondition::Failed,
+  )
+  assert_eq(
+    @caldav.check_preconditions(Some("aaa"), Some("W/\"aaa\""), None),
+    @caldav.Precondition::Failed,
+  )
+  // RFC 7232 3.2: If-None-Match uses the weak comparison - the weak
+  // spelling of the current tag does match.
+  assert_eq(
+    @caldav.check_preconditions(Some("aaa"), None, Some("W/\"aaa\"")),
+    @caldav.Precondition::Failed,
+  )
+  // An unquoted token is no entity tag on the wire at all.
+  assert_eq(
+    @caldav.check_preconditions(Some("aaa"), Some("aaa"), None),
+    @caldav.Precondition::Failed,
   )
   assert_eq(
     @caldav.check_preconditions(Some("aaa"), Some("\"bbb\""), None),
