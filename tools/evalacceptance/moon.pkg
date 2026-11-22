@@ -5,7 +5,7 @@ import {
   "moonbitlang/core/env",
   "moonbitlang/x/fs",
 }
+
 supported_targets = "+native"
-options(
-  "is-main": true,
-)
+
+pkgtype(kind: "executable")
