@@ -58,7 +58,7 @@ moon run cmd/serve --target native -- ./caldata 8437
 
 - 日历家 `http://127.0.0.1:8437/cal/`；客户端发现从 `/.well-known/caldav` 进。
 - 每个响应记一行 `METHOD path -> status`。REPORT 求值失败在 stderr 记录资源 href 与固定错误类别，不输出原始日历正文；其它 handler 错误沿用现有日志路径。日志放在日历数据目录外。
-- **所有 `@stdio` 写经全局信号量串行化**（S51）：访问日志、错误日志、路由 500 记录、求值失败记录四处共用一把 `Semaphore(1)`。根因在上游——`moonbitlang/async@0.22.5` 的并发 `@stdio` 写会在第二个并发连接上杀死整个进程（20 行无项目代码的裸 TCP 服务器同样复现，已报上游 moonbitlang/async#732）；访问日志自 S24 起让每个请求都成了写者，Thunderbird 默认开多条连接，锁是必需的。
+- **`@stdio` 写历史上经全局信号量串行化**（S51 引入，S76 移除）：访问日志、错误日志、路由 500 记录、求值失败记录四处曾共用一把 `Semaphore(1)`，规避上游并发 `@stdio` 写杀死进程的缺陷（20 行无项目代码的裸 TCP 服务器同样复现，已报上游 moonbitlang/async#732）。上游以 PR #735 "allow concurrent write over stdio channels" 修复后，规避锁于 2026-11-22 移除——移除后并发竞态套件（s7 的同 UID 恰一赢家与 8 并发异 UID）实测无回归。
 - **无 TLS、无认证、无 ACL**——这是明确范围：暴露到不可信网络前必须放在带 TLS 和认证的反代后面（README 边界一节）。
 - 服务器只用 native 目标（`@async/fs` 在 js 目标是空壳）。
 

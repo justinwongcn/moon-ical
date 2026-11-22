@@ -11,7 +11,7 @@
 
 ## 工具链与 MoonBit 硬规则
 
-`moon 0.1.20261104 / moonc v0.10.20`（S36 已按 v0.10.20 迁移全仓：`#derive` 前置、`to_string_view()`/`clamped_view` 替代弃用的 `.view()`/切片糖），特性开关 `rr_moon_mod + rr_moon_pkg`（元数据是 `moon.mod` / `moon.pkg`）。动手前先 `moon version --all`；写代码前按 AGENTS.md 的表加载对应 `.agents/skills/` 技能。最容易踩的：
+`moon 0.1.20261119 / moonc v0.10.22+124d61d05`（2026-11-22 升级,配对 async@0.22.10——旧 moonc v0.10.20/21 的 wasm-gc 代码生成对 0.22.10 会产出 V8 拒绝的模块,升级即解）（S36 已按 v0.10.20 迁移全仓：`#derive` 前置、`to_string_view()`/`clamped_view` 替代弃用的 `.view()`/切片糖），特性开关 `rr_moon_mod + rr_moon_pkg`（元数据是 `moon.mod` / `moon.pkg`）。动手前先 `moon version --all`；写代码前按 AGENTS.md 的表加载对应 `.agents/skills/` 技能。最容易踩的：
 
 - **导入只写 `moon.pkg`**；`.mbt` 文件里写 `import "..."` 是硬错误（3001/3002）。测试专用导入用 `import { … } for "test"`。
 - **模块根下的 `moon run x.mbtx` 从 mooncakes 注册表解析自模块 import，不是工作区**（实证：给本地包加语法错误，脚本照样运行——它测的是已发布的 0.5.0）。对工作区代码做行为验证，一律用模块内临时主包（`tmpfuzz/`，`pkgtype(kind: "executable")`，`moon run tmpfuzz --`，用后即删）。
@@ -70,5 +70,4 @@ S0–S35 和 R1–R14 是已有历史；0.4.0 与 0.5.0（2026-10-31）均已发
 
 S36–S60 是 2026-11-13/15/18 的三连波加一次收窄落地（工具链迁移 → JEV 审计修复 → 黑客轮实机攻击与成熟方案对齐 → 广告集执行），已入库**未推送**：S36 迁移 v0.10.20；S37 修递归/变更语义四处缺陷；S38-S53/S55 为实机攻击面修复（存储毒化 XML、走私头、超长名、可证空预算、双根 XML 杀进程、并发连接杀进程、PUT 前置校验、sabre 语料）与 S43-S52 的方法面补齐（文件级 PROPFIND/REPORT、HEAD、scoped Allow）；S56/S57 把可证空证明推广成形状不相交穷举并按 RFC 拒绝 WEEKLY;BYMONTHDAY；S60 把 PUT 门收窄到集合自己宣传的 VEVENT-only 组件集（METHOD/混合类型 → valid-calendar-object-resource，非 VEVENT 实体 → supported-calendar-component）。**破坏性变更：WEEKLY+BYMONTHDAY 从宽容过滤变为拒绝；VTODO/VJOURNAL/VFREEBUSY 从可存储变为 403**。S61-S73 为 11-19 审计波（UID 唯一性、重复行门界、条件 GET、原子写、流水线、分帧边界、Expect 100-continue）。详见 `docs/PROGRESS.md` 里程碑表。
 
-依赖约束：moonbitlang/async 钉在 0.22.5。上游已修复并发 stdio 崩溃（#732/#735）并适配新 core（#737），但配对错配还在上一层：moonc v0.10.21 的 wasm-gc 代码生成对 async 0.22.10 的共享全局模式产出了 V8 拒绝的模块（native/js/wasm 同代码全过，冷构建实测），公开异步入口缺口另有 issue #729 追踪。等一个四目标全过的发布再升；期间异步自动化一律用模块内主包而非脚本模式（脚本模式依赖缓存跟随注册表最新版）。
 2026-11-19 全目标严格测试为 310/310/290/321（wasm/wasm-gc/js/native），S5 24/24、S6 91/91、S7 34/34 活体全绿。S73 起 `Expect: 100-continue` 被尊重（读体前写 100）。S61-S72 是 11-19 的审计波（no-uid-conflict、重复属性行门界、条件 GET 304、原子写、流水线缓冲、comp-filter 大小写、HEAD 错误无体）；PUT 门收窄为 VEVENT-only 与广告集等宽。能力范围与证据对应表见手册 §11；明确拒绝的输入不能在申请材料里改称通用处理。

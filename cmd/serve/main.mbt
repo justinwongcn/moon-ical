@@ -47,14 +47,13 @@
 /// concurrently (probed live: two parallel requests killed the server with
 /// zero output; a stdout-free minimal server survives the same burst), so
 /// the access log and the error log take this one-slot lock first.
-let stdio_lock : @async.Semaphore = @async.Semaphore(1)
 
 ///|
 /// Serializes the read-index-then-write section of a `PUT`. The
 /// no-uid-conflict index is rebuilt per write from the collection's
 /// files, so two concurrent `PUT`s could each scan before either writes
 /// and both would store the same UID — measured live (two 201s on the
-/// same UID). Same cure as `stdio_lock` (S51).
+/// same UID).
 let put_lock : @async.Semaphore = @async.Semaphore(1)
 
 ///|
@@ -142,7 +141,6 @@ async fn reply(
   // body onto a HEAD response verbatim.
   let bodyless = head || request.meth == "HEAD"
   @httpd.respond(conn, code, reason, headers~, body~, head=bodyless)
-  stdio_lock.acquire()
   // A 4xx/5xx answer whose body is a DAV:error document gets the
   // violated element's name on the log line — "PUT /cal/x -> 403"
   // alone left ops guessing which precondition fired, when the name is
@@ -150,7 +148,6 @@ async fn reply(
   let tag = if code >= 400 { error_element(body) } else { "" }
   let suffix = if tag != "" { " [\{tag}]" } else { "" }
   @stdio.stdout.write("\{request.meth} \{request.path} -> \{code}\{suffix}\n")
-  stdio_lock.release()
 }
 
 ///|
@@ -177,9 +174,7 @@ fn error_element(body : String) -> String {
 /// A failure that is the server's, not the client's, goes to stderr so
 /// an operator sees more than a bare 500.
 async fn log_error(err : Error) -> Unit {
-  stdio_lock.acquire()
   @stdio.stderr.write("handler error: \{err}\n")
-  stdio_lock.release()
 }
 
 ///|
@@ -224,9 +219,7 @@ async fn handle_connection(
               @httpd.respond(conn, 500, "Internal Server Error", headers=[
                 ("Connection", "close"),
               ])
-              stdio_lock.acquire()
               @stdio.stdout.write("\{request.meth} \{request.path} -> 500\n")
-              stdio_lock.release()
               Stop
             }
           }
@@ -873,9 +866,7 @@ async fn report_resources(
     @caldav.ReportOutcome::UnsupportedReport =>
       reply(conn, request, 400, "Bad Request", body="unsupported REPORT")
     @caldav.ReportOutcome::EvaluationFailed(reason~) => {
-      stdio_lock.acquire()
       @stdio.stderr.write("REPORT evaluation failed: \{reason}\n")
-      stdio_lock.release()
       reply(
         conn,
         request,
