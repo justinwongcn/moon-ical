@@ -1,0 +1,9 @@
+import {
+  "justinwongcn/moon-ical/ical/model",
+  "justinwongcn/moon-ical/ical/rrule",
+  "justinwongcn/moon-ical/ical/text",
+  "moonbitlang/core/env",
+}
+options(
+  "is-main": true,
+)
