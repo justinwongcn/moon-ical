@@ -203,6 +203,12 @@ complete protocol or calendar semantics.
   beside existing events. A bare top-level VEVENT yields no typed events.
 - EXDATE at an override's original slot removes it; the override does not
   resurrect that instance.
+- moonbitlang/async is pinned at 0.22.5: newer releases reference
+  `runtime_internal.timer_id`, a symbol the current toolchain core no longer
+  exports, so a clean build fails on any target until upstream adapts to the
+  new core. Async automation lives in in-module packages
+  (tools/evalacceptance) rather than script-mode files, whose dependency
+  cache pulls the incompatible version.
 
 See [OpenWiki](openwiki/quickstart.md) for the package map and calculation
 contracts. This is an independent implementation under Apache-2.0;
