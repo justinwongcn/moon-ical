@@ -204,14 +204,16 @@ complete protocol or calendar semantics.
   beside existing events. A bare top-level VEVENT yields no typed events.
 - EXDATE at an override's original slot removes it; the override does not
   resurrect that instance.
-- moonbitlang/async is pinned at 0.22.5. Upstream has since fixed the
-  concurrent-stdio crash (issue #732, PR #735) and adapted to the new
-  toolchain core (PR #737), but the resulting 0.22.10 release still fails
-  this project's wasm-gc gate: the httpd test binary fails V8 validation
-  (`global.set` type mismatch in the async init) and test packages hit a
-  missing `run_async_main`. Revisit when a release passes all four targets;
-  async automation lives in in-module packages (tools/evalacceptance) rather
-  than script-mode files, whose dependency cache tracks the registry latest.
+- moonbitlang/async is pinned at 0.22.5. Upstream fixed the concurrent-stdio
+  crash (issue #732, PR #735) and adapted to the new toolchain core
+  (PR #737), but the pairing is still broken one level up: moonc v0.10.21's
+  wasm-gc codegen produces a module V8 rejects for async 0.22.10
+  (`global.set` type mismatch in the async init) while native, js and
+  classic wasm compile the same code fine - measured on a cold build. The
+  public-async-entry gap is tracked upstream as issue #729. Revisit when a
+  release passes all four targets; async automation lives in in-module
+  packages (tools/evalacceptance) rather than script-mode files, whose
+  dependency cache tracks the registry latest.
 
 See [OpenWiki](openwiki/quickstart.md) for the package map and calculation
 contracts. This is an independent implementation under Apache-2.0;
